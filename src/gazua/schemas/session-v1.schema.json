@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/session-v1.schema.json",
+  "$defs": {
+    "JsonValue": {},
+    "SessionActor": {
+      "additionalProperties": false,
+      "description": "Who calls the tools during this execution.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "attacker",
+            "victim"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "role"
+      ],
+      "title": "SessionActor",
+      "type": "object"
+    },
+    "SessionInjection": {
+      "additionalProperties": false,
+      "description": "Attack text appended to text results of one tool.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "tool": {
+          "minLength": 1,
+          "title": "Tool",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "max_deliveries": {
+          "minimum": 1,
+          "title": "Max Deliveries",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "tool",
+        "text",
+        "max_deliveries"
+      ],
+      "title": "SessionInjection",
+      "type": "object"
+    },
+    "SessionTool": {
+      "additionalProperties": false,
+      "description": "What the wrapper does with one tool. Gazua computes ``dry_run`` from the declarations.",
+      "properties": {
+        "dry_run": {
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "actor_arg": {
+          "anyOf": [
+            {
+              "pattern": "^[^\\W\\d]\\w*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Actor Arg"
+        },
+        "has_dry_run_return": {
+          "title": "Has Dry Run Return",
+          "type": "boolean"
+        },
+        "dry_run_return": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": [
+        "dry_run",
+        "actor_arg",
+        "has_dry_run_return",
+        "dry_run_return"
+      ],
+      "title": "SessionTool",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Everything the tested process needs to know about the current execution.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "run_id": {
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "tools",
+        "agent"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "call_log": {
+      "minLength": 1,
+      "title": "Call Log",
+      "type": "string"
+    },
+    "actor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SessionActor"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "as_user": {
+      "anyOf": [
+        {
+          "pattern": "^[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*:[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "As User"
+    },
+    "tools": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SessionTool"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Tools",
+      "type": "object"
+    },
+    "injections": {
+      "items": {
+        "$ref": "#/$defs/SessionInjection"
+      },
+      "title": "Injections",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "mode",
+    "call_log",
+    "actor",
+    "as_user",
+    "tools",
+    "injections"
+  ],
+  "title": "Gazua session",
+  "type": "object"
+}
