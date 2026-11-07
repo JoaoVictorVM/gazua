@@ -4,7 +4,7 @@ Gazua is an open source security test suite for AI agents. It attacks an agent t
 
 Other tools ask whether the model refused; Gazua proves whether the code stops the attack.
 
-> **Status: early pre-release.** This package contains the project foundation only: `gazua --help` and `gazua --version`. It cannot run attacks yet, and it makes no claim about the resistance of any agent.
+> **Status: early pre-release.** This package contains the project foundation and project configuration: `gazua --help`, `gazua --version` and `gazua init`. It cannot run attacks yet, and it makes no claim about the resistance of any agent.
 
 ## Installation
 
@@ -27,9 +27,18 @@ Every change is verified on Windows and Ubuntu with Python 3.11 and Python 3.14.
 |---|---|
 | `gazua` or `gazua --help` | Shows the help |
 | `gazua --version` | Shows the installed version |
+| `gazua init` | Finds the tools in a project by reading its source code and writes `gazua.yaml` for your review |
 | `python -m gazua` | Same behavior as `gazua` |
 
-Attack execution, reports and project configuration are planned, and their commands will appear in the help only when they ship.
+Attack execution and reports are planned, and their commands will appear in the help only when they ship.
+
+## Configuration
+
+`gazua init` writes a `gazua.yaml` with suggestions marked `REVIEW REQUIRED` and adds `.gazua/` to `.gitignore`. It never imports your project, and it never marks a tool as safe.
+
+`gazua.yaml` can execute code, because `entrypoint` and the target hooks point to Python functions that a future execution can call. Review it the way you review code.
+
+See [the configuration guide](docs/configuration.md) for the fields, the limits of tool discovery and what happens when a declaration is missing. The JSON Schema is at [`src/gazua/schemas/config-v1.schema.json`](src/gazua/schemas/config-v1.schema.json).
 
 ## Threat model
 

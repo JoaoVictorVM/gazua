@@ -1,0 +1,394 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/config-v1.schema.json",
+  "$defs": {
+    "FixtureRecord": {
+      "additionalProperties": false,
+      "description": "A synthetic record that belongs to an identity.",
+      "properties": {
+        "tool": {
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f]+$",
+          "title": "Tool",
+          "type": "string"
+        },
+        "id_arg": {
+          "pattern": "^[^\\W\\d]\\w*$",
+          "title": "Id Arg",
+          "type": "string"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Id"
+        }
+      },
+      "required": [
+        "tool",
+        "id_arg",
+        "id"
+      ],
+      "title": "FixtureRecord",
+      "type": "object"
+    },
+    "Fixtures": {
+      "additionalProperties": false,
+      "description": "Test identities. Each side is optional because each attack decides what it needs.",
+      "properties": {
+        "attacker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "victim": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Fixtures",
+      "type": "object"
+    },
+    "Gate": {
+      "additionalProperties": false,
+      "description": "Severities that fail the gate. An empty list turns the severity gate off.",
+      "properties": {
+        "fail_on": {
+          "default": [
+            "high",
+            "critical"
+          ],
+          "items": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "type": "string"
+          },
+          "title": "Fail On",
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "title": "Gate",
+      "type": "object"
+    },
+    "Identity": {
+      "additionalProperties": false,
+      "description": "A synthetic identity used by attacks between users.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/FixtureRecord"
+          },
+          "title": "Records",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Identity",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "LegitTask": {
+      "additionalProperties": false,
+      "description": "A legitimate request and the tool it is expected to use.",
+      "properties": {
+        "request": {
+          "minLength": 1,
+          "title": "Request",
+          "type": "string"
+        },
+        "expected_tool": {
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f]+$",
+          "title": "Expected Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request",
+        "expected_tool"
+      ],
+      "title": "LegitTask",
+      "type": "object"
+    },
+    "Limits": {
+      "additionalProperties": false,
+      "description": "Ceilings of a run. Durations are in seconds and costs in USD.",
+      "properties": {
+        "max_runs": {
+          "default": 300,
+          "exclusiveMinimum": 0,
+          "title": "Max Runs",
+          "type": "integer"
+        },
+        "timeout": {
+          "default": 120,
+          "exclusiveMinimum": 0,
+          "title": "Timeout",
+          "type": "number"
+        },
+        "max_tool_calls": {
+          "default": 50,
+          "exclusiveMinimum": 0,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        },
+        "concurrency": {
+          "default": 2,
+          "exclusiveMinimum": 0,
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "max_cost": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Cost"
+        },
+        "cost_per_run": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Per Run"
+        }
+      },
+      "title": "Limits",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "description": "References to the target's hooks. They stay as text until an authorized execution.",
+      "properties": {
+        "reset": {
+          "anyOf": [
+            {
+              "pattern": "^[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*:[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reset"
+        },
+        "as_user": {
+          "anyOf": [
+            {
+              "pattern": "^[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*:[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As User"
+        }
+      },
+      "title": "Target",
+      "type": "object"
+    },
+    "Tool": {
+      "additionalProperties": false,
+      "description": "Declaration of one tool. A missing classification is preserved, never assumed false.",
+      "properties": {
+        "safe": {
+          "default": false,
+          "title": "Safe",
+          "type": "boolean"
+        },
+        "sensitive": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sensitive"
+        },
+        "forbidden": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Forbidden"
+        },
+        "owner_arg": {
+          "anyOf": [
+            {
+              "pattern": "^[^\\W\\d]\\w*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner Arg"
+        },
+        "actor_arg": {
+          "anyOf": [
+            {
+              "pattern": "^[^\\W\\d]\\w*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actor Arg"
+        },
+        "dry_run_return": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "title": "Tool",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Declarative configuration of a project tested by Gazua.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "entrypoint": {
+      "anyOf": [
+        {
+          "pattern": "^[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*:[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Entrypoint"
+    },
+    "target": {
+      "$ref": "#/$defs/Target"
+    },
+    "tools": {
+      "patternProperties": {
+        "^[^\\x00-\\x1f\\x7f-\\x9f]+$": {
+          "$ref": "#/$defs/Tool"
+        }
+      },
+      "propertyNames": {
+        "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f]+$"
+      },
+      "title": "Tools",
+      "type": "object"
+    },
+    "limits": {
+      "$ref": "#/$defs/Limits"
+    },
+    "fixtures": {
+      "$ref": "#/$defs/Fixtures"
+    },
+    "canaries": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Canaries",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "output_sink": {
+      "anyOf": [
+        {
+          "pattern": "^[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*:[^\\W\\d]\\w*(?:\\.[^\\W\\d]\\w*)*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Sink"
+    },
+    "gate": {
+      "$ref": "#/$defs/Gate"
+    },
+    "legit_tasks": {
+      "items": {
+        "$ref": "#/$defs/LegitTask"
+      },
+      "title": "Legit Tasks",
+      "type": "array"
+    },
+    "allowed_targets": {
+      "default": [
+        "localhost",
+        "127.0.0.1",
+        "::1"
+      ],
+      "items": {
+        "pattern": "^(?:[A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_])?|[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*)$",
+        "type": "string"
+      },
+      "title": "Allowed Targets",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version"
+  ],
+  "title": "Gazua configuration",
+  "type": "object"
+}

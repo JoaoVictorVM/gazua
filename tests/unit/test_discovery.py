@@ -322,6 +322,26 @@ def test_discovery_skips_windows_junctions(tmp_path: Path) -> None:
     assert names(discover_tools(root)) == ["visible"]
 
 
+def test_unreadable_directory_makes_discovery_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write(tmp_path, "locked/agent.py", "import gazua\n@gazua.tool\ndef hidden(): ...\n")
+    real_scandir = os.scandir
+
+    def deny_locked(path):
+        if Path(path).name == "locked":
+            raise PermissionError(13, "denied", str(path))
+        return real_scandir(path)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(os, "scandir", deny_locked)
+        result = discover_tools(tmp_path)
+
+    assert result.tools == ()
+    assert not result.complete
+    assert result.warnings[0].file == "locked"
+
+
 def test_only_python_files_are_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     write(tmp_path, ".env", "OPENAI_API_KEY=sentinel\n")
     write(tmp_path, "notes.txt", "text\n")

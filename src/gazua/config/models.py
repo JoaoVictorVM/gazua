@@ -6,6 +6,7 @@ import ipaddress
 import json
 import re
 from enum import StrEnum
+from importlib.resources import files
 from typing import Annotated, Any, Final, Literal, LiteralString, TypeVar
 
 from pydantic import (
@@ -225,7 +226,10 @@ class GazuaConfig(_Declaration):
     schema_version: Literal[1]
     entrypoint: Reference | None = None
     target: Target = Field(default_factory=Target)
-    tools: dict[ToolName, Tool] = Field(default_factory=dict[str, Tool])
+    tools: dict[ToolName, Tool] = Field(
+        default_factory=dict[str, Tool],
+        json_schema_extra={"propertyNames": {"pattern": _TOOL_NAME_PATTERN}},
+    )
     limits: Limits = Field(default_factory=Limits)
     fixtures: Fixtures = Field(default_factory=Fixtures)
     canaries: Annotated[list[NonEmptyText], AfterValidator(_check_unique)] = Field(
@@ -247,6 +251,12 @@ class GazuaConfig(_Declaration):
 def build_json_schema() -> dict[str, Any]:
     schema = GazuaConfig.model_json_schema(mode="validation")
     return {"$schema": SCHEMA_DIALECT, "$id": SCHEMA_URL, **schema}
+
+
+def packaged_json_schema() -> str:
+    """The schema file distributed with this package, read without network access."""
+    resource = files("gazua").joinpath("schemas/config-v1.schema.json")
+    return resource.read_text(encoding="utf-8")
 
 
 def render_json_schema() -> str:

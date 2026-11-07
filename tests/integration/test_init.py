@@ -7,10 +7,13 @@ from typing import Any
 
 import pytest
 import typer
+import yaml
+from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
 
 from gazua import cli, project_init
 from gazua.config import ToolClass, load_config
+from gazua.config.models import packaged_json_schema
 
 Spy = Callable[..., dict[str, Any]]
 
@@ -403,6 +406,27 @@ def test_invalid_field_exits_2_and_names_file_line_and_field(tmp_path: Path) -> 
     )
     assert "Traceback" not in result.stderr
     assert "-3" not in result.stderr.replace(str(config), "")
+
+
+@pytest.mark.parametrize("source", [AGENT, ""], ids=["with-tools", "empty-project"])
+def test_published_schema_validates_generated_file(tmp_path: Path, source: str) -> None:
+    (tmp_path / "agent.py").write_text(source, encoding="utf-8")
+    project_init.initialize_project(tmp_path)
+    schema = json.loads(packaged_json_schema())
+    document = yaml.safe_load((tmp_path / "gazua.yaml").read_text(encoding="utf-8"))
+
+    assert list(Draft202012Validator(schema).iter_errors(document)) == []
+    assert document["schema_version"] == 1
+
+
+def test_generated_config_points_editors_to_the_schema(tmp_path: Path) -> None:
+    project_init.initialize_project(tmp_path)
+
+    first_line = (tmp_path / "gazua.yaml").read_text(encoding="utf-8").splitlines()[0]
+
+    assert (
+        first_line == f"# yaml-language-server: $schema={json.loads(packaged_json_schema())['$id']}"
+    )
 
 
 def test_generated_config_has_only_declared_fields(tmp_path: Path) -> None:

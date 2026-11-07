@@ -1,3 +1,4 @@
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -6,6 +7,7 @@ from typing import Any
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+from jsonschema import Draft202012Validator
 
 from gazua.config import (
     AbsenceResult,
@@ -19,6 +21,9 @@ from gazua.config import (
     tool_not_found,
 )
 from gazua.config.loader import MAX_DEPTH, MAX_FILE_BYTES
+from gazua.config.models import build_json_schema, packaged_json_schema, render_json_schema
+
+SCHEMA_RELATIVE_PATH = "src/gazua/schemas/config-v1.schema.json"
 
 HEADER = "schema_version: 1\n"
 REVIEWED = """\
@@ -605,6 +610,81 @@ def sentinel_module(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     sys.modules.pop(name, None)
 
 
+def test_schema_matches_models_and_examples(project_root: Path) -> None:
+    published = (project_root / SCHEMA_RELATIVE_PATH).read_text(encoding="utf-8")
+    schema = json.loads(published)
+
+    assert published == render_json_schema(), "run .github/scripts/generate_config_schema.py"
+    assert render_json_schema() == render_json_schema()
+    assert packaged_json_schema() == published
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert schema["$id"].endswith(SCHEMA_RELATIVE_PATH)
+    assert "properties" in schema
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+
+    for example in (HEADER, HEADER + "tools:\n  a: {}\n", REVIEWED):
+        document = load(example).config.to_document()
+        assert list(validator.iter_errors(document)) == []
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {},
+        {"schema_version": 2},
+        {"schema_version": True},
+        {"schema_version": 1, "unknown": 1},
+        {"schema_version": 1, "limits": {"max_runs": 0}},
+        {"schema_version": 1, "limits": {"max_runs": True}},
+        {"schema_version": 1, "limits": {"max_runs": 1.5}},
+        {"schema_version": 1, "limits": {"timeout": 0}},
+        {"schema_version": 1, "limits": {"cost_per_run": -1}},
+        {"schema_version": 1, "limits": {"max_cost": 0}},
+        {"schema_version": 1, "tools": {"a": {"safe": "false"}}},
+        {"schema_version": 1, "tools": {"a": {"classification": "regular"}}},
+        {"schema_version": 1, "tools": {"a": {"owner_arg": "not-python"}}},
+        {"schema_version": 1, "tools": {"a\tb": {}}},
+        {"schema_version": 1, "entrypoint": "module"},
+        {"schema_version": 1, "entrypoint": "os.system('x'):y"},
+        {"schema_version": 1, "target": {"reset": "a:b:c"}},
+        {"schema_version": 1, "gate": {"fail_on": ["huge"]}},
+        {"schema_version": 1, "gate": {"fail_on": ["high", "high"]}},
+        {"schema_version": 1, "canaries": ["a", "a"]},
+        {"schema_version": 1, "canaries": [""]},
+        {"schema_version": 1, "legit_tasks": [{"request": ""}]},
+        {"schema_version": 1, "allowed_targets": ["http://example.test"]},
+        {"schema_version": 1, "allowed_targets": ["example.test/path"]},
+        {"schema_version": 1, "allowed_targets": ["*.example.test"]},
+        {"schema_version": 1, "fixtures": {"attacker": {"records": []}}},
+    ],
+)
+def test_schema_and_loader_reject_the_same_structure(document: dict[str, Any]) -> None:
+    schema_errors = list(Draft202012Validator(build_json_schema()).iter_errors(document))
+
+    assert schema_errors
+    with pytest.raises(ConfigError):
+        load(json.dumps(document))
+
+
+def test_schema_does_not_describe_absent_return_as_null() -> None:
+    properties = build_json_schema()["$defs"]["Tool"]["properties"]
+
+    assert "default" not in properties["dry_run_return"]
+    assert properties["safe"]["default"] is False
+
+
+def test_relations_are_checked_only_by_the_loader() -> None:
+    document = {
+        "schema_version": 1,
+        "fixtures": {"attacker": {"id": "same"}, "victim": {"id": "same"}},
+        "legit_tasks": [{"request": "hi", "expected_tool": "nope"}],
+    }
+
+    assert list(Draft202012Validator(build_json_schema()).iter_errors(document)) == []
+    assert len(errors_of(json.dumps(document))) == 2
+
+
 def test_reference_resolution_is_explicit(
     sentinel_module: tuple[str, Path], tmp_path: Path
 ) -> None:
@@ -675,6 +755,14 @@ def test_reference_resolution_survives_system_exit(
 
     with pytest.raises(ConfigError, match="SystemExit"):
         resolve_reference(f"{name}:x", "entrypoint")
+
+
+@given(
+    text=st.text(alphabet=st.sampled_from(list("ab:-[]{}!&*#'\"\n \t.~,?|>%@`0\x07")), max_size=60)
+)
+def test_arbitrary_text_only_fails_with_diagnostics(text: str) -> None:
+    with contextlib.suppress(ConfigError):
+        load(HEADER + text)
 
 
 json_text = st.text(

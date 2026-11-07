@@ -93,13 +93,23 @@ def _is_link(path: Path) -> bool:
     # On Windows with Python 3.11, os.walk and is_symlink do not see directory junctions.
     if path.is_symlink():
         return True
-    attributes: int = getattr(os.lstat(path), "st_file_attributes", 0)
+    try:
+        attributes: int = getattr(os.lstat(path), "st_file_attributes", 0)
+    except OSError:
+        return True
     return bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
 
 
-def _python_files(root: Path) -> list[Path]:
+def _python_files(root: Path, unreadable: list[Diagnostic]) -> list[Path]:
+    def report_unreadable(error: OSError) -> None:
+        where = Path(error.filename).relative_to(root).as_posix() if error.filename else "."
+        message = "This directory could not be read; declare its tools manually."
+        unreadable.append(_warning(where, None, "", message))
+
     found: list[Path] = []
-    for directory, subdirectories, files in os.walk(root, followlinks=False):
+    for directory, subdirectories, files in os.walk(
+        root, onerror=report_unreadable, followlinks=False
+    ):
         current = Path(directory)
         subdirectories[:] = sorted(
             name
@@ -458,7 +468,7 @@ def discover_tools(root: Path) -> DiscoveryResult:
     symbols: list[_Symbol] = []
     found_warnings: list[Diagnostic] = []
     entrypoint_files: list[str] = []
-    for path in _python_files(root):
+    for path in _python_files(root, found_warnings):
         report = _analyze(root, path)
         symbols.extend(report.symbols)
         found_warnings.extend(report.warnings)
