@@ -140,7 +140,7 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
             re.split(r"[<>=!~ ;\[]", requirement, maxsplit=1)[0].lower()
             for requirement in metadata.get_all("Requires-Dist") or []
         }
-        assert required == {"jinja2", "pydantic", "typer"}
+        assert required == {"jinja2", "pydantic", "pyyaml", "typer"}
 
     entry_points = wheel_files[f"{dist_info}/entry_points.txt"].decode("utf-8")
     assert "gazua = gazua._bootstrap:main" in entry_points
