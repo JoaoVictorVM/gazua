@@ -4,7 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -201,3 +201,16 @@ def policy() -> Callable[..., dict[str, Any]]:
 @pytest.fixture
 def read_log() -> Callable[[Path], list[dict[str, Any]]]:
     return read_records
+
+
+@pytest.fixture(autouse=True)
+def _fresh_tool_state() -> Iterator[None]:
+    """Tools wrapped by one test must not appear in the next one's registry."""
+    yield
+    from gazua.integration.injection import reset_deliveries
+    from gazua.integration.proxy import clear_identity_hooks
+    from gazua.integration.registry import registry
+
+    registry.clear()
+    reset_deliveries()
+    clear_identity_hooks()

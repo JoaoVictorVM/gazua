@@ -9,6 +9,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from jsonschema import Draft202012Validator
 
+import gazua
 from gazua.integration.calllog import (
     MAX_VALUE_CHARS,
     CallLog,
@@ -201,3 +202,76 @@ def test_any_name_and_arguments_are_written_and_read_back(
     assert line["tool"] == name
     assert set(line["arguments"]) == set(arguments)
     Draft202012Validator(build_call_record_json_schema()).validate(line)
+
+
+PRIVATE_RESULT = "result-value-that-must-stay-out-of-the-log"
+
+
+def transfer(amount: int, to: str, user_id: str = "") -> dict[str, str]:
+    return {"secret": PRIVATE_RESULT, "user": user_id}
+
+
+def explode(value: str) -> None:
+    raise ValueError(f"failed with {value}")
+
+
+@pytest.fixture
+def wrapper_log(start_session: Callable[..., Path], policy: Callable[..., dict[str, Any]]) -> Path:
+    return start_session(
+        actor={"id": "attacker-1", "role": "attacker"},
+        tools={
+            "transfer": policy(dry_run=False, actor_arg="user_id"),
+            "explode": policy(dry_run=False),
+        },
+    )
+
+
+def test_log_records_order_arguments_actor_and_flags(wrapper_log: Path, read_log: ReadLog) -> None:
+    proxied_transfer, proxied_explode = gazua.wrap([transfer, explode])
+
+    proxied_transfer(10, to="bob", user_id="chosen-by-the-model")
+    with pytest.raises(ValueError, match="failed"):
+        proxied_explode("argument")
+    gazua.wrap({"unknown": transfer})["unknown"](1, "x")
+
+    first, second, third = read_log(wrapper_log)
+    assert [first["seq"], second["seq"], third["seq"]] == [1, 2, 3]
+    assert first["arguments"] == {"amount": 10, "to": "bob", "user_id": "attacker-1"}
+    assert first["actor"] == {"id": "attacker-1", "source": "actor_arg"}
+    assert (first["dry_run"], first["outcome"], first["result_type"]) == (False, "returned", "dict")
+    assert second["outcome"] == "raised"
+    assert second["error"] == {"type": "ValueError"}
+    assert second["actor"] == {"id": None, "source": "none"}
+    assert (third["undeclared"], third["dry_run"], third["low_fidelity"]) == (True, True, True)
+
+
+def test_log_never_contains_return_values_or_error_messages(
+    wrapper_log: Path, read_log: ReadLog
+) -> None:
+    proxied_transfer, proxied_explode = gazua.wrap([transfer, explode])
+
+    assert proxied_transfer(1, "bob")["secret"] == PRIVATE_RESULT
+    with pytest.raises(ValueError, match="failed"):
+        proxied_explode("argument")
+
+    content = wrapper_log.read_text(encoding="utf-8")
+    assert PRIVATE_RESULT not in content
+    assert "failed with" not in content
+
+
+def test_wrapper_output_validates_against_published_schemas(
+    wrapper_log: Path, read_log: ReadLog
+) -> None:
+    proxied_transfer, proxied_explode = gazua.wrap([transfer, explode])
+    proxied_transfer(1, Opaque())
+    proxied_transfer(2, "x" * 10_000)
+    with pytest.raises(ValueError, match="failed"):
+        proxied_explode("argument")
+    session = json.loads((wrapper_log.parent / "session.json").read_text(encoding="utf-8"))
+
+    Draft202012Validator(build_session_json_schema()).validate(session)
+    validator = Draft202012Validator(build_call_record_json_schema())
+    lines = read_log(wrapper_log)
+    for line in lines:
+        validator.validate(line)
+    assert lines[1]["truncated"] is True

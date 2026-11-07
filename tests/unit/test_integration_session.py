@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import sys
@@ -6,7 +7,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
+import gazua
+from gazua.integration.errors import GazuaBlockedError
 from gazua.integration.session import (
     MAX_SESSION_BYTES,
     SESSION_ENV,
@@ -185,3 +190,148 @@ def test_session_without_read_permission_is_invalid(
         pytest.skip("running with privileges that ignore file permissions")
 
     assert session_state() == InvalidSession("session_unreadable")
+
+
+class Spy:
+    def __init__(self) -> None:
+        self.calls: list[tuple[Any, ...]] = []
+
+    def __call__(self, *args: Any) -> str:
+        self.calls.append(args)
+        return "real result"
+
+
+def make_tool(spy: Spy, name: str = "delete_account") -> Callable[..., str]:
+    def tool(account: str) -> str:
+        return spy(account)
+
+    tool.__name__ = name
+    return tool
+
+
+def test_no_session_is_passthrough(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv(SESSION_ENV, raising=False)
+    monkeypatch.chdir(tmp_path)
+    spy = Spy()
+    tools = [make_tool(spy)]
+    mapping = {"delete_account": tools[0]}
+
+    assert gazua.wrap(tools) is tools
+    assert gazua.wrap(mapping) is mapping
+    assert gazua.tool(tools[0]) is tools[0]
+    assert tools[0]("a") == "real result"
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "corrupt",
+    [
+        pytest.param(lambda path: path.unlink(), id="removed"),
+        pytest.param(lambda path: path.write_text("{", encoding="utf-8"), id="malformed"),
+        pytest.param(
+            lambda path: path.write_text('{"schema_version": 9}', encoding="utf-8"),
+            id="version",
+        ),
+        pytest.param(lambda path: path.write_bytes(b" " * (MAX_SESSION_BYTES + 1)), id="too-large"),
+        pytest.param(lambda path: (path.unlink(), path.mkdir()), id="not-regular"),
+    ],
+)
+def test_invalid_session_fails_closed(
+    start_session: StartSession, policy: Policy, corrupt: Callable[[Path], object]
+) -> None:
+    log = start_session(tools={"delete_account": policy(dry_run=False)})
+    spy = Spy()
+    (proxy,) = gazua.wrap([make_tool(spy)])
+    corrupt(log.parent / "session.json")
+
+    with pytest.raises(GazuaBlockedError) as raised:
+        proxy("a")
+
+    assert raised.value.reason == "invalid_session"
+    assert spy.calls == []
+
+
+@pytest.mark.parametrize(
+    ("declaration", "dry_run", "expected", "low_fidelity", "undeclared"),
+    [
+        pytest.param({"dry_run": True}, True, "ok", True, False, id="dry-run-generic"),
+        pytest.param(
+            {"dry_run": True, "has_dry_run_return": True, "dry_run_return": [1]},
+            True,
+            [1],
+            False,
+            False,
+            id="dry-run-declared",
+        ),
+        pytest.param({"dry_run": False}, False, "real result", False, False, id="real"),
+        pytest.param(None, True, "ok", True, True, id="undeclared"),
+    ],
+)
+def test_decision_table(
+    start_session: StartSession,
+    policy: Policy,
+    read_log: Callable[[Path], list[dict[str, Any]]],
+    declaration: dict[str, Any] | None,
+    dry_run: bool,
+    expected: object,
+    low_fidelity: bool,
+    undeclared: bool,
+) -> None:
+    tools = {} if declaration is None else {"delete_account": policy(**declaration)}
+    log = start_session(tools=tools)
+    spy = Spy()
+    (proxy,) = gazua.wrap([make_tool(spy)])
+
+    assert proxy("a") == expected
+
+    assert len(spy.calls) == (0 if dry_run else 1)
+    record = read_log(log)[0]
+    assert (record["dry_run"], record["low_fidelity"], record["undeclared"]) == (
+        dry_run,
+        low_fidelity,
+        undeclared,
+    )
+    assert record["outcome"] == "returned"
+
+
+session_documents = st.fixed_dictionaries(
+    {
+        "schema_version": st.sampled_from([1, 1, 1, 2, "1", True]),
+        "run_id": st.text(max_size=5),
+        "mode": st.sampled_from(["agent", "tools", "other"]),
+        "call_log": st.sampled_from(["calls.jsonl", "", "missing/calls.jsonl"]),
+        "actor": st.none() | st.just({"id": "attacker-1", "role": "attacker"}),
+        "as_user": st.none(),
+        "tools": st.fixed_dictionaries(
+            {
+                "delete_account": st.fixed_dictionaries(
+                    {
+                        "dry_run": st.just(True),
+                        "actor_arg": st.none() | st.just("account"),
+                        "has_dry_run_return": st.booleans(),
+                        "dry_run_return": st.none() | st.integers() | st.text(max_size=3),
+                    }
+                )
+            }
+        ),
+        "injections": st.just([]),
+    }
+)
+
+
+@settings(max_examples=100, deadline=None)
+@given(document=session_documents, valid_json=st.booleans())
+def test_dry_run_tool_never_runs_the_original(
+    tmp_path_factory: pytest.TempPathFactory, document: dict[str, Any], valid_json: bool
+) -> None:
+    folder = tmp_path_factory.mktemp("session")
+    path = folder / "session.json"
+    path.write_text(json.dumps(document) if valid_json else "{", encoding="utf-8")
+    spy = Spy()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv(SESSION_ENV, str(path))
+        (proxy,) = gazua.wrap([make_tool(spy)])
+        with contextlib.suppress(GazuaBlockedError, TypeError):
+            proxy("a")
+
+    assert spy.calls == []

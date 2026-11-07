@@ -1,6 +1,6 @@
 """Runs Gazua in this process under observation and writes what it did to a JSON report.
 
-Usage: app_spy.py REPORT_PATH (control | import | load CONFIG | cli [ARGS...])
+Usage: app_spy.py REPORT_PATH (control | import | load CONFIG | wrap [SESSION] | cli [ARGS...])
 """
 
 import contextlib
@@ -59,6 +59,24 @@ def attempt_forbidden_actions() -> None:
             probe.connect(("127.0.0.1", 9))
 
 
+def run_wrapped_tools(arguments: list[str]) -> int:
+    """Calls one real and one dry-run tool, inside the given session or outside of any."""
+    if arguments:
+        os.environ["GAZUA_SESSION"] = arguments[0]
+    import gazua
+
+    def read_note(name: str) -> str:
+        return f"note {name}"
+
+    @gazua.tool
+    def send_email(to: str) -> str:
+        return f"sent to {to}"
+
+    read, send = gazua.wrap([read_note, send_email])
+    report["results"] = [read("a"), send("b")]
+    return 0
+
+
 def run_target(mode: str, arguments: list[str]) -> int:
     if mode == "control":
         attempt_forbidden_actions()
@@ -67,6 +85,8 @@ def run_target(mode: str, arguments: list[str]) -> int:
         __import__("gazua")
         __import__("gazua.cli")
         return 0
+    if mode == "wrap":
+        return run_wrapped_tools(arguments)
     if mode == "load":
         from gazua.config import load_config
 

@@ -10,9 +10,11 @@ class GazuaBlockedError(Exception):
     trusted. ``reason`` is a short code that also goes to the call log.
     """
 
-    def __init__(self, reason: str) -> None:
+    def __init__(self, reason: str, detail: str | None = None) -> None:
         self.reason = reason
-        super().__init__(f"Gazua blocked this tool call ({reason}).")
+        self.detail = detail
+        code = f"{reason}: {detail}" if detail else reason
+        super().__init__(f"Gazua blocked this tool call ({code}).")
 
 
 class UnsupportedToolError(TypeError):
