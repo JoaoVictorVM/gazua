@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from importlib.resources import files
 from typing import Annotated, Any, Final, Literal, LiteralString, TypeAlias, TypeVar, get_args
 
@@ -147,6 +148,11 @@ def _invalid(
 
 def tokens_in(text: str) -> list[str]:
     return _TOKEN.findall(text)
+
+
+def ordered_requirements(items: Iterable[Requirement]) -> tuple[Requirement, ...]:
+    chosen = set(items)
+    return tuple(item for item in REQUIREMENTS if item in chosen)
 
 
 def _check_unique(values: list[_Item]) -> list[_Item]:
@@ -435,7 +441,7 @@ class Mold(_Strict):
             required |= _ACTION_REQUIREMENTS.get(tools_action.variant, frozenset())
         if self.agent_action is not None:
             required.add("entry_supported")
-        return tuple(item for item in REQUIREMENTS if item in required)
+        return ordered_requirements(required)
 
 
 def relation_problem(mold: Mold) -> tuple[tuple[str | int, ...], LiteralString] | None:
