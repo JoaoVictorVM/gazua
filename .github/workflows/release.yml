@@ -1,0 +1,192 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          enable-cache: false
+      - name: Check that the tag matches the manifest and the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: >-
+          uv run --no-project --python 3.11 .github/scripts/release_checks.py check-tag
+          --tag "$GITHUB_REF_NAME"
+          --commit "$GITHUB_SHA"
+          --default-branch-ref "origin/$DEFAULT_BRANCH"
+
+  gates:
+    needs: validate-source
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  build:
+    needs: gates
+    runs-on: ubuntu-24.04
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          enable-cache: false
+      - name: Build the wheel and the sdist
+        run: uv build --out-dir release-artifacts/dist
+      - name: Record the digests
+        run: >-
+          uv run --no-project --python 3.11 .github/scripts/release_checks.py write-inventory
+          --directory release-artifacts
+      - name: Show the digests in the run summary
+        run: |
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo '```'
+            cat release-artifacts/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-artifacts
+          path: release-artifacts
+          if-no-files-found: error
+
+  verify:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+        python: ["3.11", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+      GAZUA_DIST_DIR: release-artifacts/dist
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          enable-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: release-artifacts
+      - name: Check the digests
+        run: >-
+          uv run --no-project .github/scripts/release_checks.py verify-inventory
+          --directory release-artifacts
+      - run: uv sync --frozen
+      - name: Install and run exactly the artifacts built for this release
+        run: uv run --frozen pytest tests/packaging
+
+  attest:
+    needs: [build, verify]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: release-artifacts
+      - name: Check the digests
+        working-directory: release-artifacts
+        run: |
+          test "$(find dist -type f | wc -l)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release-artifacts/dist/*
+
+  publish:
+    needs: [validate-source, gates, build, verify, attest]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/project/gazua/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: release-artifacts
+      - name: Check the digests
+        working-directory: release-artifacts
+        run: |
+          test "$(find dist -type f | wc -l)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: release-artifacts/dist
+
+  verify-publication:
+    needs: [build, publish]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+        python: ["3.11", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          enable-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: release-artifacts
+      - name: Compare the digests on PyPI with the validated ones
+        run: >-
+          uv run --no-project .github/scripts/release_checks.py verify-published
+          --directory release-artifacts
+          --version "${GITHUB_REF_NAME#v}"
+      - name: Install the public version with pip
+        working-directory: ${{ runner.temp }}
+        run: |
+          uv venv --seed public-pip
+          scripts=public-pip/bin
+          if [ -d public-pip/Scripts ]; then scripts=public-pip/Scripts; fi
+          "$scripts/python" -m pip install "gazua==${GITHUB_REF_NAME#v}"
+          "$scripts/gazua" --version
+          "$scripts/gazua" --help
+      - name: Install the public version with uv
+        working-directory: ${{ runner.temp }}
+        run: |
+          uv tool install "gazua==${GITHUB_REF_NAME#v}"
+          tools="$(uv tool dir --bin)"
+          "$tools/gazua" --version
+          "$tools/gazua" --help
