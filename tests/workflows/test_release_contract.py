@@ -13,7 +13,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = {path.name: path for path in (ROOT / ".github" / "workflows").glob("*.yml")}
 FULL_SHA_REFERENCE = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
-JOBS_ALLOWED_OIDC = {"attest"}
+JOBS_ALLOWED_OIDC = {"attest", "publish"}
 UNCONDITIONAL_RUN = re.compile(r"\b(always|failure|cancelled)\(\)")
 
 
@@ -138,8 +138,14 @@ def test_release_requires_tag_version_and_gates(
 
     assert jobs["gates"]["uses"] == "./.github/workflows/ci.yml"
     assert "workflow_call" in triggers(load("ci.yml"))
-    assert required_jobs(jobs, "attest") == {"validate-source", "gates", "build", "verify"}
-    for job_name in required_jobs(jobs, "attest") | {"attest"}:
+    assert required_jobs(jobs, "publish") == {
+        "validate-source",
+        "gates",
+        "build",
+        "verify",
+        "attest",
+    }
+    for job_name in required_jobs(jobs, "publish") | {"publish"}:
         assert not UNCONDITIONAL_RUN.search(str(jobs[job_name].get("if", ""))), job_name
 
     check_step = next(
@@ -214,9 +220,70 @@ def test_release_reuses_validated_artifact_digests(
         assert len(downloads) == 1
         assert downloads[0]["with"]["artifact-ids"] == "${{ needs.build.outputs.artifact-id }}"
         commands = " ".join(step.get("run", "") for step in steps_of(job))
-        assert "verify-inventory" in commands or "sha256sum --check --strict" in commands
+        assert re.search(r"verify-inventory|verify-published|sha256sum --check --strict", commands)
 
     assert checks.main(["verify-inventory", f"--directory={inventory_folder}"]) == 0
+
+
+def test_publish_waits_for_approval_and_uploads_validated_files() -> None:
+    jobs = load("release.yml")["jobs"]
+    publish = jobs["publish"]
+    steps = steps_of(publish)
+    names = [step.get("uses", step.get("name", "")) for step in steps]
+    publisher = next(
+        step for step in steps if step.get("uses", "").startswith("pypa/gh-action-pypi-publish@")
+    )
+
+    assert publish["environment"]["name"] == "pypi"
+    assert publisher["with"] == {"packages-dir": "release-artifacts/dist"}
+    assert names.index("Check the digests") < names.index(publisher["uses"])
+    assert jobs["verify-publication"]["needs"] == ["build", "publish"]
+
+
+@pytest.mark.parametrize(
+    ("published", "expected"),
+    [
+        ({"a.whl": "1", "a.tar.gz": "2"}, []),
+        ({"a.whl": "1"}, ["missing on PyPI: a.tar.gz"]),
+        ({"a.whl": "1", "a.tar.gz": "2", "b.whl": "3"}, ["unexpected on PyPI: b.whl"]),
+        ({"a.whl": "9", "a.tar.gz": "2"}, ["digest differs: a.whl"]),
+    ],
+    ids=["identical", "partial", "unexpected", "different"],
+)
+def test_published_files_must_match_the_inventory(
+    checks: ModuleType, published: dict[str, str], expected: list[str]
+) -> None:
+    release = {
+        "urls": [
+            {"filename": name, "digests": {"sha256": digest}} for name, digest in published.items()
+        ]
+    }
+
+    assert checks.published_differences({"a.whl": "1", "a.tar.gz": "2"}, release) == expected
+
+
+def test_digest_mismatch_on_pypi_stops_immediately(
+    checks: ModuleType, inventory_folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    def release_with_wrong_digests(version: str) -> dict[str, Any]:
+        calls.append(version)
+        return {
+            "urls": [
+                {"filename": name, "digests": {"sha256": "0" * 64}}
+                for name in checks.read_inventory(inventory_folder)
+            ]
+        }
+
+    monkeypatch.setattr(checks, "fetch_release", release_with_wrong_digests)
+
+    outcome = checks.main(
+        ["verify-published", f"--directory={inventory_folder}", "--version=1.2.3"]
+    )
+
+    assert outcome == 1
+    assert calls == ["1.2.3"]
 
 
 @pytest.mark.parametrize("change", ["tampered", "extra", "missing"])
@@ -240,7 +307,9 @@ def test_shell_digest_check_blocks_changed_artifacts(
     inventory_folder: Path, change: str | None, accepted: bool
 ) -> None:
     jobs = load("release.yml")["jobs"]
-    step = next(step for step in steps_of(jobs["attest"]) if "sha256sum" in step.get("run", ""))
+    for job_name in ("attest", "publish"):
+        step = next(step for step in steps_of(jobs[job_name]) if "sha256sum" in step.get("run", ""))
+        assert "sha256sum --check --strict SHA256SUMS" in step["run"]
     if change:
         (inventory_folder / "dist" / "gazua-1.2.3.tar.gz").write_bytes(b"replaced")
 
@@ -252,7 +321,6 @@ def test_shell_digest_check_blocks_changed_artifacts(
         check=False,
     )
 
-    assert "sha256sum --check --strict SHA256SUMS" in step["run"]
     assert (result.returncode == 0) is accepted
 
 

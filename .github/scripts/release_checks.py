@@ -2,13 +2,21 @@
 
 import argparse
 import hashlib
+import json
 import subprocess
 import sys
+import time
 import tomllib
+import urllib.error
+import urllib.request
 from pathlib import Path
+from typing import Any
 
 INVENTORY_NAME = "SHA256SUMS"
 DIST_FOLDER = "dist"
+PYPI_RELEASE_URL = "https://pypi.org/pypi/gazua/{version}/json"
+PUBLICATION_ATTEMPTS = 20
+PUBLICATION_WAIT_SECONDS = 30
 
 
 class ReleaseCheckError(Exception):
@@ -69,6 +77,47 @@ def verify_inventory(directory: Path) -> None:
         raise ReleaseCheckError(f"artifacts differ from the inventory: {actual} != {expected}")
 
 
+def published_differences(inventory: dict[str, str], release: dict[str, Any]) -> list[str]:
+    published = {entry["filename"]: entry["digests"]["sha256"] for entry in release["urls"]}
+    differences = [f"missing on PyPI: {name}" for name in inventory.keys() - published.keys()]
+    differences += [f"unexpected on PyPI: {name}" for name in published.keys() - inventory.keys()]
+    differences += [
+        f"digest differs: {name}"
+        for name in inventory.keys() & published.keys()
+        if inventory[name] != published[name]
+    ]
+    return sorted(differences)
+
+
+def fetch_release(version: str) -> dict[str, Any] | None:
+    url = PYPI_RELEASE_URL.format(version=version)
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return None
+        raise
+
+
+def verify_published(directory: Path, version: str) -> None:
+    inventory = read_inventory(directory)
+    differences = ["the version is not on PyPI"]
+    # PyPI's JSON API can lag behind a successful upload, but a differing digest never recovers.
+    for attempt in range(PUBLICATION_ATTEMPTS):
+        if attempt:
+            time.sleep(PUBLICATION_WAIT_SECONDS)
+        release = fetch_release(version)
+        if release is None:
+            continue
+        differences = published_differences(inventory, release)
+        if not differences:
+            return
+        if any(difference.startswith("digest differs") for difference in differences):
+            break
+    raise ReleaseCheckError("; ".join(differences))
+
+
 def parse_arguments(arguments: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -82,6 +131,10 @@ def parse_arguments(arguments: list[str] | None) -> argparse.Namespace:
     for name in ("write-inventory", "verify-inventory"):
         command = commands.add_parser(name)
         command.add_argument("--directory", type=Path, required=True)
+
+    published = commands.add_parser("verify-published")
+    published.add_argument("--directory", type=Path, required=True)
+    published.add_argument("--version", required=True)
 
     return parser.parse_args(arguments)
 
@@ -98,8 +151,10 @@ def main(arguments: list[str] | None = None) -> int:
             )
         elif options.command == "write-inventory":
             write_inventory(options.directory)
-        else:
+        elif options.command == "verify-inventory":
             verify_inventory(options.directory)
+        else:
+            verify_published(options.directory, options.version)
     except ReleaseCheckError as error:
         print(f"Release check failed: {error}", file=sys.stderr)
         return 1
