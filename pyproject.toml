@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "jinja2>=3.1",
     "pydantic>=2.10",
+    "pyyaml>=6.0.3",
     "typer>=0.28",
 ]
 
@@ -44,7 +45,7 @@ exclude = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]
 packages = ["src/gazua"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src/gazua", "docs/releasing.md", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml"]
+only-include = ["src/gazua", "docs/configuration.md", "docs/releasing.md", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml"]
 
 [tool.ruff]
 target-version = "py311"
@@ -76,8 +77,8 @@ markers = [
 [dependency-groups]
 dev = [
     "hypothesis>=6.170.15",
+    "jsonschema>=4.23,<5",
     "pyright>=1.1.414",
     "pytest>=9.2.0",
-    "pyyaml>=6.0.3",
     "ruff>=0.17.4",
 ]

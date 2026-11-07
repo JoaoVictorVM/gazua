@@ -31,6 +31,7 @@ SENTINELS = (
     "src/gazua/signing.key",
 )
 SENTINEL_CONTENT = "sentinel-must-not-be-distributed"
+SCHEMA_PATH = "src/gazua/schemas/config-v1.schema.json"
 PUBLIC_PATHS = ("src", "docs", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml")
 
 Runner = Callable[..., object]
@@ -140,13 +141,22 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
             re.split(r"[<>=!~ ;\[]", requirement, maxsplit=1)[0].lower()
             for requirement in metadata.get_all("Requires-Dist") or []
         }
-        assert required == {"jinja2", "pydantic", "typer"}
+        assert required == {"jinja2", "pydantic", "pyyaml", "typer"}
 
     entry_points = wheel_files[f"{dist_info}/entry_points.txt"].decode("utf-8")
     assert "gazua = gazua._bootstrap:main" in entry_points
     assert "gazua/py.typed" in wheel_files
     assert f"{dist_info}/licenses/LICENSE" in wheel_files
-    assert {"LICENSE", "README.md", "SECURITY.md", "docs/releasing.md"} <= set(sdist_files)
+    assert {
+        "LICENSE",
+        "README.md",
+        "SECURITY.md",
+        "docs/configuration.md",
+        "docs/releasing.md",
+        SCHEMA_PATH,
+    } <= set(sdist_files)
+    assert "gazua/schemas/config-v1.schema.json" in wheel_files
+    assert wheel_files["gazua/schemas/config-v1.schema.json"] == sdist_files[SCHEMA_PATH]
 
 
 def test_distribution_excludes_local_and_secret_files(
@@ -218,6 +228,41 @@ def test_pip_install_runs_outside_checkout(
 
     assert_runs_outside_checkout(run_isolated, [scripts_folder(environment) / "gazua"], tmp_path)
     assert_runs_outside_checkout(run_isolated, [python, "-m", "gazua"], tmp_path)
+
+
+def test_installed_init_and_schema_work_outside_checkout(
+    distributions: Path, tmp_path: Path, run_isolated
+) -> None:
+    environment = tmp_path / "environment"
+    created = run_isolated(["uv", "venv", "--python", sys.executable, environment], cwd=tmp_path)
+    assert created.returncode == 0, created.stderr
+    python = interpreter_of(environment)
+    installed = run_isolated(
+        ["uv", "pip", "install", "--python", python, wheel_in(distributions)], cwd=tmp_path
+    )
+    assert installed.returncode == 0, installed.stderr
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "agent.py").write_text(
+        "import gazua\n@gazua.tool\ndef refund_order(): ...\n", encoding="utf-8"
+    )
+
+    result = run_isolated([scripts_folder(environment) / "gazua", "init"], cwd=project)
+
+    assert result.returncode == 0, result.stderr
+    assert "refund_order: sensitive" in result.stdout
+    assert (project / ".gitignore").read_text(encoding="utf-8") == ".gazua/\n"
+
+    probe = (
+        "import json\n"
+        "from gazua.config import load_config\n"
+        "from gazua.config.models import packaged_json_schema, render_json_schema\n"
+        "assert json.loads(packaged_json_schema()) == json.loads(render_json_schema())\n"
+        "print(load_config('gazua.yaml').config.tools['refund_order'].sensitive)\n"
+    )
+    loaded = run_isolated([python, "-c", probe], cwd=project)
+    assert loaded.returncode == 0, loaded.stderr
+    assert loaded.stdout.strip() == "True"
 
 
 def test_uv_tool_install_runs_outside_checkout(
