@@ -1,6 +1,8 @@
 import json
+import tomllib
 from collections.abc import Callable
 from importlib.resources import files
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -184,7 +186,34 @@ RELEASE_COUNTS = {
         "unchecked_spending": 2,
     },
 }
-RELEASE_MODES = {"v0.1": (15, 0)}
+RELEASE_COUNTS["v0.2"] = {
+    "prompt_only_permission": 7,
+    "secret_in_context": 6,
+    "idor_via_agent": 6,
+    "unhandled_output": 5,
+    "unlocked_memory": 2,
+    "unchecked_spending": 4,
+}
+RELEASE_COUNTS["v0.4"] = {
+    "prompt_only_permission": 12,
+    "secret_in_context": 12,
+    "idor_via_agent": 10,
+    "unhandled_output": 10,
+    "unlocked_memory": 8,
+    "unchecked_spending": 8,
+}
+RELEASE_MODES = {"v0.1": (15, 0), "v0.2": (15, 15), "v0.4": (15, 45)}
+V02_AGENT = {
+    "permission-05", "permission-06", "permission-07", "secret-04", "secret-05", "secret-06",
+    "idor-05", "idor-06", "output-03", "output-04", "output-05", "memory-01", "memory-02",
+    "spending-03", "spending-04",
+}  # fmt: skip
+SECRET_SIGNALS = {
+    "canary_in_response": {"secret-01", "secret-02", "secret-03", "secret-04", "secret-05",
+                           "secret-06", "secret-10"},
+    "receiver_hit": {"secret-07", "secret-08", "secret-12"},
+    "canary_in_tool_arguments": {"secret-09", "secret-11"},
+}  # fmt: skip
 
 
 def test_every_builtin_has_bilingual_text_and_one_taxonomy_value() -> None:
@@ -241,3 +270,55 @@ def test_manifest_lists_every_packaged_file_once() -> None:
     assert sorted(item["file"] for item in manifest["molds"]) == on_disk
     assert all(item["file"] == f"{item['id']}.yaml" for item in manifest["molds"])
     assert manifest["catalog_release"] in RELEASES
+
+
+def test_cumulative_releases_keep_earlier_molds_and_add_the_listed_ones() -> None:
+    by_release = {
+        release: {entry.id: entry for entry in load_catalog(release=release).entries}
+        for release in RELEASES
+    }
+
+    assert set(by_release["v0.1"]) < set(by_release["v0.2"]) < set(by_release["v0.4"])
+    assert set(by_release["v0.2"]) - set(by_release["v0.1"]) == V02_AGENT
+    for release, entries in by_release.items():
+        for entry in entries.values():
+            assert entry.introduced_in is not None
+            assert RELEASES.index(entry.introduced_in) <= RELEASES.index(release)
+            assert entry.mold == by_release["v0.4"][entry.id].mold
+
+
+def test_default_release_matches_the_package_version(project_root: Path) -> None:
+    manifest = tomllib.loads((project_root / "pyproject.toml").read_text(encoding="utf-8"))
+    major, minor = manifest["project"]["version"].split(".")[:2]
+    eligible = [release for release in RELEASES if release <= f"v{major}.{minor}"]
+
+    result = load_catalog()
+
+    assert packaged_manifest()["catalog_release"] == eligible[-1]
+    assert result.release == eligible[-1]
+    assert len(result.entries) == sum(RELEASE_COUNTS[eligible[-1]].values())
+
+
+def test_signals_and_entries_follow_the_inventory() -> None:
+    molds = [entry.mold for entry in load_catalog(release="v0.4").entries]
+    secrets = {mold.id: mold.success.signal for mold in molds if mold.damage == "secret_in_context"}
+
+    assert {
+        signal: {i for i, s in secrets.items() if s == signal} for signal in SECRET_SIGNALS
+    } == (SECRET_SIGNALS)
+    for mold in molds:
+        if mold.damage == "secret_in_context":
+            assert "canary" not in mold.tokens, mold.id
+        if mold.success.signal == "receiver_hit":
+            assert mold.exfiltration_url == "https://receiver.gazua.test/collect"
+        if mold.technique == "encoding" and "agent" in mold.supported_modes:
+            assert mold.encoding == "base64"
+        if "agent" in mold.supported_modes:
+            assert mold.agent_action is not None
+            assert "entry_supported" in mold.effective_requirements
+    agent_entries = {mold.entry for mold in molds if "agent" in mold.supported_modes}
+    agent_techniques = {mold.technique for mold in molds if "agent" in mold.supported_modes}
+    assert len(agent_entries) == 7
+    assert len(agent_techniques) == 6
+    texts = [tuple(mold.text.en) for mold in molds] + [tuple(mold.text.pt) for mold in molds]
+    assert len(set(texts)) == len(texts)

@@ -200,7 +200,7 @@ invalid mold refund-incident-01: molds/refund.yaml:9:9: action.variant: Expected
 
 ## Packaged catalog
 
-The package ships a fixed catalog that grows by release: 15 tools molds first, then 30 molds in total and finally 60, with 15 for tools mode and 45 for agent mode. Each release lists only the molds of its own set. The catalog is fixed and attacks are not adaptive, so a clean result is a floor, not a ceiling.
+The package ships a fixed catalog that grows by release: 15 tools molds first, then 30 molds in total and finally 60, with 15 for tools mode and 45 for agent mode. Each release loads only the molds of its own set, and the first line of `gazua run --list` names that set. This version uses the first set. The files of later sets are already in the package for review, but they are not loaded until their release. The catalog is fixed and attacks are not adaptive, so a clean result is a floor, not a ceiling.
 
 ## JSON Schema
 
