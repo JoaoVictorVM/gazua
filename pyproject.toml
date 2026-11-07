@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling==1.28.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gazua"
+version = "0.1.0.dev0"
+description = "Security test suite for AI agents that proves in code whether an attack had a real effect."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["security", "testing", "ai-agents", "llm", "cli"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+dependencies = [
+    "jinja2>=3.1",
+    "pydantic>=2.10",
+    "typer>=0.28",
+]
+
+[project.scripts]
+gazua = "gazua._bootstrap:main"
+
+[project.urls]
+Repository = "https://github.com/JoaoVictorVM/gazua"
+Security = "https://github.com/JoaoVictorVM/gazua/security/policy"
+
+[tool.hatch.build]
+exclude = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gazua"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src/gazua", "docs/releasing.md", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = [".agents", ".claude", ".codex", ".harness", ".planning"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "S", "BLE", "C4", "PT", "RUF", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S603", "S607"]
+".github/scripts/**" = ["S603", "S607"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+xfail_strict = true
+markers = [
+    "python310: needs a real Python 3.10 interpreter to check the unsupported path",
+]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.170.15",
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "pyyaml>=6.0.3",
+    "ruff>=0.17.4",
+]
