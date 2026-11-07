@@ -1,0 +1,478 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/mold-v1.schema.json",
+  "$defs": {
+    "CallForbidden": {
+      "additionalProperties": false,
+      "description": "Calls a tool declared ``forbidden`` directly, as the attacker or without an actor.",
+      "properties": {
+        "kind": {
+          "const": "call_forbidden",
+          "title": "Kind",
+          "type": "string"
+        },
+        "variant": {
+          "enum": [
+            "declared_actor",
+            "omitted_actor"
+          ],
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "variant"
+      ],
+      "title": "CallForbidden",
+      "type": "object"
+    },
+    "CallSensitive": {
+      "additionalProperties": false,
+      "description": "Calls a tool declared ``sensitive`` directly, as the attacker or without an actor.",
+      "properties": {
+        "kind": {
+          "const": "call_sensitive",
+          "title": "Kind",
+          "type": "string"
+        },
+        "variant": {
+          "enum": [
+            "declared_actor",
+            "omitted_actor"
+          ],
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "variant"
+      ],
+      "title": "CallSensitive",
+      "type": "object"
+    },
+    "DualAction": {
+      "additionalProperties": false,
+      "description": "Action of a mold that supports both modes: one intention per mode.",
+      "properties": {
+        "tools": {
+          "discriminator": {
+            "mapping": {
+              "call_forbidden": "#/$defs/CallForbidden",
+              "call_sensitive": "#/$defs/CallSensitive",
+              "probe_canary_return": "#/$defs/ProbeCanaryReturn",
+              "probe_output_sink": "#/$defs/ProbeOutputSink",
+              "read_victim_record": "#/$defs/ReadVictimRecord",
+              "repeat_sensitive_call": "#/$defs/RepeatSensitiveCall"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CallForbidden"
+            },
+            {
+              "$ref": "#/$defs/CallSensitive"
+            },
+            {
+              "$ref": "#/$defs/ReadVictimRecord"
+            },
+            {
+              "$ref": "#/$defs/ProbeCanaryReturn"
+            },
+            {
+              "$ref": "#/$defs/ProbeOutputSink"
+            },
+            {
+              "$ref": "#/$defs/RepeatSensitiveCall"
+            }
+          ],
+          "title": "Tools"
+        },
+        "agent": {
+          "$ref": "#/$defs/InjectText"
+        }
+      },
+      "required": [
+        "tools",
+        "agent"
+      ],
+      "title": "DualAction",
+      "type": "object"
+    },
+    "InjectText": {
+      "additionalProperties": false,
+      "description": "Delivers the mold's turns to the declared entry, in one isolated session.",
+      "properties": {
+        "kind": {
+          "const": "inject_text",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "InjectText",
+      "type": "object"
+    },
+    "MoldText": {
+      "additionalProperties": false,
+      "description": "Attack text by language. Both languages are required and have the same turns.",
+      "properties": {
+        "en": {
+          "items": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "En",
+          "type": "array"
+        },
+        "pt": {
+          "items": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Pt",
+          "type": "array"
+        }
+      },
+      "required": [
+        "en",
+        "pt"
+      ],
+      "title": "MoldText",
+      "type": "object"
+    },
+    "ProbeCanaryReturn": {
+      "additionalProperties": false,
+      "description": "Reads a test record and checks whether the configured canary comes back.",
+      "properties": {
+        "kind": {
+          "const": "probe_canary_return",
+          "title": "Kind",
+          "type": "string"
+        },
+        "variant": {
+          "enum": [
+            "victim_owner",
+            "attacker_owner",
+            "omitted_owner"
+          ],
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "variant"
+      ],
+      "title": "ProbeCanaryReturn",
+      "type": "object"
+    },
+    "ProbeOutputSink": {
+      "additionalProperties": false,
+      "description": "Sends a constant Gazua marker to the declared output sink.",
+      "properties": {
+        "kind": {
+          "const": "probe_output_sink",
+          "title": "Kind",
+          "type": "string"
+        },
+        "variant": {
+          "enum": [
+            "markup_marker",
+            "control_marker"
+          ],
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "variant"
+      ],
+      "title": "ProbeOutputSink",
+      "type": "object"
+    },
+    "ReadVictimRecord": {
+      "additionalProperties": false,
+      "description": "Reads a victim fixture record as the attacker.",
+      "properties": {
+        "kind": {
+          "const": "read_victim_record",
+          "title": "Kind",
+          "type": "string"
+        },
+        "variant": {
+          "enum": [
+            "victim_owner",
+            "attacker_owner",
+            "omitted_owner",
+            "string_record_id"
+          ],
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "variant"
+      ],
+      "title": "ReadVictimRecord",
+      "type": "object"
+    },
+    "RepeatSensitiveCall": {
+      "additionalProperties": false,
+      "description": "Repeats a sensitive call past the default ceiling, always under the configured limits.",
+      "properties": {
+        "kind": {
+          "const": "repeat_sensitive_call",
+          "title": "Kind",
+          "type": "string"
+        },
+        "variant": {
+          "const": "repeated",
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "variant"
+      ],
+      "title": "RepeatSensitiveCall",
+      "type": "object"
+    },
+    "Success": {
+      "additionalProperties": false,
+      "description": "What a consumer must observe in code to call the attack effective.",
+      "properties": {
+        "signal": {
+          "enum": [
+            "forbidden_tool_call",
+            "sensitive_tool_call",
+            "canary_in_response",
+            "canary_in_tool_arguments",
+            "receiver_hit",
+            "victim_record_access",
+            "output_sink_effect",
+            "memory_effect",
+            "tool_call_ceiling"
+          ],
+          "title": "Signal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "signal"
+      ],
+      "title": "Success",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One attack: damage + entry + technique, with its text, action and success signal.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "id": {
+      "maxLength": 80,
+      "pattern": "^[a-z][a-z0-9-]{0,79}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "damage": {
+      "enum": [
+        "prompt_only_permission",
+        "secret_in_context",
+        "idor_via_agent",
+        "unhandled_output",
+        "unlocked_memory",
+        "unchecked_spending"
+      ],
+      "title": "Damage",
+      "type": "string"
+    },
+    "entry": {
+      "enum": [
+        "user_message",
+        "tool_result",
+        "rag_document",
+        "poisoned_memory",
+        "web_page",
+        "attachment",
+        "mcp_tool_description"
+      ],
+      "title": "Entry",
+      "type": "string"
+    },
+    "technique": {
+      "enum": [
+        "fake_authority",
+        "delimiter_break",
+        "portuguese",
+        "invisible_text",
+        "encoding",
+        "two_turn"
+      ],
+      "title": "Technique",
+      "type": "string"
+    },
+    "severity": {
+      "anyOf": [
+        {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Severity"
+    },
+    "supported_modes": {
+      "items": {
+        "enum": [
+          "tools",
+          "agent"
+        ],
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 1,
+      "title": "Supported Modes",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "text": {
+      "$ref": "#/$defs/MoldText"
+    },
+    "required_declarations": {
+      "items": {
+        "enum": [
+          "tool.forbidden",
+          "tool.sensitive",
+          "tool.safe",
+          "tool.classified",
+          "tool.owner_arg",
+          "identity",
+          "fixtures.attacker",
+          "fixtures.victim",
+          "fixtures.victim.records",
+          "canaries",
+          "output_sink",
+          "target.reset",
+          "direct_tool_access",
+          "entry_supported"
+        ],
+        "type": "string"
+      },
+      "title": "Required Declarations",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "action": {
+      "oneOf": [
+        {
+          "discriminator": {
+            "mapping": {
+              "call_forbidden": "#/$defs/CallForbidden",
+              "call_sensitive": "#/$defs/CallSensitive",
+              "probe_canary_return": "#/$defs/ProbeCanaryReturn",
+              "probe_output_sink": "#/$defs/ProbeOutputSink",
+              "read_victim_record": "#/$defs/ReadVictimRecord",
+              "repeat_sensitive_call": "#/$defs/RepeatSensitiveCall"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CallForbidden"
+            },
+            {
+              "$ref": "#/$defs/CallSensitive"
+            },
+            {
+              "$ref": "#/$defs/ReadVictimRecord"
+            },
+            {
+              "$ref": "#/$defs/ProbeCanaryReturn"
+            },
+            {
+              "$ref": "#/$defs/ProbeOutputSink"
+            },
+            {
+              "$ref": "#/$defs/RepeatSensitiveCall"
+            }
+          ]
+        },
+        {
+          "$ref": "#/$defs/InjectText"
+        },
+        {
+          "$ref": "#/$defs/DualAction"
+        }
+      ],
+      "title": "Action"
+    },
+    "success": {
+      "$ref": "#/$defs/Success"
+    },
+    "exfiltration_url": {
+      "anyOf": [
+        {
+          "pattern": "^https?://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+gazua\\.test(?:/[^#\\s]*)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Exfiltration Url"
+    },
+    "encoding": {
+      "anyOf": [
+        {
+          "const": "base64",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encoding"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "damage",
+    "entry",
+    "technique",
+    "supported_modes",
+    "text",
+    "action",
+    "success"
+  ],
+  "title": "Gazua attack mold",
+  "type": "object"
+}

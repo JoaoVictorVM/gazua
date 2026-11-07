@@ -218,6 +218,21 @@ class LegitTask(_Declaration):
     expected_tool: ToolName
 
 
+class MoldSources(_Declaration):
+    """Local folders with extra attack molds. Paths are relative to the ``gazua.yaml`` folder.
+
+    Both lists are read the same way and both print a warning before loading, because files
+    outside the package are third-party content.
+    """
+
+    directories: Annotated[list[NonEmptyText], AfterValidator(_check_unique)] = Field(
+        default_factory=list[str], json_schema_extra={"uniqueItems": True}
+    )
+    external_catalogs: Annotated[list[NonEmptyText], AfterValidator(_check_unique)] = Field(
+        default_factory=list[str], json_schema_extra={"uniqueItems": True}
+    )
+
+
 class GazuaConfig(_Declaration):
     """Declarative configuration of a project tested by Gazua."""
 
@@ -242,6 +257,7 @@ class GazuaConfig(_Declaration):
         default_factory=lambda: list(DEFAULT_ALLOWED_TARGETS),
         json_schema_extra={"default": list(DEFAULT_ALLOWED_TARGETS)},
     )
+    molds: MoldSources = Field(default_factory=MoldSources)
 
     def to_document(self) -> dict[str, Any]:
         """JSON data with only what was declared, so absences survive a round trip."""

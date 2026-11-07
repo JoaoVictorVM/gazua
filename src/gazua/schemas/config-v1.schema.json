@@ -197,6 +197,32 @@
       "title": "Limits",
       "type": "object"
     },
+    "MoldSources": {
+      "additionalProperties": false,
+      "description": "Local folders with extra attack molds. Paths are relative to the ``gazua.yaml`` folder.\n\nBoth lists are read the same way and both print a warning before loading, because files\noutside the package are third-party content.",
+      "properties": {
+        "directories": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Directories",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "external_catalogs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "External Catalogs",
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "title": "MoldSources",
+      "type": "object"
+    },
     "Target": {
       "additionalProperties": false,
       "description": "References to the target's hooks. They stay as text until an authorized execution.",
@@ -384,6 +410,9 @@
       },
       "title": "Allowed Targets",
       "type": "array"
+    },
+    "molds": {
+      "$ref": "#/$defs/MoldSources"
     }
   },
   "required": [
