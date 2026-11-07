@@ -80,6 +80,8 @@ Only `schema_version` is required. A file without `entrypoint` or without tools 
 | `gate.fail_on` | unique list of `low`, `medium`, `high`, `critical` | `[high, critical]` | An empty list turns the severity gate off |
 | `legit_tasks` | list of `request` and `expected_tool` | Empty | |
 | `allowed_targets` | list of exact hosts | `localhost`, `127.0.0.1`, `::1` | No scheme, path, port or wildcard. An empty list authorizes no host |
+| `molds.directories` | unique list of local folders | Empty | Your own attack molds |
+| `molds.external_catalogs` | unique list of local folders | Empty | Molds written by someone else |
 
 ### Tools
 
@@ -124,6 +126,18 @@ canaries:
 ```
 
 The two identities must have different ids, and every `tool` must be declared under `tools`. Each side is optional.
+
+### Mold folders
+
+```yaml
+molds:
+  directories:
+    - tests/security/molds
+  external_catalogs:
+    - vendor/reviewed-molds
+```
+
+Relative paths start at the folder of `gazua.yaml`, not at the current directory. Gazua reads the `.yaml` and `.yml` files directly inside each folder. It does not read subfolders, follow links, accept URLs or network paths, or download anything. Both lists print a warning before each folder is read, because a file outside the package can carry any attack text. See [the mold guide](molds.md) for the format and the review checklist.
 
 ## What happens when a declaration is missing
 

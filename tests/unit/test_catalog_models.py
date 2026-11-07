@@ -7,6 +7,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
+from gazua.catalog.loader import RELEASES, load_catalog, packaged_manifest
 from gazua.catalog.models import (
     DAMAGES,
     DEFAULT_SEVERITY,
@@ -171,3 +172,72 @@ def test_receiver_signal_requires_reserved_destination(mold: MoldFactory) -> Non
     assert {"path": ("exfiltration_url",)} in [error.get("ctx") for error in rejection(receiver)]
     accepted = validate({**receiver, "exfiltration_url": "https://receiver.gazua.test/collect"})
     assert "canaries" in accepted.effective_requirements
+
+
+RELEASE_COUNTS = {
+    "v0.1": {
+        "prompt_only_permission": 4,
+        "secret_in_context": 3,
+        "idor_via_agent": 4,
+        "unhandled_output": 2,
+        "unlocked_memory": 0,
+        "unchecked_spending": 2,
+    },
+}
+RELEASE_MODES = {"v0.1": (15, 0)}
+
+
+def test_every_builtin_has_bilingual_text_and_one_taxonomy_value() -> None:
+    result = load_catalog(release=RELEASES[-1])
+    assert not result.has_errors, [item.render() for item in result.diagnostics]
+
+    for entry in result.entries:
+        mold = entry.mold
+        assert entry.origin == "builtin"
+        assert mold.text.en
+        assert mold.text.pt
+        assert len(mold.text.en) == len(mold.text.pt) == (2 if mold.technique == "two_turn" else 1)
+        assert mold.text.en != mold.text.pt
+        assert isinstance(mold.damage, str)
+        assert isinstance(mold.entry, str)
+        assert isinstance(mold.technique, str)
+        assert len(mold.supported_modes) == 1
+        if "tools" in mold.supported_modes:
+            assert mold.entry == "user_message"
+
+
+@pytest.mark.parametrize("release", sorted(RELEASE_COUNTS))
+def test_release_inventory_counts_and_ids(release: str) -> None:
+    result = load_catalog(release=release)  # type: ignore[arg-type]
+    molds = [entry.mold for entry in result.entries]
+    expected = RELEASE_COUNTS[release]
+
+    assert not result.has_errors
+    assert result.release == release
+    assert len({mold.id for mold in molds}) == len(molds) == sum(expected.values())
+    assert {damage: sum(m.damage == damage for m in molds) for damage in DAMAGES} == expected
+    tools = sum("tools" in m.supported_modes for m in molds)
+    agent = sum("agent" in m.supported_modes for m in molds)
+    assert (tools, agent) == RELEASE_MODES[release]
+    for mold in molds:
+        prefix = mold.id.rsplit("-", 1)[0]
+        assert mold.damage.startswith(
+            {
+                "permission": "prompt",
+                "secret": "secret",
+                "idor": "idor",
+                "output": "unhandled",
+                "memory": "unlocked",
+                "spending": "unchecked",
+            }[prefix]
+        )
+
+
+def test_manifest_lists_every_packaged_file_once() -> None:
+    manifest = packaged_manifest()
+    folder = files("gazua").joinpath("catalog/builtin")
+    on_disk = sorted(entry.name for entry in folder.iterdir() if entry.name.endswith(".yaml"))
+
+    assert sorted(item["file"] for item in manifest["molds"]) == on_disk
+    assert all(item["file"] == f"{item['id']}.yaml" for item in manifest["molds"])
+    assert manifest["catalog_release"] in RELEASES

@@ -11,7 +11,9 @@ RUNTIME_PATHS = [
     pytest.param(("cli", "--help"), 0, id="help"),
     pytest.param(("cli", "--version"), 0, id="version"),
     pytest.param(("cli",), 0, id="bare"),
-    pytest.param(("cli", "run"), 2, id="rejected-command"),
+    pytest.param(("cli", "run"), 2, id="run-without-list"),
+    pytest.param(("cli", "run", "--list"), 0, id="catalog-list"),
+    pytest.param(("cli", "demo"), 2, id="rejected-command"),
 ]
 
 
