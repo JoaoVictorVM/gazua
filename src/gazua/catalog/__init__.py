@@ -22,9 +22,17 @@ from gazua.catalog.models import (
     Mold,
     build_mold_json_schema,
 )
-from gazua.catalog.selection import RequirementReport, inspect_requirements, select_molds
+from gazua.catalog.selection import (
+    ADAPTER_PENDING_ENTRIES,
+    ListingStatus,
+    RequirementReport,
+    adapter_pending,
+    inspect_requirements,
+    select_molds,
+)
 
 __all__ = [
+    "ADAPTER_PENDING_ENTRIES",
     "DAMAGES",
     "DEFAULT_SEVERITY",
     "ENTRIES",
@@ -38,11 +46,13 @@ __all__ = [
     "BoundMold",
     "CatalogEntry",
     "CatalogLoadResult",
+    "ListingStatus",
     "LoadedMold",
     "Mold",
     "MoldDiagnostic",
     "MoldError",
     "RequirementReport",
+    "adapter_pending",
     "bind_mold",
     "build_mold_json_schema",
     "inspect_requirements",
