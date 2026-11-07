@@ -20,12 +20,12 @@ FAKE_CREDENTIALS = {
 CREDENTIAL_SHAPE = re.compile(r"(_API_KEY|_TOKEN|_SECRET|_PASSWORD|^AWS_|^PYPI_)", re.IGNORECASE)
 
 
-def clean_environment() -> dict[str, str]:
+def build_clean_environment() -> dict[str, str]:
     """Child environment without the checkout on the path and without real credentials."""
     return {
         name: value
         for name, value in os.environ.items()
-        if name != "PYTHONPATH" and not CREDENTIAL_SHAPE.search(name)
+        if name not in {"PYTHONPATH", "VIRTUAL_ENV"} and not CREDENTIAL_SHAPE.search(name)
     }
 
 
@@ -39,7 +39,7 @@ def run_process(
     return subprocess.run(
         [str(part) for part in command],
         cwd=cwd,
-        env=clean_environment() if env is None else env,
+        env=build_clean_environment() if env is None else env,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -51,6 +51,16 @@ def run_process(
 @pytest.fixture(scope="session")
 def project_root() -> Path:
     return ROOT
+
+
+@pytest.fixture(scope="session")
+def run_isolated() -> Callable[..., subprocess.CompletedProcess[str]]:
+    return run_process
+
+
+@pytest.fixture(scope="session")
+def clean_environment() -> Callable[[], dict[str, str]]:
+    return build_clean_environment
 
 
 @pytest.fixture(scope="session")
@@ -84,7 +94,7 @@ def run_spied(tmp_path: Path, workdir: Path) -> Callable[..., dict[str, Any]]:
         result = run_process(
             [sys.executable, SPY, report_path, mode, *arguments],
             cwd=workdir,
-            env={**clean_environment(), **FAKE_CREDENTIALS},
+            env={**build_clean_environment(), **FAKE_CREDENTIALS},
         )
         assert report_path.exists(), result.stderr
         return json.loads(report_path.read_text(encoding="utf-8"))
