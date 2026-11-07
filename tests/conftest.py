@@ -210,7 +210,9 @@ def _fresh_tool_state() -> Iterator[None]:
     from gazua.integration.injection import reset_deliveries
     from gazua.integration.proxy import clear_identity_hooks
     from gazua.integration.registry import registry
+    from gazua.runtime.hooks import clear_resolved_hooks
 
     registry.clear()
     reset_deliveries()
     clear_identity_hooks()
+    clear_resolved_hooks()

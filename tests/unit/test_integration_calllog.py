@@ -10,6 +10,7 @@ from hypothesis import strategies as st
 from jsonschema import Draft202012Validator
 
 import gazua
+from gazua.diagnostics import ConfigError
 from gazua.integration.calllog import (
     MAX_VALUE_CHARS,
     CallLog,
@@ -17,6 +18,7 @@ from gazua.integration.calllog import (
     to_json_value,
 )
 from gazua.integration.errors import GazuaBlockedError
+from gazua.runtime.call_log import read_call_log
 from gazua.runtime.session_models import (
     CALL_RECORD_SCHEMA_FILE,
     SESSION_SCHEMA_FILE,
@@ -275,3 +277,51 @@ def test_wrapper_output_validates_against_published_schemas(
     for line in lines:
         validator.validate(line)
     assert lines[1]["truncated"] is True
+
+
+def test_log_is_flushed_per_call_and_truncated_line_is_ignored(
+    wrapper_log: Path,
+) -> None:
+    proxied_transfer, _ = gazua.wrap([transfer, explode])
+    proxied_transfer(1, "a")
+    proxied_transfer(2, "b")
+    complete = read_call_log(wrapper_log)
+    with wrapper_log.open("a", encoding="utf-8") as handle:
+        handle.write('{"schema_version": 1, "seq": 3, "tool": "trans')
+
+    reading = read_call_log(wrapper_log)
+
+    assert [record.seq for record in complete.records] == [1, 2]
+    assert complete.truncated_tail is False
+    assert [record.arguments["amount"] for record in reading.records] == [1, 2]
+    assert reading.truncated_tail is True
+    assert read_call_log(wrapper_log.parent / "absent.jsonl").records == ()
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param('{"not": "a record"}\n', id="invalid"),
+        pytest.param("{broken\n", id="malformed"),
+    ],
+)
+def test_invalid_complete_lines_are_errors(tmp_path: Path, content: str) -> None:
+    path = tmp_path / "calls.jsonl"
+    path.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ConfigError) as raised:
+        read_call_log(path)
+
+    assert raised.value.diagnostics[0].code == "invalid_call_log"
+
+
+def test_out_of_order_records_are_errors(tmp_path: Path) -> None:
+    path = tmp_path / "calls.jsonl"
+    path.write_text(
+        "\n".join(json.dumps({"schema_version": 1, "seq": seq, **record()}) for seq in (2, 1))
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="out of order"):
+        read_call_log(path)
