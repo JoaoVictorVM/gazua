@@ -71,7 +71,7 @@ Only `schema_version` is required. A file without `entrypoint` or without tools 
 | `schema_version` | the integer `1` | Error | Other versions need an explicit migration |
 | `entrypoint` | reference or `null` | `null` | `module:attribute` |
 | `target.reset` | reference or `null` | `null` | Hook without arguments |
-| `target.as_user` | reference or `null` | `null` | Context manager factory that receives an identity |
+| `target.as_user` | reference or `null` | `null` | `as_user(identity_id: str)` returning a context manager, entered around real tool calls |
 | `tools` | map of name to tool | Empty | One declaration per name |
 | `limits` | object | Defaults below | |
 | `fixtures` | object | Empty | Synthetic `attacker` and `victim` identities |
@@ -97,6 +97,8 @@ Only `schema_version` is required. A file without `entrypoint` or without tools 
 The class of a tool comes from these flags: `forbidden: true` makes it forbidden, otherwise `sensitive: true` makes it sensitive, otherwise an explicit `false` makes it regular. With neither flag it is unclassified.
 
 To run for real, a tool needs both `safe: true` and a reviewed classification. An unclassified tool stays in dry-run even with `safe: true`.
+
+`actor_arg` names the argument that receives the caller's identity: during a run Gazua overwrites it with the current actor. [The integration guide](integration.md) explains dry-run, identities and what is recorded for each call.
 
 ### Limits
 

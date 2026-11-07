@@ -7,6 +7,7 @@ PUBLIC_DOCUMENTS = (
     "README.md",
     "SECURITY.md",
     "docs/configuration.md",
+    "docs/integration.md",
     "docs/molds.md",
     "docs/releasing.md",
 )
@@ -107,3 +108,35 @@ def test_public_documents_use_no_long_dashes(project_root: Path, name: str) -> N
 
     assert chr(0x2014) not in text
     assert chr(0x2013) not in text
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "gazua.wrap(tools)",
+        "entrypoint(message) -> response",
+        "needs Gazua installed in production",
+        "no monkeypatching, no file access and no network",
+        "returns the string `ok`",
+        "flagged low fidelity",
+        "does not match its declared return type",
+        "as_user(identity_id: str)",
+        "a real call is never the fallback",
+        "Return values are never recorded",
+        "retrieval (RAG)",
+        "reported as not tested",
+        "session-v1.schema.json",
+        "call-record-v1.schema.json",
+        "### Anthropic SDK",
+        "### OpenAI SDK",
+        "### Agent SDK",
+        "### LangGraph",
+    ],
+)
+def test_integration_guide_states_contract_and_limits(project_root: Path, statement: str) -> None:
+    assert statement in read(project_root, "docs/integration.md")
+
+
+def test_readme_and_configuration_point_to_the_integration_guide(project_root: Path) -> None:
+    assert "docs/integration.md" in read(project_root, "README.md")
+    assert "integration.md" in read(project_root, "docs/configuration.md")

@@ -445,3 +445,23 @@ def test_generated_config_has_only_declared_fields(tmp_path: Path) -> None:
             "refund_order": {"safe": False, "sensitive": True},
         },
     }
+
+
+def test_init_recommends_wrap_when_tools_use_the_decorator(
+    console_script: Path, workdir: Path
+) -> None:
+    (workdir / "agent.py").write_text(
+        "import gazua\n@gazua.tool\ndef refund_order(order_id): ...\n", encoding="utf-8"
+    )
+    wrapped = workdir / "wrapped"
+    wrapped.mkdir()
+    (wrapped / "agent.py").write_text(AGENT, encoding="utf-8")
+
+    decorated = init(console_script, cwd=workdir)
+    plain = init(console_script, cwd=wrapped)
+
+    assert decorated.returncode == 0, decorated.stderr
+    assert "Prefer gazua.wrap" in decorated.stdout
+    assert "docs/integration.md" in decorated.stdout
+    assert plain.returncode == 0, plain.stderr
+    assert "Prefer gazua.wrap" not in plain.stdout

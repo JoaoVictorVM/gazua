@@ -33,6 +33,7 @@ SENTINELS = (
 SENTINEL_CONTENT = "sentinel-must-not-be-distributed"
 SCHEMA_PATH = "src/gazua/schemas/config-v1.schema.json"
 MOLD_SCHEMA_PATH = "src/gazua/schemas/mold-v1.schema.json"
+INTEGRATION_SCHEMAS = ("session-v1.schema.json", "call-record-v1.schema.json")
 BUILTIN_PATH = "gazua/catalog/builtin/"
 PUBLIC_PATHS = ("src", "docs", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml")
 
@@ -154,6 +155,7 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
         "README.md",
         "SECURITY.md",
         "docs/configuration.md",
+        "docs/integration.md",
         "docs/molds.md",
         "docs/releasing.md",
         SCHEMA_PATH,
@@ -360,3 +362,46 @@ def test_catalog_and_schemas_work_in_installed_wheel_and_sdist(
     loaded = run_isolated([python, "-c", probe], cwd=workdir)
     assert loaded.returncode == 0, loaded.stderr
     assert loaded.stdout.strip() == "[15, 30, 60]"
+
+
+def test_integration_schemas_and_guide_ship_in_wheel_and_sdist(
+    distributions: Path, tmp_path: Path, run_isolated
+) -> None:
+    wheel_files = wheel_entries(wheel_in(distributions))
+    sdist_files = sdist_entries(sdist_in(distributions))
+    for name in INTEGRATION_SCHEMAS:
+        assert wheel_files[f"gazua/schemas/{name}"] == sdist_files[f"src/gazua/schemas/{name}"]
+    assert "docs/integration.md" in sdist_files
+
+    environment = tmp_path / "environment"
+    created = run_isolated(["uv", "venv", "--python", sys.executable, environment], cwd=tmp_path)
+    assert created.returncode == 0, created.stderr
+    python = interpreter_of(environment)
+    installed = run_isolated(
+        ["uv", "pip", "install", "--python", python, wheel_in(distributions)], cwd=tmp_path
+    )
+    assert installed.returncode == 0, installed.stderr
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+
+    probe = "\n".join(
+        [
+            "import json, sys",
+            "import gazua",
+            "assert not {'pydantic', 'typer', 'yaml', 'jinja2'} & set(sys.modules)",
+            "from gazua.runtime.session_models import (",
+            "    packaged_schema, render_call_record_json_schema, render_session_json_schema)",
+            "assert packaged_schema('session-v1.schema.json') == render_session_json_schema()",
+            "assert packaged_schema('call-record-v1.schema.json') == "
+            "render_call_record_json_schema()",
+            "def read_note(name): return 'note ' + name",
+            "tools = [read_note]",
+            "assert gazua.wrap(tools) is tools",
+            "print(gazua.wrap(tools)[0]('a'))",
+        ]
+    )
+    result = run_isolated([python, "-c", probe], cwd=workdir)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "note a"
+    assert list(workdir.iterdir()) == []
