@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 
 from gazua import cli
 
-DEFERRED_COMMANDS = ("run", "demo", "baseline", "verify", "clean")
+DEFERRED_COMMANDS = ("demo", "baseline", "verify", "clean")
 
 unknown_options = st.from_regex(r"--[a-z][a-z0-9-]{0,20}", fullmatch=True).filter(
     lambda option: option not in {"--help", "--version"}
@@ -26,7 +26,7 @@ def execute(command: list[str], *arguments: str, cwd: Path) -> subprocess.Comple
     )
 
 
-def test_help_lists_init_only_among_new_commands(
+def test_help_lists_only_delivered_commands(
     entrypoints: dict[str, list[str]], workdir: Path
 ) -> None:
     result = execute(entrypoints["console script"], "--help", cwd=workdir)
@@ -38,6 +38,7 @@ def test_help_lists_init_only_among_new_commands(
     assert "--help" in result.stdout
     assert "--version" in result.stdout
     assert re.search(r"\binit\b", result.stdout)
+    assert re.search(r"\brun\b", result.stdout)
     for command in DEFERRED_COMMANDS:
         assert not re.search(rf"\b{command}\b", result.stdout), command
 
@@ -66,8 +67,17 @@ def test_no_arguments_shows_help(console_script: Path, workdir: Path) -> None:
 
 @pytest.mark.parametrize(
     "arguments",
-    [("--version",), ("--help",), (), ("run",), ("--opcao-inexistente",), ("init", "--help")],
-    ids=["version", "help", "bare", "command", "option", "init-help"],
+    [
+        ("--version",),
+        ("--help",),
+        (),
+        ("run",),
+        ("run", "--list"),
+        ("demo",),
+        ("--opcao-inexistente",),
+        ("init", "--help"),
+    ],
+    ids=["version", "help", "bare", "run", "run-list", "command", "option", "init-help"],
 )
 def test_module_and_console_entrypoints_agree(
     entrypoints: dict[str, list[str]], workdir: Path, arguments: tuple[str, ...]
@@ -82,7 +92,7 @@ def test_module_and_console_entrypoints_agree(
     )
 
 
-@pytest.mark.parametrize("argument", ["run", "--opcao-inexistente"])
+@pytest.mark.parametrize("argument", ["demo", "--opcao-inexistente"])
 def test_unsupported_argument_reports_usage_on_stderr(
     console_script: Path, workdir: Path, argument: str
 ) -> None:

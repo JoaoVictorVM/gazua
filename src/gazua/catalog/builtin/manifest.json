@@ -1,0 +1,306 @@
+{
+  "schema_version": 1,
+  "catalog_release": "v0.1",
+  "molds": [
+    {
+      "id": "idor-01",
+      "file": "idor-01.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "idor-02",
+      "file": "idor-02.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "idor-03",
+      "file": "idor-03.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "idor-04",
+      "file": "idor-04.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "output-01",
+      "file": "output-01.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "output-02",
+      "file": "output-02.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "permission-01",
+      "file": "permission-01.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "permission-02",
+      "file": "permission-02.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "permission-03",
+      "file": "permission-03.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "permission-04",
+      "file": "permission-04.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "secret-01",
+      "file": "secret-01.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "secret-02",
+      "file": "secret-02.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "secret-03",
+      "file": "secret-03.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "spending-01",
+      "file": "spending-01.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "spending-02",
+      "file": "spending-02.yaml",
+      "introduced_in": "v0.1"
+    },
+    {
+      "id": "idor-05",
+      "file": "idor-05.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "idor-06",
+      "file": "idor-06.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "memory-01",
+      "file": "memory-01.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "memory-02",
+      "file": "memory-02.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "output-03",
+      "file": "output-03.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "output-04",
+      "file": "output-04.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "output-05",
+      "file": "output-05.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "permission-05",
+      "file": "permission-05.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "permission-06",
+      "file": "permission-06.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "permission-07",
+      "file": "permission-07.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "secret-04",
+      "file": "secret-04.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "secret-05",
+      "file": "secret-05.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "secret-06",
+      "file": "secret-06.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "spending-03",
+      "file": "spending-03.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "spending-04",
+      "file": "spending-04.yaml",
+      "introduced_in": "v0.2"
+    },
+    {
+      "id": "idor-07",
+      "file": "idor-07.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "idor-08",
+      "file": "idor-08.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "idor-09",
+      "file": "idor-09.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "idor-10",
+      "file": "idor-10.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "memory-03",
+      "file": "memory-03.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "memory-04",
+      "file": "memory-04.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "memory-05",
+      "file": "memory-05.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "memory-06",
+      "file": "memory-06.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "memory-07",
+      "file": "memory-07.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "memory-08",
+      "file": "memory-08.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "output-06",
+      "file": "output-06.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "output-07",
+      "file": "output-07.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "output-08",
+      "file": "output-08.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "output-09",
+      "file": "output-09.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "output-10",
+      "file": "output-10.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "permission-08",
+      "file": "permission-08.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "permission-09",
+      "file": "permission-09.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "permission-10",
+      "file": "permission-10.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "permission-11",
+      "file": "permission-11.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "permission-12",
+      "file": "permission-12.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "secret-07",
+      "file": "secret-07.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "secret-08",
+      "file": "secret-08.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "secret-09",
+      "file": "secret-09.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "secret-10",
+      "file": "secret-10.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "secret-11",
+      "file": "secret-11.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "secret-12",
+      "file": "secret-12.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "spending-05",
+      "file": "spending-05.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "spending-06",
+      "file": "spending-06.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "spending-07",
+      "file": "spending-07.yaml",
+      "introduced_in": "v0.4"
+    },
+    {
+      "id": "spending-08",
+      "file": "spending-08.yaml",
+      "introduced_in": "v0.4"
+    }
+  ]
+}

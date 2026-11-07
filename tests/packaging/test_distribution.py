@@ -32,6 +32,8 @@ SENTINELS = (
 )
 SENTINEL_CONTENT = "sentinel-must-not-be-distributed"
 SCHEMA_PATH = "src/gazua/schemas/config-v1.schema.json"
+MOLD_SCHEMA_PATH = "src/gazua/schemas/mold-v1.schema.json"
+BUILTIN_PATH = "gazua/catalog/builtin/"
 PUBLIC_PATHS = ("src", "docs", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml")
 
 Runner = Callable[..., object]
@@ -152,8 +154,10 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
         "README.md",
         "SECURITY.md",
         "docs/configuration.md",
+        "docs/molds.md",
         "docs/releasing.md",
         SCHEMA_PATH,
+        MOLD_SCHEMA_PATH,
     } <= set(sdist_files)
     assert "gazua/schemas/config-v1.schema.json" in wheel_files
     assert wheel_files["gazua/schemas/config-v1.schema.json"] == sdist_files[SCHEMA_PATH]
@@ -307,3 +311,52 @@ def test_python_metadata_rejects_unsupported_install(
 
     assert rejected.returncode != 0
     assert "3.11" in rejected.stdout + rejected.stderr
+
+
+def test_catalog_and_schemas_work_in_installed_wheel_and_sdist(
+    distributions: Path, project_root: Path, tmp_path: Path, run_isolated
+) -> None:
+    wheel_files = wheel_entries(wheel_in(distributions))
+    sdist_files = sdist_entries(sdist_in(distributions))
+    packaged = {name for name in wheel_files if name.startswith(BUILTIN_PATH)}
+    source = project_root / "src" / BUILTIN_PATH
+    expected = {f"{BUILTIN_PATH}{path.name}" for path in source.iterdir() if path.is_file()}
+    assert packaged == expected
+    assert len([name for name in packaged if name.endswith(".yaml")]) == 60
+    for name in packaged:
+        assert wheel_files[name] == sdist_files[f"src/{name}"]
+    assert wheel_files["gazua/schemas/mold-v1.schema.json"] == sdist_files[MOLD_SCHEMA_PATH]
+
+    environment = tmp_path / "environment"
+    created = run_isolated(["uv", "venv", "--python", sys.executable, environment], cwd=tmp_path)
+    assert created.returncode == 0, created.stderr
+    python = interpreter_of(environment)
+    installed = run_isolated(
+        ["uv", "pip", "install", "--python", python, wheel_in(distributions)], cwd=tmp_path
+    )
+    assert installed.returncode == 0, installed.stderr
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+
+    listing = run_isolated([scripts_folder(environment) / "gazua", "run", "--list"], cwd=workdir)
+
+    assert listing.returncode == 0, listing.stderr
+    assert listing.stdout.startswith("Attack catalog v0.1: 15 molds")
+    assert "No configuration loaded" in listing.stdout
+    assert list(workdir.iterdir()) == []
+
+    probe = "\n".join(
+        [
+            "import json",
+            "from gazua.catalog import RELEASES, load_catalog",
+            "from gazua.catalog.models import packaged_mold_json_schema as packaged",
+            "from gazua.catalog.models import render_mold_json_schema as rendered",
+            "assert json.loads(packaged()) == json.loads(rendered())",
+            "results = [load_catalog(release=release) for release in RELEASES]",
+            "assert not any(result.has_errors for result in results)",
+            "print([len(result.entries) for result in results])",
+        ]
+    )
+    loaded = run_isolated([python, "-c", probe], cwd=workdir)
+    assert loaded.returncode == 0, loaded.stderr
+    assert loaded.stdout.strip() == "[15, 30, 60]"

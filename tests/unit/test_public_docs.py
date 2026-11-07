@@ -3,7 +3,13 @@ from pathlib import Path
 
 import pytest
 
-PUBLIC_DOCUMENTS = ("README.md", "SECURITY.md", "docs/configuration.md", "docs/releasing.md")
+PUBLIC_DOCUMENTS = (
+    "README.md",
+    "SECURITY.md",
+    "docs/configuration.md",
+    "docs/molds.md",
+    "docs/releasing.md",
+)
 PLANNING_REFERENCE = re.compile(r"\b(PRD|F\d{2})\b|\.planning|\.harness|spec\.md|plan\.md")
 
 
@@ -69,3 +75,35 @@ def test_security_policy_describes_private_reporting(project_root: Path) -> None
 @pytest.mark.parametrize("name", PUBLIC_DOCUMENTS)
 def test_public_documents_do_not_reference_local_planning(project_root: Path, name: str) -> None:
     assert not PLANNING_REFERENCE.search(read(project_root, name))
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "damage + entry + technique",
+        "gazua run --list",
+        "Warning: loading external attack catalog",
+        "attack text may reach the model provider",
+        "cannot prove that a model will never contact another host",
+        "No status is an attack result",
+        "A packaged mold is never replaced",
+        "mold-v1.schema.json",
+    ],
+)
+def test_mold_guide_states_format_review_and_limits(project_root: Path, statement: str) -> None:
+    assert statement in read(project_root, "docs/molds.md")
+
+
+def test_readme_points_to_the_mold_guide(project_root: Path) -> None:
+    readme = read(project_root, "README.md")
+
+    assert "docs/molds.md" in readme
+    assert "gazua run --list" in readme
+
+
+@pytest.mark.parametrize("name", PUBLIC_DOCUMENTS)
+def test_public_documents_use_no_long_dashes(project_root: Path, name: str) -> None:
+    text = read(project_root, name)
+
+    assert chr(0x2014) not in text
+    assert chr(0x2013) not in text

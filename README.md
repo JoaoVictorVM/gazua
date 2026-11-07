@@ -4,7 +4,7 @@ Gazua is an open source security test suite for AI agents. It attacks an agent t
 
 Other tools ask whether the model refused; Gazua proves whether the code stops the attack.
 
-> **Status: early pre-release.** This package contains the project foundation and project configuration: `gazua --help`, `gazua --version` and `gazua init`. It cannot run attacks yet, and it makes no claim about the resistance of any agent.
+> **Status: early pre-release.** This package contains the project foundation, project configuration and the attack catalog: `gazua --help`, `gazua --version`, `gazua init` and `gazua run --list`. It cannot run attacks yet, and it makes no claim about the resistance of any agent.
 
 ## Installation
 
@@ -28,9 +28,10 @@ Every change is verified on Windows and Ubuntu with Python 3.11 and Python 3.14.
 | `gazua` or `gazua --help` | Shows the help |
 | `gazua --version` | Shows the installed version |
 | `gazua init` | Finds the tools in a project by reading its source code and writes `gazua.yaml` for your review |
+| `gazua run --list` | Lists the attack catalog by damage and mode, with what each attack needs from `gazua.yaml`. Nothing is executed |
 | `python -m gazua` | Same behavior as `gazua` |
 
-Attack execution and reports are planned, and their commands will appear in the help only when they ship.
+Attack execution and reports are planned. `gazua run` only lists the catalog for now, and other commands will appear in the help only when they ship.
 
 ## Configuration
 
@@ -39,6 +40,10 @@ Attack execution and reports are planned, and their commands will appear in the 
 `gazua.yaml` can execute code, because `entrypoint` and the target hooks point to Python functions that a future execution can call. Review it the way you review code.
 
 See [the configuration guide](docs/configuration.md) for the fields, the limits of tool discovery and what happens when a declaration is missing. The JSON Schema is at [`src/gazua/schemas/config-v1.schema.json`](src/gazua/schemas/config-v1.schema.json).
+
+## Attack catalog
+
+Each attack is a mold: damage + entry + technique, with English and Portuguese text, the modes that can use it and the effect that proves it worked. Molds are data, and you can add your own in YAML so that a past incident becomes a permanent test. Third-party catalogs are local folders that you review; they cannot change your target, tools or dry-run settings, and Gazua prints a warning before reading them. See [the mold guide](docs/molds.md).
 
 ## Threat model
 
