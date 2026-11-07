@@ -1,6 +1,6 @@
 """Runs Gazua in this process under observation and writes what it did to a JSON report.
 
-Usage: app_spy.py REPORT_PATH (control | import | cli [ARGS...])
+Usage: app_spy.py REPORT_PATH (control | import | load CONFIG | cli [ARGS...])
 """
 
 import contextlib
@@ -15,6 +15,7 @@ report: dict[str, Any] = {
     "network": [],
     "credential_reads": [],
     "environment_listed": False,
+    "opened_paths": [],
     "exit_code": None,
 }
 
@@ -41,7 +42,9 @@ class SpyEnviron(type(os.environ)):
         return super().__iter__()
 
 
-def audit(event: str, _args: tuple[object, ...]) -> None:
+def audit(event: str, args: tuple[object, ...]) -> None:
+    if event == "open" and isinstance(args[0], str):
+        report["opened_paths"].append(args[0])
     if event.startswith(("socket.", "http.", "urllib.", "ftplib.", "smtplib.")):
         report["network"].append(event)
 
@@ -63,6 +66,11 @@ def run_target(mode: str, arguments: list[str]) -> int:
     if mode == "import":
         __import__("gazua")
         __import__("gazua.cli")
+        return 0
+    if mode == "load":
+        from gazua.config import load_config
+
+        load_config(arguments[0])
         return 0
     from gazua._bootstrap import main
 
