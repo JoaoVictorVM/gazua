@@ -1,6 +1,7 @@
 """Runs Gazua in this process under observation and writes what it did to a JSON report.
 
-Usage: app_spy.py REPORT_PATH (control | import | load CONFIG | wrap [SESSION] | cli [ARGS...])
+Usage: app_spy.py REPORT_PATH
+    (control | import | load CONFIG | wrap [SESSION] | verdict | cli [ARGS...])
 """
 
 import contextlib
@@ -77,6 +78,35 @@ def run_wrapped_tools(arguments: list[str]) -> int:
     return 0
 
 
+def run_verdicts() -> int:
+    """Judges synthetic evidence for three signals, as a mode would after a run."""
+    import gazua
+
+    report["verdicts_on_import"] = sorted(name for name in sys.modules if "verdicts" in name)
+    from verdict_factory import call, config, context, envelope, evidence, hit, record, sink
+    from verdict_factory import summary as run_summary
+
+    from gazua.verdicts.engine import VerdictCollector
+
+    attacks = [
+        context("forbidden_tool_call", key="forbidden"),
+        context("receiver_hit", key="exfil"),
+        context("output_sink_effect", key="sink"),
+    ]
+    collector = VerdictCollector(attacks, config())
+    records = [record(attack) for attack in attacks]
+    collector(records[0], evidence(records[0], calls=[call(1, "delete_account", dry_run=True)]))
+    collector(records[1], evidence(records[1], hits=[hit(records[1])]))
+    collector(records[2], evidence(records[2], output=envelope("<b>", sink(records[2], True))))
+    verdicts = collector.finalize(run_summary(records))
+    report["states"] = [result.state for result in verdicts.results]
+    report["targets_imported"] = [
+        name for name in ("agent_target", "verdict_target") if name in sys.modules
+    ]
+    report["exports"] = sorted(gazua.__all__)
+    return 0
+
+
 def run_target(mode: str, arguments: list[str]) -> int:
     if mode == "control":
         attempt_forbidden_actions()
@@ -87,6 +117,8 @@ def run_target(mode: str, arguments: list[str]) -> int:
         return 0
     if mode == "wrap":
         return run_wrapped_tools(arguments)
+    if mode == "verdict":
+        return run_verdicts()
     if mode == "load":
         from gazua.config import load_config
 

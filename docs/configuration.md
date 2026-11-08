@@ -76,8 +76,8 @@ Only `schema_version` is required. A file without `entrypoint` or without tools 
 | `limits` | object | Defaults below | |
 | `fixtures` | object | Empty | Synthetic `attacker` and `victim` identities |
 | `canaries` | list of unique strings | Empty | Test values only |
-| `output_sink` | reference or `null` | `null` | |
-| `gate.fail_on` | unique list of `low`, `medium`, `high`, `critical` | `[high, critical]` | An empty list turns the severity gate off |
+| `output_sink` | reference or `null` | `null` | Test function `sink(value)` returning `{effect, proof}`; see [the verdict guide](verdicts.md) |
+| `gate.fail_on` | unique list of `low`, `medium`, `high`, `critical` | `[high, critical]` | Exact severities of findings that fail the gate. An empty list turns the severity gate off |
 | `legit_tasks` | list of `request` and `expected_tool` | Empty | |
 | `allowed_targets` | list of exact hosts | `localhost`, `127.0.0.1`, `::1` | No scheme, path, port or wildcard. An empty list authorizes no host |
 | `molds.directories` | unique list of local folders | Empty | Your own attack molds |

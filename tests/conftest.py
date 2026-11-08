@@ -306,3 +306,88 @@ def engine_project(tmp_path: Path) -> EngineProject:
     root = tmp_path / "project"
     root.mkdir()
     return EngineProject(root)
+
+
+class VerdictProject:
+    """A temporary project with the verdict test agent, its sink and real executors."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        for name in ("verdict_target.py", "verdict_consumer.py"):
+            shutil.copy(ROOT / "tests" / "support" / name, root / name)
+
+    def config(self, *, reset: bool = False, **document: Any) -> Any:
+        from verdict_factory import config_document
+
+        from gazua.config.models import GazuaConfig
+
+        data = config_document(**document)
+        data["entrypoint"] = "verdict_target:entrypoint"
+        data["target"] = {"reset": "verdict_target:reset"} if reset else {}
+        if "output_sink" not in document:
+            data["output_sink"] = "verdict_target:sink"
+        return GazuaConfig.model_validate(data)
+
+    def request(self, attack: Any, repetition: int, message: str = "", **fields: Any) -> Any:
+        from gazua.runtime.run_models import ExecutionRequest
+
+        tools = attack.mode == "tools"
+        values: dict[str, Any] = {
+            "key": attack.requests[repetition - 1].request_key,
+            "mold_id": attack.mold.id,
+            "repetition": repetition,
+            "mode": attack.mode,
+            "executor": "verdict_consumer:tools" if tools else "verdict_consumer:agent",
+            "payload": {"message": message, **fields.pop("payload", {})},
+            "requires_receiver": attack.signal == "receiver_hit",
+            "receiver_transport": attack.capabilities.receiver_transport,
+            "usage_reporting": False,
+            "actor": "attacker",
+        }
+        values.update(fields)
+        return ExecutionRequest.model_validate(values)
+
+    def effects(self) -> list[dict[str, Any]]:
+        return [
+            json.loads(line)
+            for path in (self.root / "effects").glob("*.jsonl")
+            for line in path.read_text(encoding="utf-8").splitlines()
+        ]
+
+    def run(
+        self,
+        contexts: Sequence[Any],
+        requests: Sequence[Any],
+        overrides: dict[str, Any] | None = None,
+        *,
+        config: Any = None,
+        on_evidence: Callable[..., None] | None = None,
+        **options: Any,
+    ) -> tuple[Any, Any, list[Any]]:
+        from gazua.runtime.engine import execute_plan, prepare_run
+        from gazua.runtime.run_models import LimitOverrides
+        from gazua.verdicts.engine import VerdictCollector
+
+        plan = prepare_run(
+            config if config is not None else self.config(),
+            requests,
+            LimitOverrides.model_validate({"concurrency": 1, **(overrides or {})}),
+            project_root=self.root,
+        )
+        collector = VerdictCollector.for_plan(contexts, plan)
+
+        def collect(record: Any, evidence: Any) -> None:
+            if on_evidence is not None:
+                on_evidence(record, evidence)
+            collector(record, evidence)
+
+        events: list[Any] = []
+        summary = execute_plan(plan, events.append, on_evidence=collect, **options)
+        return summary, collector.finalize(summary), events
+
+
+@pytest.fixture
+def verdict_project(tmp_path: Path) -> VerdictProject:
+    root = tmp_path / "project"
+    root.mkdir()
+    return VerdictProject(root)

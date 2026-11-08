@@ -17,7 +17,7 @@ from gazua.catalog.selection import inspect_requirements
 from gazua.config.models import GazuaConfig
 from gazua.diagnostics import REDACTED
 from gazua.runtime.evidence import PrivateEvidence, Redactor
-from gazua.runtime.run_models import ExecutionRecord, RunSummary
+from gazua.runtime.run_models import ExecutionRecord, RunPlan, RunSummary
 from gazua.verdicts.models import (
     CONFIDENCE,
     AttackContext,
@@ -234,6 +234,11 @@ class VerdictCollector:
         self._slots: dict[tuple[str, int], str] = {}
         self._conflicts: set[str] = set()
         self._errors: list[str] = []
+
+    @classmethod
+    def for_plan(cls, contexts: Sequence[AttackContext], plan: RunPlan) -> VerdictCollector:
+        """A collector that judges with the plan's configuration and effective ceiling."""
+        return cls(contexts, plan.config, max_tool_calls=plan.limits.max_tool_calls)
 
     def __call__(self, record: ExecutionRecord, evidence: PrivateEvidence) -> None:
         self.on_evidence(record, evidence)

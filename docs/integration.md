@@ -102,6 +102,8 @@ Every call made during a run is recorded in order: tool name, arguments, actor, 
 
 A call that cannot be recorded is blocked, because the verdict depends on the log.
 
+During a supervised attempt the wrapper also keeps each return value, as plain JSON, in the run's private folder, so a verdict can prove which record came back. It never calls your objects to do so, never changes what the tool returns, and the copy is deleted when the attempt has been judged. See [the verdict guide](verdicts.md).
+
 The session and the call record formats are public JSON Schemas, packaged with Gazua: [`session-v1.schema.json`](../src/gazua/schemas/session-v1.schema.json), [`session-v2.schema.json`](../src/gazua/schemas/session-v2.schema.json) for a supervised attempt, and [`call-record-v1.schema.json`](../src/gazua/schemas/call-record-v1.schema.json).
 
 ## Usage, rate limits and exfiltration

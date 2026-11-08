@@ -39,6 +39,7 @@ EXECUTION_SCHEMAS = (
     "execution-v1.schema.json",
     "receiver-hit-v1.schema.json",
 )
+VERDICT_SCHEMAS = ("attack-result-v1.schema.json", "effect-observation-v1.schema.json")
 BUILTIN_PATH = "gazua/catalog/builtin/"
 PUBLIC_PATHS = ("src", "docs", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml")
 
@@ -164,6 +165,7 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
         "docs/integration.md",
         "docs/molds.md",
         "docs/releasing.md",
+        "docs/verdicts.md",
         SCHEMA_PATH,
         MOLD_SCHEMA_PATH,
     } <= set(sdist_files)
@@ -474,3 +476,66 @@ def test_execution_schemas_and_guide_ship_in_distributions(
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "completed"
+
+
+def test_verdict_contracts_and_guide_are_packaged(
+    distributions: Path, project_root: Path, tmp_path: Path, run_isolated
+) -> None:
+    wheel_files = wheel_entries(wheel_in(distributions))
+    sdist_files = sdist_entries(sdist_in(distributions))
+    for name in VERDICT_SCHEMAS:
+        assert wheel_files[f"gazua/schemas/{name}"] == sdist_files[f"src/gazua/schemas/{name}"]
+    assert "docs/verdicts.md" in sdist_files
+    assert "gazua/verdicts/engine.py" in wheel_files
+
+    copy = tmp_path / "checkout"
+    schemas = copy / "src/gazua/schemas"
+    shutil.copytree(project_root / "src/gazua/schemas", schemas)
+    script = copy / ".github/scripts/generate_verdict_schemas.py"
+    script.parent.mkdir(parents=True)
+    shutil.copy(project_root / ".github/scripts/generate_verdict_schemas.py", script)
+    for name in VERDICT_SCHEMAS:
+        (schemas / name).unlink()
+    earlier = {path.name: path.read_bytes() for path in schemas.iterdir()}
+    generated = run_isolated(
+        [sys.executable, script], cwd=copy, env={**os.environ, "PYTHONPATH": ""}
+    )
+    assert generated.returncode == 0, generated.stderr
+    for name, content in earlier.items():
+        assert (schemas / name).read_bytes() == content
+    for name in VERDICT_SCHEMAS:
+        fresh = (schemas / name).read_bytes()
+        published = (project_root / "src/gazua/schemas" / name).read_bytes()
+        assert fresh == published.replace(b"\r\n", b"\n")
+        assert fresh == wheel_files[f"gazua/schemas/{name}"].replace(b"\r\n", b"\n")
+
+    environment = tmp_path / "environment"
+    created = run_isolated(["uv", "venv", "--python", sys.executable, environment], cwd=tmp_path)
+    assert created.returncode == 0, created.stderr
+    python = interpreter_of(environment)
+    installed = run_isolated(
+        ["uv", "pip", "install", "--python", python, wheel_in(distributions)], cwd=tmp_path
+    )
+    assert installed.returncode == 0, installed.stderr
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    probe = "\n".join(
+        [
+            "import sys",
+            "import gazua",
+            "assert not any('verdicts' in name for name in sys.modules)",
+            "from gazua.runtime.session_models import packaged_schema",
+            "from gazua.verdicts.models import (",
+            "    render_attack_result_json_schema, render_effect_observation_json_schema)",
+            "from gazua.verdicts import upper_bound",
+            "assert packaged_schema('attack-result-v1.schema.json') == "
+            "render_attack_result_json_schema()",
+            "assert packaged_schema('effect-observation-v1.schema.json') == "
+            "render_effect_observation_json_schema()",
+            "print(round(upper_bound(0, 5), 4))",
+        ]
+    )
+    result = run_isolated([python, "-c", probe], cwd=workdir)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "0.4507"

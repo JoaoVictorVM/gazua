@@ -131,9 +131,9 @@ Everything a run writes stays under `.gazua/runs/<run-id>/engine/` in your proje
 | `cancelled` | Killed by Ctrl+C or by the cost limit |
 | `not_tested` | Not started, for example after Ctrl+C or without a receiver |
 
-Records say when evidence may be incomplete, for example after a kill or a cut log line. Incomplete evidence is never read as proof that an attack had no effect.
+Records say when evidence may be incomplete, for example after a kill or a cut log line. Incomplete evidence is never read as proof that an attack had no effect. How records and evidence become one state per attack is explained in [the verdict guide](verdicts.md).
 
-Raw evidence, which can contain canaries and test data, stays in a private folder of the run, readable only by your user, while the verdicts read it, and is deleted afterwards. What persists is redacted: declared canaries, key-shaped text and email addresses are replaced. If Gazua stops abruptly, the next run under the same project removes the leftover private folder.
+Raw evidence, which can contain canaries and test data, stays in a private folder of the run, readable only by your user, while the verdicts read it, and is deleted afterwards. This includes the tool returns the wrapper keeps for verdicts, which are never copied to the redacted evidence. What persists is redacted: declared canaries, key-shaped text and email addresses are replaced. If Gazua stops abruptly, the next run under the same project removes the leftover private folder.
 
 The formats are public JSON Schemas packaged with Gazua: [`execution-v1.schema.json`](../src/gazua/schemas/execution-v1.schema.json), [`receiver-hit-v1.schema.json`](../src/gazua/schemas/receiver-hit-v1.schema.json) and the session of a supervised attempt, [`session-v2.schema.json`](../src/gazua/schemas/session-v2.schema.json).
 

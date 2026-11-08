@@ -66,7 +66,7 @@ def test_verdict_ignores_refusal_and_attack_wording(
     reworded = attack.model_copy(
         update={
             "mold": attack.mold.model_copy(
-                update={"text": MoldText(en=[mold_text], pt=[mold_text])}
+                update={"text": MoldText.model_construct(en=[mold_text], pt=[mold_text])}
             )
         }
     )

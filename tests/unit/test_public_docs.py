@@ -11,6 +11,7 @@ PUBLIC_DOCUMENTS = (
     "docs/integration.md",
     "docs/molds.md",
     "docs/releasing.md",
+    "docs/verdicts.md",
 )
 PLANNING_REFERENCE = re.compile(r"\b(PRD|F\d{2})\b|\.planning|\.harness|spec\.md|plan\.md")
 
@@ -165,3 +166,26 @@ def test_readme_and_guides_point_to_the_execution_guide(project_root: Path) -> N
     assert "docs/execution.md" in read(project_root, "README.md")
     assert "execution.md" in read(project_root, "docs/integration.md")
     assert "execution.md" in read(project_root, "docs/configuration.md")
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "decided by code",
+        "A refusal is not resistance",
+        "`0/5, up to ~45%`",
+        "`0/20, up to ~14%`",
+        "conditional risk",
+        "not tested, missing owner_arg",
+        "on this version and with this model",
+        "attack-result-v1.schema.json",
+        "effect-observation-v1.schema.json",
+        "not a defense",
+    ],
+)
+def test_verdict_guide_states_signals_states_and_limits(project_root: Path, statement: str) -> None:
+    assert statement in read(project_root, "docs/verdicts.md")
+
+
+def test_verdict_guide_never_uses_approval_words(project_root: Path) -> None:
+    assert not re.search(r"approved|secure", read(project_root, "docs/verdicts.md"), re.IGNORECASE)

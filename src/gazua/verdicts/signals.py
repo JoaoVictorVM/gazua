@@ -501,10 +501,11 @@ def output_sink_effect(obs: Observed) -> SignalOutcome:
     if not obs.context.capabilities.observation_envelope:
         outcome.need("sink_not_observed")
         return outcome
-    negative = False
+    seen = False
     for item in _executor_observations(obs, outcome):
         if not isinstance(item, SinkObservation):
             continue
+        seen = True
         if item.error is not None:
             outcome.fail(item.error)
             continue
@@ -520,9 +521,7 @@ def output_sink_effect(obs: Observed) -> SignalOutcome:
                     facts={"sink_proof": cast("JsonValue", proof)},
                 )
             )
-        else:
-            negative = True
-    if not outcome.proofs and not negative:
+    if not seen and obs.record.status == "completed":
         outcome.need("sink_not_called")
     return _require_complete(obs, outcome)
 
