@@ -4,7 +4,7 @@ Modes, reports, verification and adapters consume these results instead of inter
 evidence themselves. Nothing here runs at ``import gazua``.
 """
 
-from gazua.verdicts.engine import evaluate_attempt
+from gazua.verdicts.engine import VerdictCollector, VerdictContractError, evaluate_attempt
 from gazua.verdicts.models import (
     VERDICT_STATES,
     AttackContext,
@@ -20,6 +20,8 @@ from gazua.verdicts.models import (
     VerdictState,
     VerdictSummary,
 )
+from gazua.verdicts.presentation import rate_text, resisted_text, state_text, summary_lines
+from gazua.verdicts.statistics import upper_bound
 
 __all__ = [
     "VERDICT_STATES",
@@ -33,7 +35,14 @@ __all__ = [
     "RequestSlot",
     "ResultPaths",
     "StateCounts",
+    "VerdictCollector",
+    "VerdictContractError",
     "VerdictState",
     "VerdictSummary",
     "evaluate_attempt",
+    "rate_text",
+    "resisted_text",
+    "state_text",
+    "summary_lines",
+    "upper_bound",
 ]
