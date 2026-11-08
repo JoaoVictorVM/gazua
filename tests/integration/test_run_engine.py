@@ -130,7 +130,7 @@ def test_concurrency_is_two_without_reset_and_one_with_reset(engine_project: Any
 
     free, free_events = engine_project.run(requests)
     free_spans = intervals(engine_project.marks())
-    (engine_project.root / "marks.jsonl").unlink()
+    engine_project.clear_marks()
     serialized, serialized_events = engine_project.run(
         requests, config=engine_project.config(reset=True)
     )

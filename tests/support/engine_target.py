@@ -1,7 +1,8 @@
 """A synthetic agent for run engine tests. Every behavior is chosen by the message it receives.
 
-Markers are appended to ``marks.jsonl`` in the working directory, so tests can see what ran,
-in which process and when, after each worker is gone.
+Markers are appended to ``marks/<pid>.jsonl`` in the working directory, so tests can see what
+ran, in which process and when, after each worker is gone. One file per process, because
+concurrent appends to a shared file interleave on Windows.
 """
 
 import contextlib
@@ -14,12 +15,13 @@ from pathlib import Path
 
 import gazua
 
-MARKS = Path("marks.jsonl")
+MARKS = Path("marks")
 
 
 def mark(kind: str, **data: object) -> None:
     line = json.dumps({"kind": kind, "pid": os.getpid(), "t": time.time(), **data})
-    with MARKS.open("a", encoding="utf-8") as handle:
+    MARKS.mkdir(exist_ok=True)
+    with (MARKS / f"{os.getpid()}.jsonl").open("a", encoding="utf-8") as handle:
         handle.write(line + "\n")
 
 

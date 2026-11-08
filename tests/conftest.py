@@ -265,10 +265,15 @@ class EngineProject:
         return ExecutionRequest.model_validate(values)
 
     def marks(self) -> list[dict[str, Any]]:
-        path = self.root / "marks.jsonl"
-        if not path.exists():
-            return []
-        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        marks = [
+            json.loads(line)
+            for path in (self.root / "marks").glob("*.jsonl")
+            for line in path.read_text(encoding="utf-8").splitlines()
+        ]
+        return sorted(marks, key=lambda mark: mark["t"])
+
+    def clear_marks(self) -> None:
+        shutil.rmtree(self.root / "marks", ignore_errors=True)
 
     def run(
         self,
