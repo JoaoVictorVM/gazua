@@ -1,0 +1,400 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/attack-result-v1.schema.json",
+  "$defs": {
+    "JsonValue": {},
+    "Proof": {
+      "additionalProperties": false,
+      "description": "Where an effect was observed. It points to redacted evidence and never holds raw values.",
+      "properties": {
+        "signal": {
+          "enum": [
+            "forbidden_tool_call",
+            "sensitive_tool_call",
+            "canary_in_response",
+            "canary_in_tool_arguments",
+            "receiver_hit",
+            "victim_record_access",
+            "output_sink_effect",
+            "memory_effect",
+            "tool_call_ceiling"
+          ],
+          "title": "Signal",
+          "type": "string"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "call_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Seq"
+        },
+        "hit_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hit Id"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "canary_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canary Index"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "enum": [
+                "response",
+                "tool_return",
+                "tool_arguments"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position"
+        },
+        "conditions": {
+          "items": {
+            "enum": [
+              "dry_run",
+              "attempted_action_only",
+              "low_fidelity",
+              "raised_after_call",
+              "monetary_effect_not_proven",
+              "fixture_specific",
+              "exfiltration_attempt_only",
+              "gazua_ceiling",
+              "target_limit_unknown",
+              "cost_not_proven",
+              "execution_incomplete",
+              "truncated_tail",
+              "delivered_after_injection",
+              "test_sink_only",
+              "synthetic_marker"
+            ],
+            "type": "string"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "facts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Facts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "signal",
+        "execution_id"
+      ],
+      "title": "Proof",
+      "type": "object"
+    },
+    "Reason": {
+      "additionalProperties": false,
+      "description": "Why a repetition was not tested or stayed conditional, as a closed code.",
+      "properties": {
+        "code": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "missing": {
+          "items": {
+            "enum": [
+              "tool.forbidden",
+              "tool.sensitive",
+              "tool.safe",
+              "tool.classified",
+              "tool.owner_arg",
+              "identity",
+              "fixtures.attacker",
+              "fixtures.victim",
+              "fixtures.victim.records",
+              "canaries",
+              "output_sink",
+              "target.reset",
+              "direct_tool_access",
+              "entry_supported"
+            ],
+            "type": "string"
+          },
+          "title": "Missing",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "Reason",
+      "type": "object"
+    },
+    "StateCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "finding": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Finding",
+          "type": "integer"
+        },
+        "conditional_risk": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Conditional Risk",
+          "type": "integer"
+        },
+        "resisted": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Resisted",
+          "type": "integer"
+        },
+        "not_tested": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Not Tested",
+          "type": "integer"
+        },
+        "not_applicable": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Not Applicable",
+          "type": "integer"
+        }
+      },
+      "title": "StateCounts",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The verdict of one attack unit over all its repetitions.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "attack_key": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+      "title": "Attack Key",
+      "type": "string"
+    },
+    "mold_id": {
+      "minLength": 1,
+      "title": "Mold Id",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "tools",
+        "agent"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "damage": {
+      "enum": [
+        "prompt_only_permission",
+        "secret_in_context",
+        "idor_via_agent",
+        "unhandled_output",
+        "unlocked_memory",
+        "unchecked_spending"
+      ],
+      "title": "Damage",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "finding",
+        "conditional_risk",
+        "resisted",
+        "not_tested",
+        "not_applicable"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "severity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "planned": {
+      "minimum": 1,
+      "title": "Planned",
+      "type": "integer"
+    },
+    "evaluated": {
+      "minimum": 0,
+      "title": "Evaluated",
+      "type": "integer"
+    },
+    "successes": {
+      "minimum": 0,
+      "title": "Successes",
+      "type": "integer"
+    },
+    "unknown": {
+      "minimum": 0,
+      "title": "Unknown",
+      "type": "integer"
+    },
+    "not_applicable_count": {
+      "minimum": 0,
+      "title": "Not Applicable Count",
+      "type": "integer"
+    },
+    "state_counts": {
+      "$ref": "#/$defs/StateCounts"
+    },
+    "rate": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Rate"
+    },
+    "upper_bound": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Upper Bound"
+    },
+    "confidence": {
+      "maximum": 0.95,
+      "minimum": 0.95,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "coverage": {
+      "enum": [
+        "complete",
+        "partial",
+        "none"
+      ],
+      "title": "Coverage",
+      "type": "string"
+    },
+    "gated": {
+      "title": "Gated",
+      "type": "boolean"
+    },
+    "low_fidelity": {
+      "title": "Low Fidelity",
+      "type": "boolean"
+    },
+    "reasons": {
+      "items": {
+        "$ref": "#/$defs/Reason"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "operational_errors": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "type": "string"
+      },
+      "title": "Operational Errors",
+      "type": "array"
+    },
+    "proof": {
+      "items": {
+        "$ref": "#/$defs/Proof"
+      },
+      "title": "Proof",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "attack_key",
+    "mold_id",
+    "mode",
+    "damage",
+    "state",
+    "severity",
+    "planned",
+    "evaluated",
+    "successes",
+    "unknown",
+    "not_applicable_count",
+    "state_counts",
+    "rate",
+    "upper_bound",
+    "confidence",
+    "coverage",
+    "gated",
+    "low_fidelity",
+    "reasons",
+    "operational_errors",
+    "proof"
+  ],
+  "title": "Gazua attack result",
+  "type": "object"
+}

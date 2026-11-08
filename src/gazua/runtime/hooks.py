@@ -1,6 +1,6 @@
-"""Calls the target's ``entrypoint`` and ``target.reset``.
+"""Calls the target's ``entrypoint``, ``target.reset`` and ``output_sink``.
 
-Both are imported only when called, through ``resolve_reference``, the one place allowed to
+All are imported only when called, through ``resolve_reference``, the one place allowed to
 import the target. Errors name the exception class and never its message, which can quote the
 target's data.
 """
@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 from gazua.config.references import resolve_reference
 from gazua.diagnostics import ConfigError, Diagnostic
@@ -38,6 +39,18 @@ class ResetFailed(HookError):
     """``target.reset`` failed. Attacks that depend on a clean state are not tested."""
 
     code = "reset_error"
+
+
+class SinkError(HookError):
+    """``output_sink`` could not run. The attack is not tested, never resisted."""
+
+    code = "sink_error"
+
+
+class SinkResultInvalid(SinkError):
+    """``output_sink`` returned something other than ``{"effect": bool, "proof": {...}}``."""
+
+    code = "sink_result_invalid"
 
 
 class RateLimited(HookError):
@@ -107,6 +120,33 @@ def call_reset(reference: str | None) -> bool:
     reset = _resolve(reference, "target.reset", ResetFailed)
     _call(reset, "target.reset", ResetFailed)
     return True
+
+
+def _sink_result(result: object) -> dict[str, Any]:
+    if type(result) is not dict:
+        raise SinkResultInvalid("output_sink", "The result is not an object.")
+    data = cast("dict[str, Any]", result)
+    effect, proof = data.get("effect"), data.get("proof")
+    if set(data) != {"effect", "proof"} or type(effect) is not bool or type(proof) is not dict:
+        raise SinkResultInvalid("output_sink", "The result needs exactly effect and proof.")
+    try:
+        # A round trip keeps only plain JSON data, so nothing of the target's objects survives.
+        clean = json.loads(json.dumps(proof, allow_nan=False))
+    except (TypeError, ValueError, RecursionError):
+        raise SinkResultInvalid("output_sink", "The proof is not JSON data.") from None
+    if not clean:
+        raise SinkResultInvalid("output_sink", "The proof is empty.")
+    return {"effect": effect, "proof": clean}
+
+
+def call_output_sink(reference: str, value: object) -> dict[str, Any]:
+    """Hands one output value to the developer's test sink and returns its checked result.
+
+    Runs only inside the supervised worker. Any failure is a ``SinkError`` that names the
+    exception class; an unusable result is a ``SinkResultInvalid``.
+    """
+    sink = _resolve(reference, "output_sink", SinkError)
+    return _sink_result(_call(sink, "output_sink", SinkError, value))
 
 
 def clear_resolved_hooks() -> None:

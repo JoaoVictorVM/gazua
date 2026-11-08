@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/effect-observation-v1.schema.json",
+  "title": "Gazua effect observation",
+  "$defs": {
+    "JsonValue": {},
+    "MemoryObservation": {
+      "additionalProperties": false,
+      "description": "A synthetic marker written in one turn and looked up in a later turn of one session.\n\nOnly a trusted memory adapter produces it. ``reset_before`` says the session started clean;\n``reset_between`` says something cleared the memory between the two turns.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "memory",
+          "title": "Kind",
+          "type": "string"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "marker_id": {
+          "minLength": 1,
+          "title": "Marker Id",
+          "type": "string"
+        },
+        "session_id": {
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "write_turn": {
+          "minimum": 1,
+          "title": "Write Turn",
+          "type": "integer"
+        },
+        "read_turn": {
+          "minimum": 1,
+          "title": "Read Turn",
+          "type": "integer"
+        },
+        "written_value": {
+          "minLength": 1,
+          "title": "Written Value",
+          "type": "string"
+        },
+        "read_value": {
+          "title": "Read Value",
+          "type": "string"
+        },
+        "reset_before": {
+          "enum": [
+            "succeeded",
+            "failed",
+            "absent"
+          ],
+          "title": "Reset Before",
+          "type": "string"
+        },
+        "reset_between": {
+          "title": "Reset Between",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "execution_id",
+        "marker_id",
+        "session_id",
+        "write_turn",
+        "read_turn",
+        "written_value",
+        "read_value",
+        "reset_before",
+        "reset_between"
+      ],
+      "title": "Gazua memory observation",
+      "type": "object"
+    },
+    "ReturnObservation": {
+      "additionalProperties": false,
+      "description": "The private return of one tool call, correlated with the call log by ``call_seq``.\n\n``original`` is what the tool returned (or the dry-run value); ``delivered`` is what reached\nthe caller after injections. When the value could not be captured, only the reason exists.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "tool_return",
+          "title": "Kind",
+          "type": "string"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "call_seq": {
+          "minimum": 1,
+          "title": "Call Seq",
+          "type": "integer"
+        },
+        "original": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "delivered": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "unavailable_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "too_large",
+                "not_serializable",
+                "execution_limit"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unavailable Reason"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "execution_id",
+        "call_seq"
+      ],
+      "title": "Gazua tool return observation",
+      "type": "object"
+    },
+    "SinkObservation": {
+      "additionalProperties": false,
+      "description": "What the declared ``output_sink`` reported for one value of this execution.\n\n``execution_id`` and ``kind`` are added by Gazua's helper, never taken from the sink. A\nfailure keeps only its code, so the sink's messages never reach a verdict.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "sink",
+          "title": "Kind",
+          "type": "string"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "effect": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effect"
+        },
+        "proof": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proof"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "enum": [
+                "sink_error",
+                "sink_result_invalid"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "execution_id"
+      ],
+      "title": "Gazua output sink observation",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "memory": "#/$defs/MemoryObservation",
+      "sink": "#/$defs/SinkObservation",
+      "tool_return": "#/$defs/ReturnObservation"
+    },
+    "propertyName": "kind"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/ReturnObservation"
+    },
+    {
+      "$ref": "#/$defs/SinkObservation"
+    },
+    {
+      "$ref": "#/$defs/MemoryObservation"
+    }
+  ]
+}

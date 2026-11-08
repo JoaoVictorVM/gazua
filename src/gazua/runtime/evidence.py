@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from gazua.diagnostics import REDACTED, SECRET_PATTERNS
+from gazua.runtime.observations import ReturnChannel
 from gazua.runtime.processes import Capture
 from gazua.runtime.receiver import CapturedHit
 from gazua.runtime.session_models import CallRecord
@@ -69,7 +70,8 @@ class PrivateEvidence:
     """Everything a verdict needs about one execution, before redaction.
 
     ``complete`` is False when anything may be missing, so an absence here never proves that
-    the attack had no effect.
+    the attack had no effect. ``returns`` holds the private tool returns read from the wrapper's
+    sidecar; it lives in the private folder and is deleted with it.
     """
 
     execution_id: str
@@ -80,6 +82,7 @@ class PrivateEvidence:
     stdout: Capture
     stderr: Capture
     complete: bool
+    returns: ReturnChannel | None = None
 
 
 @dataclass(frozen=True, slots=True)
