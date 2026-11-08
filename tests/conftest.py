@@ -207,12 +207,16 @@ def read_log() -> Callable[[Path], list[dict[str, Any]]]:
 def _fresh_tool_state() -> Iterator[None]:
     """Tools wrapped by one test must not appear in the next one's registry."""
     yield
+    from gazua.integration.channel import clear_channels
     from gazua.integration.injection import reset_deliveries
+    from gazua.integration.limits import reset_admissions
     from gazua.integration.proxy import clear_identity_hooks
     from gazua.integration.registry import registry
     from gazua.runtime.hooks import clear_resolved_hooks
 
     registry.clear()
     reset_deliveries()
+    reset_admissions()
+    clear_channels()
     clear_identity_hooks()
     clear_resolved_hooks()
