@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/receiver-hit-v1.schema.json",
+  "additionalProperties": false,
+  "description": "One request that reached the local receiver, correlated by the worker's channel only.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "hit_id": {
+      "minLength": 1,
+      "title": "Hit Id",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "execution_id": {
+      "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+      "title": "Execution Id",
+      "type": "string"
+    },
+    "received_at": {
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+      "title": "Received At",
+      "type": "string"
+    },
+    "method": {
+      "enum": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "logical_url": {
+      "minLength": 1,
+      "title": "Logical Url",
+      "type": "string"
+    },
+    "body_size": {
+      "minimum": 0,
+      "title": "Body Size",
+      "type": "integer"
+    },
+    "truncated": {
+      "title": "Truncated",
+      "type": "boolean"
+    },
+    "evidence": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Evidence"
+    }
+  },
+  "required": [
+    "schema_version",
+    "hit_id",
+    "run_id",
+    "execution_id",
+    "received_at",
+    "method",
+    "logical_url",
+    "body_size",
+    "truncated",
+    "evidence"
+  ],
+  "title": "Gazua receiver hit",
+  "type": "object"
+}

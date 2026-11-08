@@ -20,7 +20,7 @@ from gazua.config.models import GazuaConfig, Tool
 from gazua.diagnostics import Diagnostic
 from gazua.integration.errors import GazuaBlockedError
 from gazua.integration.registry import RegisteredTool, registry
-from gazua.runtime.session_models import SessionActor, SessionDocument
+from gazua.runtime.session_models import AnySession, SessionActor
 from gazua.runtime.session_writer import activate
 
 Role = Literal["attacker", "victim"]
@@ -193,7 +193,7 @@ class ToolInventory:
         identity: Role,
         arguments: Mapping[str, Any],
         *,
-        session: SessionDocument,
+        session: AnySession,
         directory: Path,
     ) -> Any:
         """Calls a released tool as the attacker or the victim of the fixtures."""

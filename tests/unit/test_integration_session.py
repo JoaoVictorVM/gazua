@@ -67,7 +67,7 @@ def write_raw(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: bytes) -
         pytest.param(b"{not json", "session_malformed", id="malformed"),
         pytest.param(b'{"schema_version": NaN}', "session_malformed", id="nan"),
         pytest.param(b"[]", "session_invalid", id="not-an-object"),
-        pytest.param(b'{"schema_version": 2}', "session_version", id="unknown-version"),
+        pytest.param(b'{"schema_version": 3}', "session_version", id="unknown-version"),
         pytest.param(b'{"schema_version": true}', "session_version", id="boolean-version"),
         pytest.param(b"\xff\xfe", "session_malformed", id="not-utf8"),
     ],
@@ -335,3 +335,88 @@ def test_dry_run_tool_never_runs_the_original(
             proxy("a")
 
     assert spy.calls == []
+
+
+V2_FIELDS: dict[str, Any] = {
+    "execution_id": "GAZUA-exec-0001",
+    "max_tool_calls": 50,
+    "events_path": "events.jsonl",
+    "receiver": {
+        "host": "127.0.0.1",
+        "port": 40123,
+        "token": "local-token",
+        "execution_id": "GAZUA-exec-0001",
+    },
+    "usage_reporting": True,
+}
+
+
+def test_v1_and_v2_sessions_are_distinct_and_supported(tmp_path: Path) -> None:
+    from conftest import session_document
+    from gazua.config.models import GazuaConfig
+    from gazua.integration.session import SessionFormatError
+    from gazua.runtime import SessionExecution, SessionReceiver, build_session
+    from gazua.runtime.session_models import (
+        SESSION_V2_SCHEMA_FILE,
+        SessionDocument,
+        SessionDocumentV2,
+        packaged_schema,
+        render_session_v2_json_schema,
+    )
+
+    v1 = parse_session(session_document(), tmp_path)
+    v2 = parse_session(session_document(schema_version=2, **V2_FIELDS), tmp_path)
+
+    assert v1.execution is None
+    assert v2.execution is not None
+    assert v2.execution.events_path == tmp_path / "events.jsonl"
+    assert v2.execution.receiver is not None
+    assert v2.execution.receiver.port == 40123
+
+    rejected = [
+        session_document(**V2_FIELDS),
+        session_document(schema_version=2),
+        session_document(schema_version=3, **V2_FIELDS),
+        session_document(schema_version=2, **{**V2_FIELDS, "events_path": "../out.jsonl"}),
+        session_document(schema_version=2, **{**V2_FIELDS, "events_path": "/var/e.jsonl"}),
+        session_document(schema_version=2, **{**V2_FIELDS, "events_path": "C:/e.jsonl"}),
+        session_document(schema_version=2, **{**V2_FIELDS, "events_path": "a\\e.jsonl"}),
+        session_document(schema_version=2, **{**V2_FIELDS, "max_tool_calls": 0}),
+        session_document(
+            schema_version=2,
+            **{**V2_FIELDS, "receiver": {**V2_FIELDS["receiver"], "host": "receiver.gazua.test"}},
+        ),
+        session_document(
+            schema_version=2,
+            **{**V2_FIELDS, "receiver": {**V2_FIELDS["receiver"], "execution_id": "other"}},
+        ),
+    ]
+    for document in rejected:
+        with pytest.raises(SessionFormatError):
+            parse_session(document, tmp_path)
+
+    config = GazuaConfig.model_validate({"schema_version": 1})
+    plain = build_session(config, run_id="GAZUA-run-1", mode="agent")
+    extended = build_session(
+        config,
+        run_id="GAZUA-run-1",
+        mode="agent",
+        execution=SessionExecution(
+            execution_id="GAZUA-exec-0001",
+            max_tool_calls=7,
+            receiver=SessionReceiver(
+                host="127.0.0.1",
+                port=1,
+                token="local-token",  # noqa: S106
+                execution_id="GAZUA-exec-0001",
+            ),
+        ),
+    )
+    assert isinstance(plain, SessionDocument)
+    assert plain.schema_version == 1
+    assert isinstance(extended, SessionDocumentV2)
+    assert extended.max_tool_calls == 7
+    parsed = parse_session(extended.model_dump(mode="json"), tmp_path)
+    assert parsed.execution is not None
+    assert parsed.execution.max_tool_calls == 7
+    assert packaged_schema(SESSION_V2_SCHEMA_FILE) == render_session_v2_json_schema()

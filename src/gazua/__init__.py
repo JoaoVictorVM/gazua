@@ -1,5 +1,5 @@
 """Gazua: security test suite for AI agents."""
 
-from gazua.integration import GazuaBlockedError, tool, wrap
+from gazua.integration import GazuaBlockedError, GazuaRateLimited, report_usage, tool, wrap
 
-__all__ = ["GazuaBlockedError", "tool", "wrap"]
+__all__ = ["GazuaBlockedError", "GazuaRateLimited", "report_usage", "tool", "wrap"]

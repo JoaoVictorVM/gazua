@@ -14,13 +14,15 @@ import threading
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, Literal, cast
 
 SESSION_ENV = "GAZUA_SESSION"
 SESSION_SCHEMA_VERSION = 1
+EXECUTION_SESSION_VERSION = 2
 MAX_SESSION_BYTES = 1024 * 1024
+RECEIVER_HOST = "127.0.0.1"
 
 Mode = Literal["tools", "agent"]
 Role = Literal["attacker", "victim"]
@@ -31,6 +33,10 @@ _SESSION_KEYS = frozenset(
 _TOOL_KEYS = frozenset({"dry_run", "actor_arg", "has_dry_run_return", "dry_run_return"})
 _ACTOR_KEYS = frozenset({"id", "role"})
 _INJECTION_KEYS = frozenset({"id", "tool", "text", "max_deliveries"})
+_EXECUTION_KEYS = frozenset(
+    {"execution_id", "max_tool_calls", "events_path", "receiver", "usage_reporting"}
+)
+_RECEIVER_KEYS = frozenset({"host", "port", "token", "execution_id"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +62,27 @@ class Injection:
 
 
 @dataclass(frozen=True, slots=True)
+class ReceiverEndpoint:
+    """Where the local receiver of this execution listens. Never taken from an attack URL."""
+
+    host: str
+    port: int
+    token: str
+    execution_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionChannel:
+    """What a version 2 session adds: one supervised execution and its local channels."""
+
+    execution_id: str
+    max_tool_calls: int
+    events_path: Path
+    receiver: ReceiverEndpoint | None
+    usage_reporting: bool
+
+
+@dataclass(frozen=True, slots=True)
 class Session:
     run_id: str
     mode: Mode
@@ -64,6 +91,7 @@ class Session:
     as_user: str | None
     tools: Mapping[str, ToolPolicy]
     injections: tuple[Injection, ...]
+    execution: ExecutionChannel | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,14 +184,62 @@ def _injection(value: object) -> Injection:
     )
 
 
+def _positive(value: object, maximum: int | None = None) -> int:
+    if type(value) is not int or value < 1 or (maximum is not None and value > maximum):
+        raise SessionFormatError("session_invalid")
+    return value
+
+
+def _local_file(value: object, base: Path) -> Path:
+    """A path inside the session's folder, written with forward slashes and no way out."""
+    text = _text(value)
+    path = PurePosixPath(text)
+    if "\\" in text or ":" in text or path.is_absolute() or ".." in path.parts:
+        raise SessionFormatError("session_invalid")
+    return base.joinpath(*path.parts)
+
+
+def _receiver(value: object, execution_id: str) -> ReceiverEndpoint | None:
+    if value is None:
+        return None
+    data = _object(value, _RECEIVER_KEYS)
+    if data["host"] != RECEIVER_HOST or data["execution_id"] != execution_id:
+        raise SessionFormatError("session_invalid")
+    return ReceiverEndpoint(
+        host=RECEIVER_HOST,
+        port=_positive(data["port"], 65535),
+        token=_text(data["token"]),
+        execution_id=execution_id,
+    )
+
+
+def _execution(data: dict[str, Any], base: Path) -> ExecutionChannel:
+    execution_id = _text(data["execution_id"])
+    return ExecutionChannel(
+        execution_id=execution_id,
+        max_tool_calls=_positive(data["max_tool_calls"]),
+        events_path=_local_file(data["events_path"], base),
+        receiver=_receiver(data["receiver"], execution_id),
+        usage_reporting=_flag(data["usage_reporting"]),
+    )
+
+
 def parse_session(document: object, base: Path) -> Session:
-    """Validates session data. A relative ``call_log`` is read from the session's folder."""
+    """Validates session data. A relative ``call_log`` is read from the session's folder.
+
+    Version 1 and version 2 have distinct key sets, so one is never read as the other, and an
+    unknown version fails closed.
+    """
     if not isinstance(document, dict):
         raise SessionFormatError("session_invalid")
     version = cast("dict[str, object]", document).get("schema_version")
-    if type(version) is not int or version != SESSION_SCHEMA_VERSION:
+    if type(version) is not int or version not in (
+        SESSION_SCHEMA_VERSION,
+        EXECUTION_SESSION_VERSION,
+    ):
         raise SessionFormatError("session_version")
-    data = _object(cast("object", document), _SESSION_KEYS)
+    keys = _SESSION_KEYS if version == SESSION_SCHEMA_VERSION else _SESSION_KEYS | _EXECUTION_KEYS
+    data = _object(cast("object", document), keys)
     mode = data["mode"]
     if mode not in ("tools", "agent"):
         raise SessionFormatError("session_invalid")
@@ -182,6 +258,7 @@ def parse_session(document: object, base: Path) -> Session:
         as_user=_optional_text(data["as_user"]),
         tools=MappingProxyType(policies),
         injections=tuple(_injection(item) for item in cast("list[object]", injections)),
+        execution=_execution(data, base) if version == EXECUTION_SESSION_VERSION else None,
     )
 
 

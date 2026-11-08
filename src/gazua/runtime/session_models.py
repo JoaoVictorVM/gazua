@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from gazua.config.models import SCHEMA_DIALECT, ArgumentName, Reference
 
 SESSION_SCHEMA_FILE = "session-v1.schema.json"
+SESSION_V2_SCHEMA_FILE = "session-v2.schema.json"
 CALL_RECORD_SCHEMA_FILE = "call-record-v1.schema.json"
 _SCHEMA_BASE = "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/"
 
@@ -66,6 +67,41 @@ class SessionDocument(_Contract):
     injections: list[SessionInjection]
 
 
+class SessionReceiver(_Contract):
+    """The local receiver of one execution. The token authenticates the worker's requests."""
+
+    host: Literal["127.0.0.1"]
+    port: Annotated[int, Field(ge=1, le=65535)]
+    token: NonEmptyText
+    execution_id: NonEmptyText
+
+
+class SessionDocumentV2(_Contract):
+    """A session for one supervised execution: version 1 plus its limit and local channels.
+
+    Readers of version 1 reject it, and it is never read as version 1.
+    """
+
+    model_config = ConfigDict(title="Gazua execution session")
+
+    schema_version: Literal[2]
+    run_id: NonEmptyText
+    mode: Literal["tools", "agent"]
+    call_log: NonEmptyText
+    actor: SessionActor | None
+    as_user: Reference | None
+    tools: dict[NonEmptyText, SessionTool]
+    injections: list[SessionInjection]
+    execution_id: NonEmptyText
+    max_tool_calls: Annotated[int, Field(ge=1)]
+    events_path: NonEmptyText
+    receiver: SessionReceiver | None
+    usage_reporting: bool
+
+
+AnySession = SessionDocument | SessionDocumentV2
+
+
 class RecordActor(_Contract):
     """The identity imposed on a call and how. ``source`` is ``none`` when there was none."""
 
@@ -113,12 +149,20 @@ def build_session_json_schema() -> dict[str, Any]:
     return _schema(SessionDocument, SESSION_SCHEMA_FILE)
 
 
+def build_session_v2_json_schema() -> dict[str, Any]:
+    return _schema(SessionDocumentV2, SESSION_V2_SCHEMA_FILE)
+
+
 def build_call_record_json_schema() -> dict[str, Any]:
     return _schema(CallRecord, CALL_RECORD_SCHEMA_FILE)
 
 
 def render_session_json_schema() -> str:
     return json.dumps(build_session_json_schema(), indent=2) + "\n"
+
+
+def render_session_v2_json_schema() -> str:
+    return json.dumps(build_session_v2_json_schema(), indent=2) + "\n"
 
 
 def render_call_record_json_schema() -> str:
