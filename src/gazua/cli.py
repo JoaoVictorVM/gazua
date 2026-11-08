@@ -122,6 +122,11 @@ def init(
         _say("No tools were discovered.")
     for warning in result.warnings:
         _say(f"Warning: {warning.render()}", err=True)
+    if any(tool.source == "decorator" for tool in tools):
+        _say(
+            "Note: @gazua.tool needs gazua installed in production. Prefer gazua.wrap in a test "
+            "entrypoint so production code imports nothing from Gazua (docs/integration.md)."
+        )
 
     _say(f"Created {sanitize(str(result.config_path))}")
     if result.gitignore_changed:

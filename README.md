@@ -4,7 +4,7 @@ Gazua is an open source security test suite for AI agents. It attacks an agent t
 
 Other tools ask whether the model refused; Gazua proves whether the code stops the attack.
 
-> **Status: early pre-release.** This package contains the project foundation, project configuration and the attack catalog: `gazua --help`, `gazua --version`, `gazua init` and `gazua run --list`. It cannot run attacks yet, and it makes no claim about the resistance of any agent.
+> **Status: early pre-release.** This package contains the project foundation, project configuration, the attack catalog and the tool integration API: `gazua --help`, `gazua --version`, `gazua init`, `gazua run --list`, `gazua.wrap` and `@gazua.tool`. It cannot run attacks yet, and it makes no claim about the resistance of any agent.
 
 ## Installation
 
@@ -32,6 +32,10 @@ Every change is verified on Windows and Ubuntu with Python 3.11 and Python 3.14.
 | `python -m gazua` | Same behavior as `gazua` |
 
 Attack execution and reports are planned. `gazua run` only lists the catalog for now, and other commands will appear in the help only when they ship.
+
+## Integrating your tools
+
+Build your agent in a small test file with `gazua.wrap(tools)` and point `entrypoint` in `gazua.yaml` to it, so production code imports nothing from Gazua. During a run, every tool that `gazua.yaml` does not declare `safe: true` returns its declared `dry_run_return` instead of running, and every call is recorded. Outside a run, your tools are plain function calls. The `@gazua.tool` decorator is the alternative when tools cannot be passed in, and it needs Gazua installed in production. See [the integration guide](docs/integration.md).
 
 ## Configuration
 

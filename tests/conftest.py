@@ -4,7 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -144,3 +144,75 @@ def mold_document(**overrides: Any) -> dict[str, Any]:
 @pytest.fixture
 def mold() -> Callable[..., dict[str, Any]]:
     return mold_document
+
+
+def session_document(**overrides: Any) -> dict[str, Any]:
+    """A valid session as JSON data; keyword arguments replace top-level fields."""
+    document: dict[str, Any] = {
+        "schema_version": 1,
+        "run_id": "run-1",
+        "mode": "agent",
+        "call_log": "calls.jsonl",
+        "actor": None,
+        "as_user": None,
+        "tools": {},
+        "injections": [],
+    }
+    document.update(overrides)
+    return document
+
+
+def tool_policy(**overrides: Any) -> dict[str, Any]:
+    policy: dict[str, Any] = {
+        "dry_run": True,
+        "actor_arg": None,
+        "has_dry_run_return": False,
+        "dry_run_return": None,
+    }
+    policy.update(overrides)
+    return policy
+
+
+@pytest.fixture
+def start_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]:
+    """Writes a session file, points ``GAZUA_SESSION`` at it and returns its call log path."""
+
+    def start(**overrides: Any) -> Path:
+        folder = tmp_path / "run"
+        folder.mkdir(exist_ok=True)
+        document = session_document(**overrides)
+        path = folder / "session.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        monkeypatch.setenv("GAZUA_SESSION", str(path))
+        return folder / document["call_log"]
+
+    return start
+
+
+def read_records(path: Path) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+@pytest.fixture
+def policy() -> Callable[..., dict[str, Any]]:
+    return tool_policy
+
+
+@pytest.fixture
+def read_log() -> Callable[[Path], list[dict[str, Any]]]:
+    return read_records
+
+
+@pytest.fixture(autouse=True)
+def _fresh_tool_state() -> Iterator[None]:
+    """Tools wrapped by one test must not appear in the next one's registry."""
+    yield
+    from gazua.integration.injection import reset_deliveries
+    from gazua.integration.proxy import clear_identity_hooks
+    from gazua.integration.registry import registry
+    from gazua.runtime.hooks import clear_resolved_hooks
+
+    registry.clear()
+    reset_deliveries()
+    clear_identity_hooks()
+    clear_resolved_hooks()
