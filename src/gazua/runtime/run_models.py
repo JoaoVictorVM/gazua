@@ -199,6 +199,7 @@ class Progress:
     """Counters shown by the live counter. They never carry attack text."""
 
     planned: int
+    resolved: int
     started: int
     active: int
     finished: int
@@ -208,9 +209,8 @@ class Progress:
     @property
     def text(self) -> str:
         return (
-            f"[{self.finished + self.not_started}/{self.planned}] started {self.started}, "
-            f"active {self.active}, finished {self.finished}, not run {self.not_started}, "
-            f"retries {self.retries}"
+            f"[{self.resolved}/{self.planned}] started {self.started}, active {self.active}, "
+            f"finished {self.finished}, not run {self.not_started}, retries {self.retries}"
         )
 
 
@@ -237,9 +237,9 @@ class RunPrepared(RunEvent):
     warnings: tuple[str, ...] = ()
 
     def lines(self) -> list[str]:
-        shape = f"{self.molds} molds"
+        shape = f"{self.molds} mold" + ("" if self.molds == 1 else "s")
         if self.repetitions is not None:
-            shape += f" x {self.repetitions} repetitions"
+            shape += f" x {self.repetitions} repetition" + ("" if self.repetitions == 1 else "s")
         head = f"Running {self.planned} executions: {shape}. Limit {self.max_runs}."
         if self.tools is not None:
             head += f" {self.tools.text}."

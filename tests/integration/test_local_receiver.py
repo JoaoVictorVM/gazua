@@ -161,3 +161,21 @@ def test_hits_over_the_limit_are_coverage_errors(receiver: LocalReceiver) -> Non
     assert len(capture.hits) == MAX_HITS_PER_EXECUTION
     assert capture.coverage_errors == ("too_many_hits", "too_many_hits")
     assert len({hit.record.hit_id for hit in capture.hits}) == MAX_HITS_PER_EXECUTION
+
+
+def test_capture_unavailable_is_not_tested(engine_project: Any) -> None:
+    requests = [
+        engine_project.request("exfil-1", "exfil GAZUA-CANARY-01", requires_receiver=True),
+        engine_project.request("echo-1", "echo ok"),
+    ]
+
+    summary, _ = engine_project.run(requests)
+
+    first, second = summary.records
+    assert (first.status, first.reason) == ("not_tested", "receiver_unavailable")
+    assert first.started_at is None
+    assert not first.evidence_complete
+    assert second.status == "completed"
+    assert summary.started == 1
+    starts = [mark["command"] for mark in engine_project.marks() if mark["kind"] == "entry_start"]
+    assert starts == ["echo"]

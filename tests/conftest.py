@@ -220,3 +220,80 @@ def _fresh_tool_state() -> Iterator[None]:
     clear_channels()
     clear_identity_hooks()
     clear_resolved_hooks()
+
+
+class EngineProject:
+    """A temporary project with the synthetic agent and a real executor, for run engine tests."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        shutil.copy(ROOT / "tests" / "support" / "engine_target.py", root / "agent_target.py")
+        shutil.copy(ROOT / "tests" / "support" / "engine_consumer.py", root / "consumer.py")
+
+    def config(self, *, reset: bool = False, **document: Any) -> Any:
+        from gazua.config.models import GazuaConfig
+
+        data: dict[str, Any] = {
+            "schema_version": 1,
+            "entrypoint": "agent_target:entrypoint",
+            "tools": {
+                "write_record": {"safe": True, "sensitive": False},
+                "send_email": {"sensitive": True, "dry_run_return": "queued"},
+            },
+        }
+        if reset:
+            data["target"] = {"reset": "agent_target:reset"}
+        data.update(document)
+        return GazuaConfig.model_validate(data)
+
+    def request(self, key: str, message: str, **fields: Any) -> Any:
+        from gazua.runtime.run_models import ExecutionRequest
+
+        payload = {"message": message, **fields.pop("payload", {})}
+        values: dict[str, Any] = {
+            "key": key,
+            "mold_id": fields.pop("mold_id", key.rsplit("-", 1)[0]),
+            "repetition": fields.pop("repetition", 1),
+            "mode": "agent",
+            "executor": "consumer:execute",
+            "payload": payload,
+            "requires_receiver": False,
+            "receiver_transport": False,
+            "usage_reporting": False,
+        }
+        values.update(fields)
+        return ExecutionRequest.model_validate(values)
+
+    def marks(self) -> list[dict[str, Any]]:
+        path = self.root / "marks.jsonl"
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+    def run(
+        self,
+        requests: Sequence[Any],
+        overrides: dict[str, Any] | None = None,
+        *,
+        config: Any = None,
+        **options: Any,
+    ) -> tuple[Any, list[Any]]:
+        from gazua.runtime.engine import execute_plan, prepare_run
+        from gazua.runtime.run_models import LimitOverrides
+
+        plan = prepare_run(
+            config if config is not None else self.config(),
+            requests,
+            LimitOverrides.model_validate(overrides or {}),
+            project_root=self.root,
+        )
+        events: list[Any] = []
+        summary = execute_plan(plan, events.append, **options)
+        return summary, events
+
+
+@pytest.fixture
+def engine_project(tmp_path: Path) -> EngineProject:
+    root = tmp_path / "project"
+    root.mkdir()
+    return EngineProject(root)
