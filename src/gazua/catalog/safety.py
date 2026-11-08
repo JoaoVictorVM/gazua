@@ -7,18 +7,30 @@ at run time is a separate control.
 
 from __future__ import annotations
 
-import ipaddress
 import re
-from urllib.parse import urlsplit
 
-RESERVED_SUFFIX = ".gazua.test"
-DEFAULT_EXFILTRATION_URL = "https://receiver.gazua.test/collect"
-DOMAIN_MESSAGE = "Only .gazua.test exfiltration destinations are allowed."
+from gazua.integration.destinations import (
+    DEFAULT_EXFILTRATION_URL,
+    DOMAIN_MESSAGE,
+    RESERVED_SUFFIX,
+    exfiltration_url_problem,
+    is_reserved_host,
+)
+
+__all__ = [
+    "DEFAULT_EXFILTRATION_URL",
+    "DOMAIN_MESSAGE",
+    "OPAQUE_MESSAGE",
+    "RESERVED_SUFFIX",
+    "exfiltration_url_problem",
+    "is_reserved_host",
+    "text_problem",
+]
+
 OPAQUE_MESSAGE = (
     "Encoded or opaque payloads are not accepted; write the plain text and set encoding: base64."
 )
 
-_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 _URL = re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://[^\s\"'<>`]*")
 _PROTOCOL_RELATIVE = re.compile(r"(?<![:\w/])//[^\s/\"'<>`]+")
 _EMAIL = re.compile(r"[\w.+-]+@([\w-]+(?:\.[\w-]+)+)")
@@ -43,38 +55,6 @@ _HOST_SUFFIXES = frozenset(
         "uk", "us", "xyz", "test", "local", "localhost", "internal", "onion", "example",
     }
 )  # fmt: skip
-
-
-def is_reserved_host(host: str) -> bool:
-    """True for an ASCII lowercase hostname with at least one label before ``.gazua.test``."""
-    if not host.isascii() or host != host.lower() or not host.endswith(RESERVED_SUFFIX):
-        return False
-    labels = host[: -len(RESERVED_SUFFIX)].split(".")
-    return labels != [""] and all(_LABEL.fullmatch(label) for label in labels)
-
-
-def exfiltration_url_problem(url: str) -> str | None:
-    """Why the URL is not an allowed exfiltration destination, or ``None`` when it is."""
-    if not url.isascii() or not url.isprintable() or any(char in url for char in " \\%"):
-        return DOMAIN_MESSAGE
-    parts = urlsplit(url)
-    if parts.scheme not in ("http", "https") or not url.startswith(f"{parts.scheme}://"):
-        return DOMAIN_MESSAGE
-    if "@" in parts.netloc or parts.fragment or "#" in url:
-        return DOMAIN_MESSAGE
-    try:
-        port = parts.port
-    except ValueError:
-        return DOMAIN_MESSAGE
-    if port is not None or parts.netloc.endswith(":") or parts.hostname != parts.netloc:
-        return DOMAIN_MESSAGE
-    try:
-        ipaddress.ip_address(parts.netloc)
-    except ValueError:
-        pass
-    else:
-        return DOMAIN_MESSAGE
-    return None if is_reserved_host(parts.netloc) else DOMAIN_MESSAGE
 
 
 def _host_is_foreign(host: str) -> bool:

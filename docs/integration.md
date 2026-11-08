@@ -61,6 +61,8 @@ A Gazua run writes a session file and sets the `GAZUA_SESSION` environment varia
 
 Without `GAZUA_SESSION`, `gazua.wrap` returns your tools unchanged and every tool is a plain function call. This also means that running your test file directly, outside Gazua, runs your real tools, exactly as it would without Gazua.
 
+Each attack runs in its own process with a session of its own. That session also carries the tool call limit of the attempt and, when the run has one, the address of its local receiver.
+
 With `GAZUA_SESSION` set, the session must be valid. If the file is missing, unreadable, larger than 1 MiB, not a regular file, malformed or of an unknown version, every tool call raises `GazuaBlockedError` and the original function is never called. Gazua fails closed: a real call is never the fallback.
 
 ## Dry-run
@@ -77,7 +79,7 @@ Warning: dry_run_return of tool refund_order does not match its declared return 
 
 The tool is then marked low fidelity. Other annotations are not checked, and no check means no claim.
 
-Before attacks run, Gazua prints how many tools are real and how many are in dry-run, for example `3 real tools, 9 in dry-run`, followed by the low fidelity tools and the warnings. Attack execution is not available yet; this summary ships with it.
+Before attacks run, Gazua prints how many tools are real and how many are in dry-run, for example `3 real tools, 9 in dry-run`, followed by the low fidelity tools and the warnings. [Running attacks safely](execution.md) shows where this summary appears.
 
 ## Who is calling
 
@@ -100,12 +102,22 @@ Every call made during a run is recorded in order: tool name, arguments, actor, 
 
 A call that cannot be recorded is blocked, because the verdict depends on the log.
 
-The session and the call record formats are public JSON Schemas, packaged with Gazua: [`session-v1.schema.json`](../src/gazua/schemas/session-v1.schema.json) and [`call-record-v1.schema.json`](../src/gazua/schemas/call-record-v1.schema.json).
+The session and the call record formats are public JSON Schemas, packaged with Gazua: [`session-v1.schema.json`](../src/gazua/schemas/session-v1.schema.json), [`session-v2.schema.json`](../src/gazua/schemas/session-v2.schema.json) for a supervised attempt, and [`call-record-v1.schema.json`](../src/gazua/schemas/call-record-v1.schema.json).
+
+## Usage, rate limits and exfiltration
+
+Three optional calls let your test entrypoint tell Gazua what it cannot see. All three come from `import gazua`, use only the standard library and do nothing outside a run:
+
+- `gazua.report_usage(cost_usd=...)` reports the cost of a model call, so that `max_cost` can apply.
+- `raise gazua.GazuaRateLimited(retry_after=...)` reports a 429 from your model provider, so that Gazua slows down and retries.
+- `gazua.send_to_receiver(url, ...)` sends an exfiltration attempt to a `.gazua.test` address to the run's local receiver instead of the network.
+
+Your entrypoint still returns a `str`. [Running attacks safely](execution.md) explains each one and its limits.
 
 ## Limits
 
 - Gazua sees only the tools that go through `gazua.wrap` or `@gazua.tool`. A tool your agent calls in another way is invisible to it.
-- The wrapper records calls but does not stop a runaway loop on its own. Run limits do that.
+- During a run, the wrapper refuses every call after `max_tool_calls` before it runs. Calls made in other processes or without the wrapper are not counted.
 - Dry-run protects your systems only for tools that go through Gazua. Side effects inside a tool that runs for real are real.
 - Generators, classes and decorators with arguments are not supported.
 

@@ -1,6 +1,7 @@
 """Proxies that stand in for the user's tools during a Gazua run.
 
-For each call the proxy decides the mode, imposes the actor, runs the original or returns the
+For each call the proxy reserves a slot under the execution's tool call ceiling, decides the
+mode, imposes the actor, runs the original or returns the
 dry-run value, applies injections and records the call. Without a session it only calls the
 original. A tool marked dry-run never reaches the original function, whatever else fails.
 """
@@ -18,6 +19,7 @@ from typing import Any, cast
 from gazua.integration.calllog import CallLog, call_log_for, log_arguments
 from gazua.integration.errors import GazuaBlockedError
 from gazua.integration.injection import inject
+from gazua.integration.limits import admit
 from gazua.integration.session import Decision, InvalidSession, Session, decide, session_state
 
 PROXY_ATTRIBUTE = "__gazua_tool__"
@@ -131,6 +133,7 @@ def _start(
         return None
     if isinstance(state, InvalidSession):
         raise GazuaBlockedError("invalid_session", state.reason)
+    admit(state)
     log = call_log_for(state.call_log)
     log.check_writable()
     call = _Call(name, state, log, decide(state, name), args, dict(kwargs))

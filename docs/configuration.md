@@ -111,6 +111,8 @@ To run for real, a tool needs both `safe: true` and a reviewed classification. A
 | `max_cost` | positive number in USD or `null` | `null` |
 | `cost_per_run` | non-negative number in USD or `null` | `null` |
 
+`max_runs` counts every attempt that starts, retries included, and what is left when it is reached is not tested. With `target.reset` declared, attempts run one at a time whatever `concurrency` says. `max_cost` applies only with `cost_per_run` or with usage reported by your entrypoint; without either, Gazua warns before the first attack. [Running attacks safely](execution.md) describes each limit.
+
 ### Fixtures
 
 ```yaml

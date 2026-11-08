@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/execution-v1.schema.json",
+  "additionalProperties": false,
+  "description": "How one planned execution ended. Exactly one exists per attempt and per unstarted entry.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "run_id": {
+      "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "execution_id": {
+      "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+      "title": "Execution Id",
+      "type": "string"
+    },
+    "request_key": {
+      "minLength": 1,
+      "title": "Request Key",
+      "type": "string"
+    },
+    "mold_id": {
+      "minLength": 1,
+      "title": "Mold Id",
+      "type": "string"
+    },
+    "repetition": {
+      "exclusiveMinimum": 0,
+      "title": "Repetition",
+      "type": "integer"
+    },
+    "attempt": {
+      "exclusiveMinimum": 0,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "timed_out",
+        "killed_at_ceiling",
+        "skipped_by_limit",
+        "crashed",
+        "reset_failed",
+        "rate_limited",
+        "cancelled",
+        "not_tested"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reason"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Started At"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Finished At"
+    },
+    "duration_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Duration Ms"
+    },
+    "exit_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Exit Code"
+    },
+    "admitted_tool_calls": {
+      "minimum": 0,
+      "title": "Admitted Tool Calls",
+      "type": "integer"
+    },
+    "evidence_complete": {
+      "title": "Evidence Complete",
+      "type": "boolean"
+    },
+    "truncated_tail": {
+      "title": "Truncated Tail",
+      "type": "boolean"
+    },
+    "reported_cost_usd": {
+      "anyOf": [
+        {
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reported Cost Usd"
+    },
+    "estimated_cost_usd": {
+      "anyOf": [
+        {
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Estimated Cost Usd"
+    },
+    "usage_complete": {
+      "title": "Usage Complete",
+      "type": "boolean"
+    },
+    "call_log": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Call Log"
+    },
+    "receiver_hits": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Receiver Hits"
+    },
+    "output": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Output"
+    },
+    "reset_before": {
+      "enum": [
+        "absent",
+        "succeeded",
+        "failed",
+        "timed_out",
+        "not_started"
+      ],
+      "title": "Reset Before",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "execution_id",
+    "request_key",
+    "mold_id",
+    "repetition",
+    "attempt",
+    "status",
+    "reason",
+    "started_at",
+    "finished_at",
+    "duration_ms",
+    "exit_code",
+    "admitted_tool_calls",
+    "evidence_complete",
+    "truncated_tail",
+    "reported_cost_usd",
+    "estimated_cost_usd",
+    "usage_complete",
+    "call_log",
+    "receiver_hits",
+    "output",
+    "reset_before"
+  ],
+  "title": "Gazua execution record",
+  "type": "object"
+}

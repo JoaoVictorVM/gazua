@@ -7,6 +7,7 @@ PUBLIC_DOCUMENTS = (
     "README.md",
     "SECURITY.md",
     "docs/configuration.md",
+    "docs/execution.md",
     "docs/integration.md",
     "docs/molds.md",
     "docs/releasing.md",
@@ -140,3 +141,27 @@ def test_integration_guide_states_contract_and_limits(project_root: Path, statem
 def test_readme_and_configuration_point_to_the_integration_guide(project_root: Path) -> None:
     assert "docs/integration.md" in read(project_root, "README.md")
     assert "integration.md" in read(project_root, "docs/configuration.md")
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Running 225 executions: 45 molds x 5 repetitions. Limit 300. 3 real tools, 9 in dry-run.",
+        "Warning: max_cost does not apply without reported usage or cost_per_run.",
+        "A process is isolation from failures, not a sandbox for hostile code.",
+        "Gazua does not intercept HTTP libraries.",
+        "never passed",
+        "never reads your API keys",
+        "execution-v1.schema.json",
+        "receiver-hit-v1.schema.json",
+        "session-v2.schema.json",
+    ],
+)
+def test_execution_guide_states_limits_and_contracts(project_root: Path, statement: str) -> None:
+    assert statement in read(project_root, "docs/execution.md")
+
+
+def test_readme_and_guides_point_to_the_execution_guide(project_root: Path) -> None:
+    assert "docs/execution.md" in read(project_root, "README.md")
+    assert "execution.md" in read(project_root, "docs/integration.md")
+    assert "execution.md" in read(project_root, "docs/configuration.md")

@@ -14,6 +14,7 @@ from typing import Any
 
 from gazua.config.references import resolve_reference
 from gazua.diagnostics import ConfigError, Diagnostic
+from gazua.integration.telemetry import GazuaRateLimited
 
 _resolved: dict[tuple[str, str], Callable[..., Any]] = {}
 
@@ -39,6 +40,16 @@ class ResetFailed(HookError):
     code = "reset_error"
 
 
+class RateLimited(HookError):
+    """The entrypoint raised ``GazuaRateLimited``. The target's message is never kept."""
+
+    code = "rate_limited"
+
+    def __init__(self, hook: str, retry_after: float | None) -> None:
+        self.retry_after = retry_after
+        super().__init__(hook, "The target reported a rate limit (429).")
+
+
 def _resolve(reference: str, hook: str, error: type[HookError]) -> Callable[..., Any]:
     key = (hook, reference)
     found = _resolved.get(key)
@@ -55,11 +66,21 @@ async def _wait(awaitable: Awaitable[Any]) -> Any:
     return await awaitable
 
 
-def _call(function: Callable[..., Any], hook: str, error: type[HookError], *args: Any) -> Any:
+def _call(
+    function: Callable[..., Any],
+    hook: str,
+    error: type[HookError],
+    *args: Any,
+    rate_limits: bool = False,
+) -> Any:
     try:
         result = function(*args)
         if inspect.isawaitable(result):
             result = asyncio.run(_wait(result))
+    except GazuaRateLimited as signal:
+        if not rate_limits:
+            raise error(hook, f"The call raised {type(signal).__name__}.") from None
+        raise RateLimited(hook, signal.retry_after) from None
     # Hooks are the target's code; any failure, even SystemExit, is reported, not propagated.
     except (Exception, SystemExit) as failure:  # noqa: BLE001
         raise error(hook, f"The call raised {type(failure).__name__}.") from None
@@ -67,9 +88,13 @@ def _call(function: Callable[..., Any], hook: str, error: type[HookError], *args
 
 
 def call_entrypoint(reference: str, message: str) -> str:
-    """Sends one message to the agent and returns its text response."""
+    """Sends one message to the agent and returns its text response.
+
+    A ``GazuaRateLimited`` raised by the entrypoint becomes ``RateLimited``; any other failure
+    is a ``HookError`` that names only the exception class.
+    """
     entrypoint = _resolve(reference, "entrypoint", HookError)
-    response = _call(entrypoint, "entrypoint", HookError, message)
+    response = _call(entrypoint, "entrypoint", HookError, message, rate_limits=True)
     if not isinstance(response, str):
         raise HookError("entrypoint", f"The response is {type(response).__name__}, expected str.")
     return response
