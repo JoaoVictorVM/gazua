@@ -20,6 +20,7 @@ from gazua.integration.calllog import CallLog, call_log_for, log_arguments
 from gazua.integration.errors import GazuaBlockedError
 from gazua.integration.injection import inject
 from gazua.integration.limits import admit
+from gazua.integration.observations import record_return
 from gazua.integration.session import Decision, InvalidSession, Session, decide, session_state
 
 PROXY_ATTRIBUTE = "__gazua_tool__"
@@ -76,14 +77,14 @@ class _Call:
     actor_id: str | None = None
     actor_source: str = "none"
 
-    def finish(self, outcome: str, **fields: Any) -> None:
+    def finish(self, outcome: str, **fields: Any) -> int:
         arguments: dict[str, object] = (
             dict(self.bound.arguments)
             if self.bound is not None
             else {"$args": list(self.args), **self.kwargs}
         )
         logged, truncated = log_arguments(arguments)
-        self.log.append(
+        return self.log.append(
             {
                 "tool": self.name,
                 "arguments": logged,
@@ -118,7 +119,8 @@ class _Call:
 
     def returned(self, value: Any) -> Any:
         delivered, injection = inject(self.session, self.name, value)
-        self.finish("returned", result_type=type(value).__name__, injection=injection)
+        seq = self.finish("returned", result_type=type(value).__name__, injection=injection)
+        record_return(self.session, seq, value, delivered)
         return delivered
 
     def raised(self, error: BaseException) -> None:

@@ -40,6 +40,7 @@ from gazua.runtime.evidence import (
     remove_stale_private,
     write_atomic,
 )
+from gazua.runtime.observations import RETURNS_FILE, read_return_channel
 from gazua.runtime.processes import SupervisedProcess, SupervisionError, worker_command
 from gazua.runtime.receiver import ExecutionCapture, LocalReceiver
 from gazua.runtime.run_models import (
@@ -664,6 +665,9 @@ class _Run:
             and not capture.coverage_errors
         )
         output = result.get("output") if result is not None else None
+        returns = read_return_channel(
+            active.work / RETURNS_FILE, active.execution_id, records, log_valid=log_valid
+        )
         evidence = PrivateEvidence(
             execution_id=active.execution_id,
             calls=records,
@@ -673,6 +677,7 @@ class _Run:
             stdout=stdout,
             stderr=stderr,
             complete=complete,
+            returns=returns,
         )
         references = self.store.persist(evidence, raw_lines if log_valid else [])
         reported = sum(active.usage.values(), Decimal(0)) if active.usage else None
@@ -932,8 +937,9 @@ def execute_plan(
     """Runs a prepared plan and returns its infrastructure summary.
 
     ``on_event`` is called in order; ``run_prepared`` comes first and no attack starts before it
-    returns. ``on_evidence`` receives the raw evidence of each attempt, which is deleted when it
-    returns. Ctrl+C, or setting ``cancel``, stops new attempts, kills active ones, runs the final
-    reset and still returns a partial summary with ``interrupted`` set.
+    returns. ``on_evidence`` receives the raw evidence of each attempt, private tool returns
+    included, which is deleted when it returns. Ctrl+C, or setting ``cancel``, stops new
+    attempts, kills active ones, runs the final reset and still returns a partial summary with
+    ``interrupted`` set.
     """
     return _Run(plan, on_event, on_evidence, cancel).execute()

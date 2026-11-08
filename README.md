@@ -31,7 +31,7 @@ Every change is verified on Windows and Ubuntu with Python 3.11 and Python 3.14.
 | `gazua run --list` | Lists the attack catalog by damage and mode, with what each attack needs from `gazua.yaml`. Nothing is executed |
 | `python -m gazua` | Same behavior as `gazua` |
 
-Attack execution and reports are planned. `gazua run` only lists the catalog for now, and other commands will appear in the help only when they ship. The engine that runs each attack in its own process, with a timeout, a tool call limit, a run limit and a local receiver for exfiltration attempts, is described in [the execution guide](docs/execution.md).
+Attack execution and reports are planned. `gazua run` only lists the catalog for now, and other commands will appear in the help only when they ship. The engine that runs each attack in its own process, with a timeout, a tool call limit, a run limit and a local receiver for exfiltration attempts, is described in [the execution guide](docs/execution.md). How recorded effects become one state per attack, with its rate, upper bound and proof, is described in [the verdict guide](docs/verdicts.md).
 
 ## Integrating your tools
 
