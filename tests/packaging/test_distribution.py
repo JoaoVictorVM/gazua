@@ -34,6 +34,11 @@ SENTINEL_CONTENT = "sentinel-must-not-be-distributed"
 SCHEMA_PATH = "src/gazua/schemas/config-v1.schema.json"
 MOLD_SCHEMA_PATH = "src/gazua/schemas/mold-v1.schema.json"
 INTEGRATION_SCHEMAS = ("session-v1.schema.json", "call-record-v1.schema.json")
+EXECUTION_SCHEMAS = (
+    "session-v2.schema.json",
+    "execution-v1.schema.json",
+    "receiver-hit-v1.schema.json",
+)
 BUILTIN_PATH = "gazua/catalog/builtin/"
 PUBLIC_PATHS = ("src", "docs", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml")
 
@@ -155,6 +160,7 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
         "README.md",
         "SECURITY.md",
         "docs/configuration.md",
+        "docs/execution.md",
         "docs/integration.md",
         "docs/molds.md",
         "docs/releasing.md",
@@ -405,3 +411,66 @@ def test_integration_schemas_and_guide_ship_in_wheel_and_sdist(
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "note a"
     assert list(workdir.iterdir()) == []
+
+
+def test_execution_schemas_and_guide_ship_in_distributions(
+    distributions: Path, tmp_path: Path, run_isolated
+) -> None:
+    wheel_files = wheel_entries(wheel_in(distributions))
+    sdist_files = sdist_entries(sdist_in(distributions))
+    for name in (*INTEGRATION_SCHEMAS, *EXECUTION_SCHEMAS):
+        assert wheel_files[f"gazua/schemas/{name}"] == sdist_files[f"src/gazua/schemas/{name}"]
+    assert "docs/execution.md" in sdist_files
+    assert "gazua/runtime/worker.py" in wheel_files
+
+    environment = tmp_path / "environment"
+    created = run_isolated(["uv", "venv", "--python", sys.executable, environment], cwd=tmp_path)
+    assert created.returncode == 0, created.stderr
+    python = interpreter_of(environment)
+    installed = run_isolated(
+        ["uv", "pip", "install", "--python", python, wheel_in(distributions)], cwd=tmp_path
+    )
+    assert installed.returncode == 0, installed.stderr
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    (workdir / "agent.py").write_text(
+        "def entrypoint(message):\n    return 'echo ' + message\n", encoding="utf-8"
+    )
+    (workdir / "consumer.py").write_text(
+        "from gazua.runtime import call_entrypoint\n"
+        "def execute(request, context):\n"
+        "    return {'output': call_entrypoint(context.entrypoint, 'hi')}\n",
+        encoding="utf-8",
+    )
+
+    probe = "\n".join(
+        [
+            "import json, sys",
+            "import gazua",
+            "assert not {'pydantic', 'typer', 'yaml', 'jinja2'} & set(sys.modules)",
+            "assert gazua.report_usage(cost_usd=0.1) is False",
+            "from pathlib import Path",
+            "from gazua.config.models import GazuaConfig",
+            "from gazua.runtime import ExecutionRequest, execute_plan, prepare_run",
+            "from gazua.runtime.run_models import (",
+            "    render_execution_json_schema, render_receiver_hit_json_schema)",
+            "from gazua.runtime.session_models import (",
+            "    packaged_schema, render_session_v2_json_schema)",
+            "assert packaged_schema('execution-v1.schema.json') == render_execution_json_schema()",
+            "assert packaged_schema('receiver-hit-v1.schema.json') == "
+            "render_receiver_hit_json_schema()",
+            "assert packaged_schema('session-v2.schema.json') == render_session_v2_json_schema()",
+            "config = GazuaConfig.model_validate(",
+            "    {'schema_version': 1, 'entrypoint': 'agent:entrypoint'})",
+            "request = ExecutionRequest.model_validate({'key': 'k-1', 'mold_id': 'k',",
+            "    'repetition': 1, 'mode': 'agent', 'executor': 'consumer:execute',",
+            "    'payload': {}, 'requires_receiver': False, 'receiver_transport': False,",
+            "    'usage_reporting': False})",
+            "summary = execute_plan(prepare_run(config, [request], project_root=Path('.')))",
+            "print(summary.records[0].status)",
+        ]
+    )
+    result = run_isolated([python, "-c", probe], cwd=workdir)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "completed"
