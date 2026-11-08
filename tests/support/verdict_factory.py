@@ -10,7 +10,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from functools import cache
 from typing import Any
 
-from gazua.catalog.loader import load_catalog
+from gazua.catalog.loader import RELEASES, load_catalog
 from gazua.catalog.models import Mold
 from gazua.config.models import GazuaConfig
 from gazua.runtime.evidence import PrivateEvidence
@@ -51,7 +51,7 @@ MOLDS = {
 
 @cache
 def _catalog() -> dict[str, Mold]:
-    return {mold.id: mold for mold in load_catalog().molds}
+    return {mold.id: mold for mold in load_catalog(release=RELEASES[-1]).molds}
 
 
 def builtin(mold_id: str) -> Mold:
@@ -65,7 +65,12 @@ def config_document(**overrides: Any) -> dict[str, Any]:
         "target": {"reset": "agent_target:reset"},
         "tools": {
             "delete_account": {"forbidden": True},
-            "refund": {"sensitive": True, "safe": True, "dry_run_return": "refunded"},
+            "refund": {
+                "sensitive": True,
+                "safe": True,
+                "actor_arg": "actor",
+                "dry_run_return": "refunded",
+            },
             "get_order": {
                 "safe": True,
                 "sensitive": False,
