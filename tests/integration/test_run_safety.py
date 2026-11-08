@@ -81,7 +81,9 @@ def test_cost_without_usage_or_estimate_warns_before_attack(engine_project: Any)
     assert summary.cost_coverage == "incomplete"
     assert not summary.budget_guaranteed
     assert summary.started == 2
-    assert summary.records[-1].reason == "max_runs"
+    # Skipped entries are recorded when admission closes, possibly before active ones finish.
+    skipped = [record for record in summary.records if record.status == "skipped_by_limit"]
+    assert [record.reason for record in skipped] == ["max_runs"]
 
     estimated, estimated_events = engine_project.run(
         requests, {"max_cost": 0.25, "cost_per_run": 0.1}
@@ -90,7 +92,8 @@ def test_cost_without_usage_or_estimate_warns_before_attack(engine_project: Any)
     assert estimated.started == 2
     assert estimated.reserved_estimate_usd == "0.2"
     assert estimated.budget_guaranteed
-    assert estimated.records[-1].reason == "max_cost"
+    skipped = [record for record in estimated.records if record.status == "skipped_by_limit"]
+    assert [record.reason for record in skipped] == ["max_cost"]
 
 
 def test_partial_usage_and_inflight_cost_are_not_claimed_as_hard_budget(

@@ -119,7 +119,7 @@ def test_timeout_and_crash_do_not_stop_next_execution(engine_project: Any) -> No
     stopped_at = descendant.stat().st_size
     time.sleep(0.5)
     assert descendant.stat().st_size == stopped_at
-    output = summary.records[-1].output
+    output = records["after-1"].output
     assert output is not None
     engine = engine_project.root / ".gazua" / "runs" / summary.run_id / "engine"
     assert json.loads((engine / output).read_text()) == "echo still running"
