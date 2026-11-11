@@ -61,6 +61,11 @@ ImpedimentReason: TypeAlias = Literal[
     "no_applicable_tool",
     "entry_unavailable",
     "receiver_unavailable",
+    "missing_tool_arguments",
+    "tool_signature_unavailable",
+    "tool_not_found",
+    "tool_name_conflict",
+    "tool_unclassified",
 ]
 Code = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$")]
 AttackKey = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")]
