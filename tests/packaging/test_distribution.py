@@ -165,6 +165,7 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
         "docs/integration.md",
         "docs/molds.md",
         "docs/releasing.md",
+        "docs/tools-mode.md",
         "docs/verdicts.md",
         SCHEMA_PATH,
         MOLD_SCHEMA_PATH,
@@ -539,3 +540,16 @@ def test_verdict_contracts_and_guide_are_packaged(
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "0.4507"
+
+
+def test_tools_mode_guide_is_distributed(distributions: Path) -> None:
+    wheel_files = wheel_entries(wheel_in(distributions))
+    sdist_files = sdist_entries(sdist_in(distributions))
+
+    assert "docs/tools-mode.md" in sdist_files
+    for module in ("__init__", "tools", "tools_models", "tools_plan", "tools_executor"):
+        assert f"gazua/modes/{module}.py" in wheel_files
+        assert f"src/gazua/modes/{module}.py" in sdist_files
+    assert "gazua/modes/tools_presentation.py" in wheel_files
+    for name in [*wheel_files, *sdist_files]:
+        assert not FORBIDDEN_PARTS & set(Path(name).parts)

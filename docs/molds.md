@@ -24,7 +24,7 @@ No status is an attack result, and none of them means that the agent resisted. A
 
 Without a `gazua.yaml` in the current directory, the listing shows the packaged molds and prints `No configuration loaded; runtime readiness not checked.` A `--config` path that does not exist, or an invalid configuration, exits with code 2. When any mold file is invalid, the valid molds are listed and the command exits with code 2.
 
-Running attacks has not shipped yet. `gazua run` without `--list` exits with code 2 and says so.
+`gazua run --tools` runs the tools molds, as described in [the tools mode guide](tools-mode.md). `gazua run --tools --list` lists only those molds, and `--mold` keeps one by exact id. `gazua run` without `--list` or `--tools` exits with code 2 and says so.
 
 ## Taxonomy
 

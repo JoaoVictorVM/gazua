@@ -39,9 +39,15 @@ DAMAGE_LABELS: dict[Damage, str] = {
 }
 
 
+REQUIREMENT_LABELS: dict[str, str] = {"tool.safe": "safe: true"}
+
+
 def requirement_label(requirement: str) -> str:
-    """``tool.owner_arg`` reads as ``owner_arg``, the field the user declares."""
-    return requirement.removeprefix("tool.")
+    """``tool.owner_arg`` reads as ``owner_arg``, the field the user declares.
+
+    ``tool.safe`` reads as ``safe: true``, the exact declaration that releases a tool.
+    """
+    return REQUIREMENT_LABELS.get(requirement, requirement.removeprefix("tool."))
 
 
 def reason_text(reason: Reason) -> str:

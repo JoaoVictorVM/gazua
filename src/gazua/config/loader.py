@@ -30,6 +30,7 @@ from gazua.yaml_data import (
 from gazua.yaml_data import field_error as _field_error
 
 __all__ = [
+    "HTTP_TARGET_MESSAGE",
     "KEY_LIKE_VALUE_MESSAGE",
     "MAX_DEPTH",
     "MAX_FILE_BYTES",
@@ -42,6 +43,10 @@ __all__ = [
 ]
 
 KEY_LIKE_VALUE_MESSAGE = "Canaries and fixtures must be test values; this looks like a real key."
+HTTP_SCHEMES = ("http://", "https://")
+HTTP_TARGET_MESSAGE = (
+    "HTTP targets are not supported yet; entrypoint must be a Python reference (module:attribute)."
+)
 
 _INTEGER_LIMITS = {"max_runs", "max_tool_calls", "concurrency"}
 _MESSAGES = {
@@ -177,6 +182,13 @@ def load_config_text(text: str, file: str) -> LoadedConfig:
         position = source_map.locate(path)
         raise ConfigError([_field_error("unsupported_version", file, path, position, message)])
 
+    entrypoint = data.get("entrypoint")
+    if isinstance(entrypoint, str) and entrypoint.lower().startswith(HTTP_SCHEMES):
+        # The URL is only recognized here; it is never resolved or contacted.
+        path = ("entrypoint",)
+        raise ConfigError(
+            [_field_error("http_target", file, path, source_map.locate(path), HTTP_TARGET_MESSAGE)]
+        )
     errors = _find_secrets(data, file, source_map)
     try:
         config = GazuaConfig.model_validate(data, strict=True)

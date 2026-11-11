@@ -407,6 +407,8 @@ TOOLS_CONFIG: dict[str, Any] = {
         "delete_account": {"forbidden": True},
         "send_email": {"sensitive": True},
         "archive_order": {"safe": True, "sensitive": False},
+        "cancel_order": {"safe": True, "sensitive": True, "actor_arg": "actor"},
+        "audit_log": {"safe": True},
     },
     "fixtures": {
         "attacker": {"id": "attacker-1"},
@@ -449,7 +451,12 @@ class ToolsProject:
             marker.unlink(missing_ok=True)
 
     def run(
-        self, mold: str | None = None, overrides: dict[str, Any] | None = None, **options: Any
+        self,
+        mold: str | None = None,
+        overrides: dict[str, Any] | None = None,
+        *,
+        molds: Sequence[str] | None = None,
+        **options: Any,
     ) -> Any:
         from gazua.catalog.loader import load_catalog
         from gazua.config.loader import load_config
@@ -460,6 +467,8 @@ class ToolsProject:
         config = load_config(self.root / "gazua.yaml").config
         chosen = ToolsOptions(mold=mold, overrides=LimitOverrides.model_validate(overrides or {}))
         entries = load_catalog(config, config_dir=self.root).entries
+        if molds is not None:
+            entries = tuple(entry for entry in entries if entry.id in molds)
         return run_tools(config, entries, chosen, self.root, **options)
 
     def cli(

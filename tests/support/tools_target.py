@@ -7,6 +7,7 @@ Once imported, the module also records credential reads and network attempts in 
 """
 
 import asyncio
+import contextlib
 import json
 import os
 import sys
@@ -78,6 +79,18 @@ async def archive_order(order_id: str = "order-attacker-1") -> str:
     return "archived"
 
 
+def cancel_order(actor: str | None = None) -> str:
+    effect("cancel_order", actor=actor)
+    # A released tool that calls an unreleased one: the inner call must stay in dry-run.
+    TOOLS["delete_account"]("victim-1")
+    return "cancelled"
+
+
+def audit_log(entry: str = "x") -> str:
+    effect("audit_log", entry=entry)
+    return "logged"
+
+
 @gazua.tool
 def send_email(to: str = "victim@example.test") -> str:
     effect("send_email", to=to)
@@ -90,8 +103,22 @@ TOOLS = gazua.wrap(
         "refund": refund,
         "delete_account": delete_account,
         "archive_order": archive_order,
+        "cancel_order": cancel_order,
+        "audit_log": audit_log,
     }
 )
+
+
+@contextlib.contextmanager
+def as_user(identity: str) -> Any:
+    effect("as_user", identity=identity)
+    yield
+
+
+@contextlib.asynccontextmanager
+async def as_user_async(identity: str) -> Any:
+    effect("as_user_async", identity=identity)
+    yield
 
 
 def entrypoint(message: str) -> str:

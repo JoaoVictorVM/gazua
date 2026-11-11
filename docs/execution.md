@@ -1,6 +1,6 @@
 # Running attacks safely
 
-This page explains how Gazua runs each attack against your agent: the limits that stop a runaway execution, what happens to cost and rate limits, how `target.reset` is used, where exfiltration attempts end up and what is recorded. The engine described here is what the run modes use; `gazua run` still only lists the catalog, and the executable modes reuse this behavior when they ship.
+This page explains how Gazua runs each attack against your agent: the limits that stop a runaway execution, what happens to cost and rate limits, how `target.reset` is used, where exfiltration attempts end up and what is recorded. The engine described here is what the run modes use. `gazua run --tools` uses it today, as described in [the tools mode guide](tools-mode.md); agent mode reuses it when it ships.
 
 ## Before the first attack
 
