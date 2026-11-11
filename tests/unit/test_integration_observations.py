@@ -97,7 +97,9 @@ def test_private_returns_preserve_sequences_and_limits(
     assert not opaque.touched
     lines = sidecar_lines(log.parent)
     records = read_call_log(log).records
-    assert [line["call_seq"] for line in lines] == [record.seq for record in records]
+    # The log and the sidecar are written under separate locks, so concurrent calls can land
+    # in a different order in each file; the reader correlates them by sequence.
+    assert sorted(line["call_seq"] for line in lines) == [record.seq for record in records]
     by_seq = {line["call_seq"]: line for line in lines}
     for record in records[:16]:
         line = by_seq[record.seq]
