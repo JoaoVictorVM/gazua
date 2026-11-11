@@ -10,6 +10,8 @@ from __future__ import annotations
 import contextlib
 import json
 import secrets
+import shutil
+import tempfile
 import threading
 import time
 from collections import deque
@@ -18,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from gazua.config.models import GazuaConfig, Limits
 from gazua.diagnostics import ConfigError, Diagnostic
@@ -82,7 +84,8 @@ def _failure(code: str, message: str, field: str | None = None) -> ConfigError:
     return ConfigError([Diagnostic(code=code, field=field, message=message)])
 
 
-def _new_run_id() -> str:
+def new_run_id() -> str:
+    """A fresh run identifier: UTC time plus a random suffix."""
     stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     return f"GAZUA-run-{stamp}-{secrets.token_hex(3)}"
 
@@ -131,7 +134,7 @@ def prepare_run(
     root = project_root.resolve()
     if not root.is_dir():
         raise _failure("project_root", "The project folder does not exist.")
-    identifier = run_id if run_id is not None else _new_run_id()
+    identifier = run_id if run_id is not None else new_run_id()
     valid = identifier.isascii() and identifier.replace("-", "").isalnum()
     if not identifier.startswith("GAZUA-run-") or not valid:
         raise _failure(
@@ -147,6 +150,96 @@ def prepare_run(
         effective_concurrency=1 if config.target.reset is not None else limits.concurrency,
         cost_source=cost_source(limits, items),
     )
+
+
+def dry_run_session(
+    config: GazuaConfig, run_id: str, mode: Literal["tools", "agent"]
+) -> SessionDocument:
+    """A session with every tool in dry-run, for workers that only read the target."""
+    session = build_session(config, run_id=run_id, mode=mode)
+    return SessionDocument.model_validate(
+        {
+            **session.model_dump(),
+            "tools": {
+                name: tool.model_copy(update={"dry_run": True})
+                for name, tool in session.tools.items()
+            },
+        }
+    )
+
+
+DISCOVERY_RUN_ID = "GAZUA-discovery"
+
+
+def describe_tools(
+    config: GazuaConfig, *, project_root: Path, timeout: float | None = None
+) -> dict[str, Any]:
+    """The target's tools as JSON data, read in a supervised worker without calling anything.
+
+    The worker installs a session with every tool in dry-run, then imports the entrypoint's
+    module so that its tools register; the entrypoint itself is never called. Its output is
+    captured and discarded. A timeout, a crash or an import failure raises ``ConfigError``.
+    """
+    root = project_root.resolve()
+    if not root.is_dir():
+        raise _failure("project_root", "The project folder does not exist.")
+    if config.entrypoint is None:
+        raise _failure(
+            "entrypoint_missing",
+            "Tools mode imports the entrypoint's module to find the tools; declare entrypoint.",
+            "entrypoint",
+        )
+    limit = timeout if timeout is not None else config.limits.timeout
+    folder = Path(tempfile.mkdtemp(prefix="gazua-discovery-"))
+    try:
+        written = write_session(dry_run_session(config, DISCOVERY_RUN_ID, "tools"), folder)
+        job = {
+            "kind": "describe",
+            "session": str(written.path),
+            "result": str(folder / "result.json"),
+            "project_root": str(root),
+            "reset": None,
+            "entrypoint": config.entrypoint,
+            "config": config.to_document(),
+            "run_id": DISCOVERY_RUN_ID,
+        }
+        job_path = folder / "job.json"
+        write_atomic(job_path, json.dumps(job, ensure_ascii=True))
+        process = SupervisedProcess(worker_command(str(job_path)), root)
+        try:
+            process.start()
+        except (SupervisionError, OSError):
+            raise _failure(
+                "supervision_unavailable", "The worker process could not be supervised."
+            ) from None
+        try:
+            code = process.wait(limit)
+        except KeyboardInterrupt:
+            process.kill_tree()
+            process.close()
+            raise
+        if code is None:
+            process.kill_tree()
+        process.close()
+        result: dict[str, Any] | None = None
+        try:
+            loaded: object = json.loads((folder / "result.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            loaded = None
+        if isinstance(loaded, dict):
+            result = cast("dict[str, Any]", loaded)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    if code is None or result is None or result.get("status") != "ok":
+        reason = "timeout" if code is None else "crashed"
+        if result is not None:
+            reason = str(result.get("code", reason))
+        raise _failure(
+            "discovery_failed",
+            f"The test module could not be imported to find its tools ({reason}).",
+            "entrypoint",
+        )
+    return cast("dict[str, Any]", result["inventory"])
 
 
 @dataclass(slots=True)
@@ -296,17 +389,7 @@ class _Run:
         if self.config.entrypoint is None:
             return None
         folder = self.store.working_directory("GAZUA-preflight")
-        session = build_session(self.config, run_id=self.plan.run_id, mode="agent")
-        forced = SessionDocument.model_validate(
-            {
-                **session.model_dump(),
-                "tools": {
-                    name: tool.model_copy(update={"dry_run": True})
-                    for name, tool in session.tools.items()
-                },
-            }
-        )
-        written = write_session(forced, folder)
+        written = write_session(dry_run_session(self.config, self.plan.run_id, "agent"), folder)
         try:
             process = self.worker(self.base_job("preflight", folder, written.path), folder)
         except (SupervisionError, OSError):

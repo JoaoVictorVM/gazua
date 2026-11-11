@@ -221,5 +221,5 @@ def test_run_without_list_is_actionable_until_engine_exists(
     assert "Traceback" not in result.stderr
     assert list(workdir.iterdir()) == []
     assert "--list" in flags.stdout
-    assert "--tools" not in flags.stdout
+    assert "--tools" in flags.stdout
     assert "--agent" not in flags.stdout

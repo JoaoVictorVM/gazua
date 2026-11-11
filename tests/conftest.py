@@ -391,3 +391,106 @@ def verdict_project(tmp_path: Path) -> VerdictProject:
     root = tmp_path / "project"
     root.mkdir()
     return VerdictProject(root)
+
+
+TOOLS_CONFIG: dict[str, Any] = {
+    "schema_version": 1,
+    "entrypoint": "tools_target:entrypoint",
+    "tools": {
+        "get_order": {
+            "safe": True,
+            "sensitive": False,
+            "owner_arg": "user_id",
+            "actor_arg": "actor",
+        },
+        "refund": {"safe": True, "sensitive": True, "actor_arg": "actor"},
+        "delete_account": {"forbidden": True},
+        "send_email": {"sensitive": True},
+        "archive_order": {"safe": True, "sensitive": False},
+        "cancel_order": {"safe": True, "sensitive": True, "actor_arg": "actor"},
+        "audit_log": {"safe": True},
+    },
+    "fixtures": {
+        "attacker": {"id": "attacker-1"},
+        "victim": {
+            "id": "victim-1",
+            "records": [{"tool": "get_order", "id_arg": "order_id", "id": "order-victim-1"}],
+        },
+    },
+    "canaries": ["GAZUA-CANARY-7f3a9c"],
+    "output_sink": "tools_target:sink",
+}
+
+
+class ToolsProject:
+    """A temporary project with the synthetic store, its gazua.yaml and both ways to run."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        shutil.copy(ROOT / "tests" / "support" / "tools_target.py", root / "tools_target.py")
+        self.write()
+
+    def document(self, **overrides: Any) -> dict[str, Any]:
+        import copy
+
+        document = copy.deepcopy(TOOLS_CONFIG)
+        document.update(overrides)
+        return document
+
+    def write(self, **overrides: Any) -> Path:
+        # JSON is valid YAML, so the real loader reads this file.
+        path = self.root / "gazua.yaml"
+        path.write_text(json.dumps(self.document(**overrides), indent=2), encoding="utf-8")
+        return path
+
+    def harden(self, hardened: bool = True) -> None:
+        marker = self.root / "hardened"
+        if hardened:
+            marker.write_text("x", encoding="utf-8")
+        else:
+            marker.unlink(missing_ok=True)
+
+    def run(
+        self,
+        mold: str | None = None,
+        overrides: dict[str, Any] | None = None,
+        *,
+        molds: Sequence[str] | None = None,
+        **options: Any,
+    ) -> Any:
+        from gazua.catalog.loader import load_catalog
+        from gazua.config.loader import load_config
+        from gazua.modes.tools import run_tools
+        from gazua.modes.tools_models import ToolsOptions
+        from gazua.runtime.run_models import LimitOverrides
+
+        config = load_config(self.root / "gazua.yaml").config
+        chosen = ToolsOptions(mold=mold, overrides=LimitOverrides.model_validate(overrides or {}))
+        entries = load_catalog(config, config_dir=self.root).entries
+        if molds is not None:
+            entries = tuple(entry for entry in entries if entry.id in molds)
+        return run_tools(config, entries, chosen, self.root, **options)
+
+    def cli(
+        self, *arguments: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        return run_process(
+            [sys.executable, "-m", "gazua", "run", *arguments], cwd=self.root, env=env
+        )
+
+    def effects(self) -> list[dict[str, Any]]:
+        return [
+            json.loads(line)
+            for path in sorted((self.root / "effects").glob("*.jsonl"))
+            for line in path.read_text(encoding="utf-8").splitlines()
+        ]
+
+    def clear_effects(self) -> None:
+        shutil.rmtree(self.root / "effects", ignore_errors=True)
+
+
+@pytest.fixture
+def tools_project(tmp_path: Path) -> ToolsProject:
+    root = tmp_path / "project"
+    root.mkdir()
+    return ToolsProject(root)

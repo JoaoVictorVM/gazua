@@ -1,13 +1,14 @@
 """Inventory of the target's tools: what was declared, what was wrapped, and what can run.
 
-Tools mode calls tools as the attacker or the victim through this inventory. A tool that the
-declarations do not release is refused here, before any proxy is reached, and nothing falls
-back to a real call.
+Tools mode calls tools as the attacker, or with no actor when the attack leaves it out, through
+this inventory. A tool that the declarations do not release is refused here, before any proxy
+is reached, and nothing falls back to a real call.
 """
 
 from __future__ import annotations
 
 import asyncio
+import inspect
 import types
 import typing
 from collections.abc import Callable, Mapping
@@ -16,7 +17,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from gazua.config.absences import tool_not_found
-from gazua.config.models import GazuaConfig, Tool
+from gazua.config.models import GazuaConfig, Tool, ToolClass
 from gazua.diagnostics import Diagnostic
 from gazua.integration.errors import GazuaBlockedError
 from gazua.integration.registry import RegisteredTool, registry
@@ -187,6 +188,57 @@ class ToolInventory:
             warnings=tuple(item for item in self.diagnostics if item.severity == "warning"),
         )
 
+    def describe(self) -> dict[str, Any]:
+        """Every declared or registered tool as plain JSON data, without any of its objects."""
+        names = sorted(set(self.config.tools) | set(self.entries) | set(self.ambiguous))
+        tools: list[dict[str, Any]] = []
+        for name in names:
+            declaration = self.config.tools.get(name)
+            entry = self.entries.get(name)
+            described: dict[str, Any] = {
+                "name": name,
+                "registered": entry is not None or name in self.ambiguous,
+                "safe": declaration is not None and declaration.safe,
+                "classified": declaration is not None
+                and declaration.classification is not ToolClass.UNCLASSIFIED,
+                "ambiguous": name in self.ambiguous,
+                "signature_available": False,
+                "supports_sync": entry is not None and entry.registered.proxy is not None,
+                "supports_async": entry is not None and entry.registered.async_proxy is not None,
+                "diagnostics": [item.code for item in self.diagnostics if item.field == name],
+            }
+            if entry is not None and entry.registered.originals:
+                described.update(_signature_description(entry.registered.originals[0]))
+            tools.append(described)
+        return {"complete": True, "tools": tools}
+
+    def _released(self, name: str, session: AnySession) -> InventoryEntry:
+        if name in self.ambiguous:
+            raise InvocationRefused("tool_name_conflict")
+        entry = self.entries.get(name)
+        if entry is None:
+            raise InvocationRefused("tool_not_found")
+        policy = session.tools.get(name)
+        if entry.dry_run or policy is None or policy.dry_run:
+            raise NotSafeToCall
+        return entry
+
+    def _call(
+        self,
+        entry: InventoryEntry,
+        actor: SessionActor | None,
+        arguments: Mapping[str, Any],
+        session: AnySession,
+        directory: Path,
+    ) -> Any:
+        acting = session.model_copy(update={"actor": actor})
+        with activate(acting, directory):
+            if entry.registered.proxy is not None:
+                return entry.registered.proxy(**arguments)
+            if entry.registered.async_proxy is not None:
+                return asyncio.run(entry.registered.async_proxy(**arguments))
+        raise InvocationRefused("tool_not_found")
+
     def invoke_as(
         self,
         name: str,
@@ -197,24 +249,63 @@ class ToolInventory:
         directory: Path,
     ) -> Any:
         """Calls a released tool as the attacker or the victim of the fixtures."""
-        if name in self.ambiguous:
-            raise InvocationRefused("tool_name_conflict")
-        entry = self.entries.get(name)
-        if entry is None:
-            raise InvocationRefused("tool_not_found")
-        policy = session.tools.get(name)
-        if entry.dry_run or policy is None or policy.dry_run:
-            raise NotSafeToCall
+        entry = self._released(name, session)
         fixture = getattr(self.config.fixtures, identity)
         if fixture is None:
             raise InvocationRefused("missing_identity")
-        acting = session.model_copy(update={"actor": SessionActor(id=fixture.id, role=identity)})
-        with activate(acting, directory):
-            if entry.registered.proxy is not None:
-                return entry.registered.proxy(**arguments)
-            if entry.registered.async_proxy is not None:
-                return asyncio.run(entry.registered.async_proxy(**arguments))
-        raise InvocationRefused("tool_not_found")
+        actor = SessionActor(id=fixture.id, role=identity)
+        return self._call(entry, actor, arguments, session, directory)
+
+    def invoke_without_actor(
+        self,
+        name: str,
+        arguments: Mapping[str, Any],
+        *,
+        session: AnySession,
+        directory: Path,
+    ) -> Any:
+        """Calls a released tool with no actor, for attacks that leave the identity out.
+
+        The same checks as ``invoke_as`` apply, and the call still goes through the proxy, which
+        records it; only the actor and its argument are left out on purpose.
+        """
+        entry = self._released(name, session)
+        return self._call(entry, None, arguments, session, directory)
+
+
+_PARAMETER_KINDS: dict[object, str] = {
+    inspect.Parameter.POSITIONAL_ONLY: "positional_only",
+    inspect.Parameter.POSITIONAL_OR_KEYWORD: "positional_or_keyword",
+    inspect.Parameter.VAR_POSITIONAL: "var_positional",
+    inspect.Parameter.KEYWORD_ONLY: "keyword_only",
+    inspect.Parameter.VAR_KEYWORD: "var_keyword",
+}
+_VARIADIC = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+
+
+def _signature_description(original: Callable[..., Any]) -> dict[str, Any]:
+    """Names, kinds and default presence only: defaults and annotations are the target's data."""
+    try:
+        signature = inspect.signature(original)
+    except (TypeError, ValueError):
+        return {"signature_available": False}
+    parameters = list(signature.parameters.values())
+    return {
+        "signature_available": True,
+        "parameters": [
+            {
+                "name": item.name,
+                "kind": _PARAMETER_KINDS[item.kind],
+                "has_default": item.default is not inspect.Parameter.empty,
+            }
+            for item in parameters
+        ],
+        "required_arguments": [
+            item.name
+            for item in parameters
+            if item.default is inspect.Parameter.empty and item.kind not in _VARIADIC
+        ],
+    }
 
 
 def _fidelity(entry: InventoryEntry) -> tuple[bool, list[Diagnostic]]:

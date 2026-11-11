@@ -4,7 +4,7 @@ Gazua is an open source security test suite for AI agents. It attacks an agent t
 
 Other tools ask whether the model refused; Gazua proves whether the code stops the attack.
 
-> **Status: early pre-release.** This package contains the project foundation, project configuration, the attack catalog and the tool integration API: `gazua --help`, `gazua --version`, `gazua init`, `gazua run --list`, `gazua.wrap` and `@gazua.tool`. It cannot run attacks yet, and it makes no claim about the resistance of any agent.
+> **Status: early pre-release.** This package contains the project foundation, project configuration, the attack catalog, the tool integration API and tools mode: `gazua --help`, `gazua --version`, `gazua init`, `gazua run --list`, `gazua run --tools`, `gazua.wrap` and `@gazua.tool`. Agent mode and reports are not available yet, and Gazua makes no claim about the resistance of any agent.
 
 ## Installation
 
@@ -29,9 +29,10 @@ Every change is verified on Windows and Ubuntu with Python 3.11 and Python 3.14.
 | `gazua --version` | Shows the installed version |
 | `gazua init` | Finds the tools in a project by reading its source code and writes `gazua.yaml` for your review |
 | `gazua run --list` | Lists the attack catalog by damage and mode, with what each attack needs from `gazua.yaml`. Nothing is executed |
+| `gazua run --tools` | Calls your `safe: true` tools directly as the attacker, with no model and no key, and reports what had an effect. Exit code 0, 1 on a gated finding, 2 on an error |
 | `python -m gazua` | Same behavior as `gazua` |
 
-Attack execution and reports are planned. `gazua run` only lists the catalog for now, and other commands will appear in the help only when they ship. The engine that runs each attack in its own process, with a timeout, a tool call limit, a run limit and a local receiver for exfiltration attempts, is described in [the execution guide](docs/execution.md). How recorded effects become one state per attack, with its rate, upper bound and proof, is described in [the verdict guide](docs/verdicts.md).
+Tools mode is described in [the tools mode guide](docs/tools-mode.md). Agent mode and reports are planned, and other commands will appear in the help only when they ship. The engine that runs each attack in its own process, with a timeout, a tool call limit, a run limit and a local receiver for exfiltration attempts, is described in [the execution guide](docs/execution.md). How recorded effects become one state per attack, with its rate, upper bound and proof, is described in [the verdict guide](docs/verdicts.md).
 
 ## Integrating your tools
 

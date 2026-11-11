@@ -11,6 +11,7 @@ PUBLIC_DOCUMENTS = (
     "docs/integration.md",
     "docs/molds.md",
     "docs/releasing.md",
+    "docs/tools-mode.md",
     "docs/verdicts.md",
 )
 PLANNING_REFERENCE = re.compile(r"\b(PRD|F\d{2})\b|\.planning|\.harness|spec\.md|plan\.md")
@@ -189,3 +190,26 @@ def test_verdict_guide_states_signals_states_and_limits(project_root: Path, stat
 
 def test_verdict_guide_never_uses_approval_words(project_root: Path) -> None:
     assert not re.search(r"approved|secure", read(project_root, "docs/verdicts.md"), re.IGNORECASE)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "No provider key is needed, no model is called",
+        "not tested, missing safe: true",
+        "No tool can run: mark tools safe for test data.",
+        "--tools needs direct tool access; use --agent for HTTP targets.",
+        "It never calls the entrypoint in tools mode.",
+        "Code 2 wins over code 1",
+        "Importing the module is not a sandbox",
+    ],
+)
+def test_tools_mode_guide_states_safety_and_exit_codes(project_root: Path, statement: str) -> None:
+    assert statement in read(project_root, "docs/tools-mode.md")
+
+
+def test_readme_and_guides_point_to_the_tools_mode_guide(project_root: Path) -> None:
+    assert "docs/tools-mode.md" in read(project_root, "README.md")
+    assert "tools-mode.md" in read(project_root, "docs/execution.md")
+    assert "tools-mode.md" in read(project_root, "docs/molds.md")
+    assert not re.search(r"approved|secure", read(project_root, "docs/tools-mode.md"), re.I)
