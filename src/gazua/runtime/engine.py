@@ -84,7 +84,8 @@ def _failure(code: str, message: str, field: str | None = None) -> ConfigError:
     return ConfigError([Diagnostic(code=code, field=field, message=message)])
 
 
-def _new_run_id() -> str:
+def new_run_id() -> str:
+    """A fresh run identifier: UTC time plus a random suffix."""
     stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     return f"GAZUA-run-{stamp}-{secrets.token_hex(3)}"
 
@@ -133,7 +134,7 @@ def prepare_run(
     root = project_root.resolve()
     if not root.is_dir():
         raise _failure("project_root", "The project folder does not exist.")
-    identifier = run_id if run_id is not None else _new_run_id()
+    identifier = run_id if run_id is not None else new_run_id()
     valid = identifier.isascii() and identifier.replace("-", "").isalnum()
     if not identifier.startswith("GAZUA-run-") or not valid:
         raise _failure(
