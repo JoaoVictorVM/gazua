@@ -375,3 +375,72 @@ def test_invoke_as_needs_the_identity_fixture(tools_mode: Callable[..., Any]) ->
         invoke("no_actor", "victim", record_id=1)
 
     assert refused.value.reason == "missing_identity"
+
+
+def keyword_only(*, record_id: int, note: str = "x", **extra: Any) -> int:
+    return record_id
+
+
+def test_describe_lists_names_kinds_and_defaults_without_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(SESSION_ENV, raising=False)
+    config = config_of(
+        tools={
+            "read_record": {"safe": True, "sensitive": False, "owner_arg": "user_id"},
+            "keyword_only": {"safe": True},
+            "declared_only": {"safe": True, "forbidden": True},
+        }
+    )
+    session = build_session(config, run_id="tools", mode="tools")
+    with activate(session, tmp_path):
+        gazua.wrap([read_record, keyword_only, delete_record])
+
+    described = ToolInventory.collect(config).describe()
+
+    assert described["complete"] is True
+    tools = {item["name"]: item for item in described["tools"]}
+    assert list(tools) == ["declared_only", "delete_record", "keyword_only", "read_record"]
+    assert tools["read_record"]["required_arguments"] == ["record_id"]
+    assert tools["read_record"]["parameters"] == [
+        {"name": "record_id", "kind": "positional_or_keyword", "has_default": False},
+        {"name": "user_id", "kind": "positional_or_keyword", "has_default": True},
+    ]
+    assert (tools["read_record"]["safe"], tools["read_record"]["classified"]) == (True, True)
+    assert tools["keyword_only"]["classified"] is False
+    assert [item["kind"] for item in tools["keyword_only"]["parameters"]] == [
+        "keyword_only",
+        "keyword_only",
+        "var_keyword",
+    ]
+    assert tools["declared_only"]["registered"] is False
+    assert tools["delete_record"]["safe"] is False
+    assert "model-choice" not in json.dumps(described)
+
+
+def test_invoke_without_actor_keeps_checks_and_leaves_identity_out(
+    tools_mode: Callable[..., Any], tmp_path: Path, read_log: ReadLog
+) -> None:
+    config = config_of(
+        tools={
+            "read_record": {"safe": True, "sensitive": False, "actor_arg": "user_id"},
+            "delete_record": {"forbidden": True},
+        },
+        fixtures=FIXTURES,
+    )
+    tools_mode(config, read_record, delete_record)
+    inventory = ToolInventory.collect(config)
+    session = build_session(config, run_id="tools", mode="tools", actor="attacker")
+
+    value = inventory.invoke_without_actor(
+        "read_record", {"record_id": 3}, session=session, directory=tmp_path
+    )
+    with pytest.raises(NotSafeToCall):
+        inventory.invoke_without_actor(
+            "delete_record", {"record_id": 3}, session=session, directory=tmp_path
+        )
+
+    assert value == {"record": 3, "owner": "model-choice"}
+    assert calls.seen == [{"record_id": 3, "user_id": "model-choice"}]
+    [record] = read_log(tmp_path / "calls.jsonl")
+    assert record["actor"] == {"id": None, "source": "none"}

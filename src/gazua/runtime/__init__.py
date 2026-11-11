@@ -6,7 +6,7 @@ here runs at ``import gazua``.
 """
 
 from gazua.runtime.call_log import CallLogReading, read_call_log
-from gazua.runtime.engine import execute_plan, prepare_run
+from gazua.runtime.engine import describe_tools, execute_plan, prepare_run
 from gazua.runtime.evidence import PrivateEvidence
 from gazua.runtime.hooks import HookError, RateLimited, ResetFailed, call_entrypoint, call_reset
 from gazua.runtime.receiver import CapturedHit
@@ -101,6 +101,7 @@ __all__ = [
     "call_entrypoint",
     "call_reset",
     "check_fidelity",
+    "describe_tools",
     "execute_plan",
     "prepare_run",
     "read_call_log",

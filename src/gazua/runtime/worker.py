@@ -1,4 +1,4 @@
-"""Bootstrap of one supervised process: an attack attempt, a preflight or the final reset.
+"""Bootstrap of one supervised process: an attack, a preflight, a tool discovery or a reset.
 
 The engine starts this module with the path of a JSON job. Nothing runs before the release
 line arrives on stdin, which the engine sends only once the process tree is supervised. The
@@ -161,6 +161,24 @@ def _preflight(job: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _describe(job: Mapping[str, Any]) -> dict[str, Any]:
+    """Imports the entrypoint's module so its tools register, without calling the entrypoint."""
+    from gazua.config.models import GazuaConfig
+    from gazua.config.references import resolve_reference
+    from gazua.diagnostics import ConfigError
+    from gazua.runtime.tools import ToolInventory
+
+    config = GazuaConfig.model_validate(job["config"])
+    entrypoint = job.get("entrypoint")
+    if entrypoint is None:
+        return {"status": "error", "code": "entrypoint_missing"}
+    try:
+        resolve_reference(entrypoint, "entrypoint")
+    except ConfigError as failure:
+        return {"status": "error", "code": failure.diagnostics[0].code}
+    return {"status": "ok", "inventory": ToolInventory.collect(config).describe()}
+
+
 def run_job(job: Mapping[str, Any]) -> dict[str, Any]:
     root = str(job["project_root"])
     os.chdir(root)
@@ -176,6 +194,8 @@ def run_job(job: Mapping[str, Any]) -> dict[str, Any]:
         return _attack(job)
     if kind == "preflight":
         return _preflight(job)
+    if kind == "describe":
+        return _describe(job)
     if kind == "reset":
         return _reset(job.get("reset"))
     return {"status": "error", "code": "job_kind"}
