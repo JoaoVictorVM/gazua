@@ -279,8 +279,14 @@ class VerdictCollector:
         self._verdicts[record.execution_id] = verdict
         self._slots[slot] = record.execution_id
 
-    def finalize(self, summary: RunSummary) -> VerdictSummary:
-        """Every planned attack's result, in context order. Calling it again gives the same."""
+    def finalize(
+        self, summary: RunSummary, *, unexecuted_reason: str | None = None
+    ) -> VerdictSummary:
+        """Every planned attack's result, in context order. Calling it again gives the same.
+
+        ``unexecuted_reason`` names why slots without any record never ran, when the consumer
+        knows it, such as ``report_storage_unavailable``; otherwise they are lost records.
+        """
         with self._lock:
             records = dict(self._records)
             verdicts = dict(self._verdicts)
@@ -323,7 +329,8 @@ class VerdictCollector:
             if execution_id not in foreign:
                 by_request.setdefault(verdict.request_key, []).append(verdict)
         results = [
-            self._result(context, by_request, conflicts, errors) for context in self.contexts
+            self._result(context, by_request, conflicts, errors, unexecuted_reason)
+            for context in self.contexts
         ]
         operational = _unique(
             [
@@ -347,6 +354,7 @@ class VerdictCollector:
         by_request: dict[str, list[AttemptVerdict]],
         conflicts: set[str],
         errors: list[str],
+        unexecuted_reason: str | None = None,
     ) -> list[tuple[_Repetition, list[AttemptVerdict]]]:
         found: list[tuple[_Repetition, list[AttemptVerdict]]] = []
         for slot in context.requests:
@@ -367,14 +375,15 @@ class VerdictCollector:
                 state, reasons = blocked
                 found.append((_Repetition(key, slot.repetition, state, reasons=reasons), []))
             else:
-                if "missing_execution_record" not in errors:
-                    errors.append("missing_execution_record")
+                code = unexecuted_reason or "missing_execution_record"
+                if code not in errors:
+                    errors.append(code)
                 lost = _Repetition(
                     key,
                     slot.repetition,
                     "not_tested",
-                    reasons=[Reason(code="missing_execution_record")],
-                    errors=["missing_execution_record"],
+                    reasons=[Reason(code=code)],
+                    errors=[code],
                 )
                 found.append((lost, []))
         return found
@@ -385,8 +394,9 @@ class VerdictCollector:
         by_request: dict[str, list[AttemptVerdict]],
         conflicts: set[str],
         errors: list[str],
+        unexecuted_reason: str | None = None,
     ) -> AttackResult:
-        pairs = self._repetitions(context, by_request, conflicts, errors)
+        pairs = self._repetitions(context, by_request, conflicts, errors, unexecuted_reason)
         repetitions = [item for item, _ in pairs]
         counts = StateCounts.of(item.state for item in repetitions)
         evaluated = counts.finding + counts.resisted

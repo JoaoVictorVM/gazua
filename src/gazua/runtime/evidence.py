@@ -18,7 +18,7 @@ import tempfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from gazua.diagnostics import REDACTED, SECRET_PATTERNS
 from gazua.runtime.observations import ReturnChannel
@@ -36,6 +36,16 @@ _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
 class EvidencePathError(Exception):
     """A run folder is a link or escapes the project. Nothing is written there."""
+
+
+class EvidenceRedactor(Protocol):
+    """What the store needs to redact persisted evidence. ``Redactor`` is the default."""
+
+    def text(self, value: str) -> str: ...
+
+    def data(self, value: object) -> Any: ...
+
+    def capture(self, capture: Capture) -> str: ...
 
 
 class Redactor:
@@ -143,7 +153,7 @@ def remove_stale_private(runs_root: Path) -> int:
 class EvidenceStore:
     """The evidence folders of one run under ``engine_root``."""
 
-    def __init__(self, project_root: Path, engine_root: Path, redactor: Redactor) -> None:
+    def __init__(self, project_root: Path, engine_root: Path, redactor: EvidenceRedactor) -> None:
         relative = engine_root.relative_to(project_root)
         self.project_root = project_root
         self.engine_root = engine_root
