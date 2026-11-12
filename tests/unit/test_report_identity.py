@@ -58,3 +58,32 @@ def test_fixture_rates_remain_separate() -> None:
     }
     assert all(evaluated == 1 for _, _, evaluated in rates.values())
     assert len(rates) == 2
+
+
+def test_low_grouping_preserves_ids_proofs_and_gate() -> None:
+    from gazua.reports.rendering import build_view, presentation_groups, render_report
+
+    built = document()
+    finding = built.findings[0]
+    lows = [
+        finding.model_copy(update={"id": f"finding-{str(number) * 64}", "severity": "low"})
+        for number in (1, 2)
+    ]
+    view = build_view(built)
+    template = view.findings[0]
+    views = [
+        type(template)(item, template.scenarios, template.proofs, template.commands)
+        for item in lows
+    ]
+
+    groups = presentation_groups([view.findings[0], *views])
+
+    assert groups[0] is view.findings[0]
+    group = groups[1]
+    assert [item.finding.id for item in group.findings] == [item.id for item in lows]
+    assert all(item.proofs == template.proofs for item in group.findings)
+    assert group.gated == any(item.gated for item in lows)
+    assert len(built.verdicts.results) == 5
+    html, markdown = render_report(built)
+    assert finding.id in html
+    assert finding.id in markdown

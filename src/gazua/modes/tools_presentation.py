@@ -12,9 +12,9 @@ import shlex
 from collections.abc import Sequence
 from typing import Final, Literal, TypeAlias
 
-from gazua.diagnostics import sanitize
 from gazua.modes.tools import NO_TOOL_CAN_RUN, ToolsPreview
 from gazua.modes.tools_models import DiscoveredTool, SkipReason, ToolsDiagnostic, ToolsResult
+from gazua.reports.terminal import safe_line as sanitize
 from gazua.verdicts.models import AttackContext, AttackResult, Proof
 from gazua.verdicts.presentation import DAMAGE_LABELS, summary_lines
 

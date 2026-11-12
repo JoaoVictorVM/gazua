@@ -19,6 +19,7 @@ from gazua.reports.redaction import (
     field_category,
     running_in_ci,
 )
+from gazua.reports.terminal import clean_terminal
 
 CANARY = "GAZUA-CANARY-7f3a9c"
 SECRET = "sk-" + "A1b2C3d4E5f6G7h8I9j0K1l2"
@@ -205,3 +206,23 @@ def test_masked_text_never_keeps_a_detected_secret(prefix: str) -> None:
     treated = redactor().text(f"{prefix} {SECRET} ", "field")
 
     assert SECRET not in treated
+
+
+def test_no_redact_keeps_html_and_terminal_sanitization() -> None:
+    from report_factory import document, five_states, victim_order
+
+    from gazua.reports.rendering import render_report
+
+    hostile = "<script>alert(1)</script>\x1b]52;c;ZXZpbA==\x07"
+    built = document(
+        five_states(found_return=victim_order(note=hostile)),
+        treatment=redactor(enabled=False),
+    )
+    html, markdown = render_report(built)
+
+    assert built.redaction == "none"
+    assert "<script>alert(1)" not in html
+    assert "\x1b" not in html
+    assert "\x1b" not in markdown
+    assert "\x1b" not in clean_terminal(hostile)
+    assert redactor(enabled=False).text(SECRET, "f") == SECRET
