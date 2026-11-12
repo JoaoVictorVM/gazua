@@ -553,3 +553,87 @@ def test_tools_mode_guide_is_distributed(distributions: Path) -> None:
     assert "gazua/modes/tools_presentation.py" in wheel_files
     for name in [*wheel_files, *sdist_files]:
         assert not FORBIDDEN_PARTS & set(Path(name).parts)
+
+
+REPORT_FILES = (
+    "reports/__init__.py",
+    "reports/builder.py",
+    "reports/capture.py",
+    "reports/fixes.py",
+    "reports/lifecycle.py",
+    "reports/models.py",
+    "reports/redaction.py",
+    "reports/rendering.py",
+    "reports/storage.py",
+    "reports/terminal.py",
+    "reports/templates/report.html.j2",
+    "reports/templates/report.md.j2",
+    "reports/assets/report.css",
+    "reports/assets/report.js",
+    "schemas/run-v1.schema.json",
+)
+
+
+def test_report_assets_schema_and_guide_are_distributed(
+    distributions: Path, project_root: Path, tmp_path: Path, run_isolated
+) -> None:
+    wheel_files = wheel_entries(wheel_in(distributions))
+    sdist_files = sdist_entries(sdist_in(distributions))
+    for name in REPORT_FILES:
+        assert wheel_files[f"gazua/{name}"].replace(b"\r\n", b"\n") == sdist_files[
+            f"src/gazua/{name}"
+        ].replace(b"\r\n", b"\n")
+    assert "docs/reports.md" in sdist_files
+    for name in [*wheel_files, *sdist_files]:
+        assert not FORBIDDEN_PARTS & set(Path(name).parts)
+
+    copy = tmp_path / "checkout"
+    schemas = copy / "src/gazua/schemas"
+    shutil.copytree(project_root / "src/gazua/schemas", schemas)
+    script = copy / ".github/scripts/generate_report_schema.py"
+    script.parent.mkdir(parents=True)
+    shutil.copy(project_root / ".github/scripts/generate_report_schema.py", script)
+    (schemas / "run-v1.schema.json").unlink()
+    earlier = {path.name: path.read_bytes() for path in schemas.iterdir()}
+    generated = run_isolated(
+        [sys.executable, script], cwd=copy, env={**os.environ, "PYTHONPATH": ""}
+    )
+    assert generated.returncode == 0, generated.stderr
+    for name, content in earlier.items():
+        assert (schemas / name).read_bytes() == content
+    published = (project_root / "src/gazua/schemas/run-v1.schema.json").read_bytes()
+    assert (schemas / "run-v1.schema.json").read_bytes() == published.replace(b"\r\n", b"\n")
+
+    environment = tmp_path / "environment"
+    created = run_isolated(["uv", "venv", "--python", sys.executable, environment], cwd=tmp_path)
+    assert created.returncode == 0, created.stderr
+    python = interpreter_of(environment)
+    installed = run_isolated(
+        ["uv", "pip", "install", "--python", python, wheel_in(distributions)], cwd=tmp_path
+    )
+    assert installed.returncode == 0, installed.stderr
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    shutil.copy(project_root / "tests/support/run-example.json", workdir / "run.json")
+    rendered = run_isolated(
+        [python, "-m", "gazua", "report", "--from", "run.json"],
+        cwd=workdir,
+    )
+    assert rendered.returncode == 0, rendered.stderr
+    html = (workdir / ".gazua" / "report.html").read_text(encoding="utf-8")
+    assert "Content-Security-Policy" in html
+    assert 'id="fix-idor_via_agent"' in html
+    probe = "\n".join(
+        [
+            "import sys",
+            "import gazua",
+            "assert not any(name.startswith('gazua.reports') for name in sys.modules)",
+            "from gazua.reports.models import packaged_run_json_schema, render_run_json_schema",
+            "assert packaged_run_json_schema().splitlines() == "
+            "render_run_json_schema().splitlines()",
+            "print('ok')",
+        ]
+    )
+    result = run_isolated([python, "-c", probe], cwd=workdir)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"

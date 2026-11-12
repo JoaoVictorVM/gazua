@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 
 from gazua import cli
 
-DEFERRED_COMMANDS = ("demo", "baseline", "verify", "clean")
+DEFERRED_COMMANDS = ("demo", "baseline", "verify")
 
 unknown_options = st.from_regex(r"--[a-z][a-z0-9-]{0,20}", fullmatch=True).filter(
     lambda option: option not in {"--help", "--version"}
