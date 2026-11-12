@@ -29,7 +29,7 @@ from gazua.modes.tools_models import (
 )
 from gazua.modes.tools_plan import ToolsPlan, plan_tools
 from gazua.runtime.budget import decimal_text
-from gazua.runtime.run_models import EXECUTION_STATUSES, RunEvent, RunSummary
+from gazua.runtime.run_models import EXECUTION_STATUSES, LimitOverrides, RunEvent, RunSummary
 from gazua.verdicts.engine import VerdictCollector
 from gazua.verdicts.models import AttackContext, VerdictSummary
 
@@ -169,9 +169,27 @@ def exit_code_for(failures: Sequence[str], verdicts: VerdictSummary) -> ExitCode
     return EXIT_GATED if verdicts.has_gated_findings else EXIT_CLEAN
 
 
-def reproduction_arguments(mold_id: str, config_path: str) -> list[str]:
-    """The command that runs every unit of this mold again, as an argument list."""
-    return ["gazua", "run", "--tools", "--config", config_path, "--mold", mold_id]
+_RESULT_LIMITS: Final = ("max_runs", "timeout", "max_tool_calls", "max_cost")
+
+
+def _number(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else repr(float(value))
+
+
+def reproduction_arguments(
+    mold_id: str, config_path: str, overrides: LimitOverrides | None = None
+) -> list[str]:
+    """The command that runs every unit of this mold again, as an argument list.
+
+    Limit overrides that can change a result are kept; concurrency cannot, so it is left out.
+    """
+    arguments = ["gazua", "run", "--tools", "--config", config_path, "--mold", mold_id]
+    if overrides is not None:
+        for name in _RESULT_LIMITS:
+            value = getattr(overrides, name)
+            if value is not None:
+                arguments.extend([f"--{name.replace('_', '-')}", _number(value)])
+    return arguments
 
 
 def run_tools(
@@ -236,7 +254,9 @@ def run_tools(
         executed=bool(requests),
         diagnostics=diagnostics,
         reproduction={
-            context.attack_key: reproduction_arguments(context.mold.id, options.config_path)
+            context.attack_key: reproduction_arguments(
+                context.mold.id, options.config_path, options.overrides
+            )
             for context in contexts
         },
         exit_code=exit_code_for(failures, verdicts),

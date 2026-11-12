@@ -18,7 +18,7 @@ from gazua.modes.tools_models import DiscoveredTool, SkipReason, ToolsDiagnostic
 from gazua.verdicts.models import AttackContext, AttackResult, Proof
 from gazua.verdicts.presentation import DAMAGE_LABELS, summary_lines
 
-Shell: TypeAlias = Literal["posix", "windows"]
+Shell: TypeAlias = Literal["posix", "windows", "powershell"]
 SKIP_TEXT: Final[dict[SkipReason, str]] = {
     "missing_safe": "not tested, missing safe: true",
     "tool_not_found": "not tested, not registered when the test module was imported",
@@ -31,6 +31,8 @@ LATE_REGISTRATION: Final = (
 )
 _WINDOWS_UNQUOTABLE: Final = frozenset('"%!')
 _PLAIN: Final = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-./:=")
+_POWERSHELL_SINGLE: Final = frozenset("'" + "".join(map(chr, (0x2018, 0x2019, 0x201A, 0x201B))))
+_POWERSHELL_DOUBLE: Final = frozenset('"' + "".join(map(chr, (0x201C, 0x201D, 0x201E))))
 
 
 def default_shell() -> Shell:
@@ -47,16 +49,33 @@ def _windows_argument(argument: str) -> str | None:
     return '"' + argument + doubled + '"'
 
 
+def _powershell_argument(argument: str) -> str | None:
+    # Windows PowerShell 5.1 drops empty arguments and mangles embedded double quotes when it
+    # starts a native program, so neither gets a command.
+    if not argument or any(char in _POWERSHELL_DOUBLE for char in argument):
+        return None
+    if set(argument) <= _PLAIN:
+        return argument
+    quoted = "".join(char * 2 if char in _POWERSHELL_SINGLE else char for char in argument)
+    return "'" + quoted + "'"
+
+
 def render_command(arguments: Sequence[str], shell: Shell) -> str | None:
     """One command line that a shell splits back into ``arguments``; None when none is safe.
 
     Control characters cannot be written safely on one line, and cmd.exe cannot quote ``"``,
-    ``%`` or ``!`` reliably, so those arguments get no command.
+    ``%`` or ``!`` reliably, so those arguments get no command. ``windows`` keeps meaning
+    cmd.exe; PowerShell has its own quoting.
     """
     if any(not argument.isprintable() for argument in arguments):
         return None
     if shell == "posix":
         return shlex.join(arguments)
+    if shell == "powershell":
+        quoted = [_powershell_argument(argument) for argument in arguments]
+        if any(item is None for item in quoted):
+            return None
+        return " ".join(item for item in quoted if item is not None)
     rendered = [_windows_argument(argument) for argument in arguments]
     if any(item is None for item in rendered):
         return None
