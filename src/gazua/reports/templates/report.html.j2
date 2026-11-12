@@ -1,0 +1,177 @@
+{% macro finding_block(item) %}
+{% set f = item.finding %}
+<article class="finding severity-{{ f.severity }}" id="{{ f.id }}">
+<h3><span class="severity">{{ f.severity | capitalize }}</span>: {{ item.damage_label }}{% if f.gated %} <span class="gated">gated</span>{% endif %}</h3>
+<p class="detail">Finding <a href="#{{ f.id }}">{{ f.id }}</a>. Mold {{ f.mold_id | clean }}{% if f.tool_name %}, tool {{ f.tool_name | clean }}{% endif %}, mode {{ f.mode }}.</p>
+<h4>Attack</h4>
+<pre class="attack">{{ f.attack | clean }}</pre>
+<h4>Conditions of explorability</h4>
+<p>{{ f.conditions | join(", ") if f.conditions else "none" }}</p>
+<h4>Scenarios</h4>
+<ul>
+{% for scenario in item.scenarios %}
+<li>{{ scenario.scenario.attack_key }}: {{ scenario.rate }}. Coverage: {{ scenario.result.coverage }}.</li>
+{% endfor %}
+</ul>
+<h4>Proof</h4>
+{% for proof in item.proofs %}
+<div class="proof">
+<p>{{ proof.id }}: source {{ proof.source }}, execution {{ proof.execution_id }}{% if proof.truncated %}, excerpt truncated{% endif %}{% if proof.omission_reason %}, excerpt missing ({{ proof.omission_reason | replace("_", " ") }}){% endif %}.</p>
+<p class="label">Native locator</p>
+<pre>{{ proof.locator | pretty | clean }}</pre>
+{% if proof.content is not none %}
+<p class="label">Excerpt</p>
+<pre>{{ proof.content | pretty | clean }}</pre>
+{% endif %}
+</div>
+{% endfor %}
+<h4>Reproduction</h4>
+{% if item.commands %}
+<p>Runs every scenario of this mold again, from the project root, with the same configuration and target code.</p>
+{% for label, command in item.commands %}
+<p class="label">{{ label }}</p>
+<pre>{{ command | clean }}</pre>
+{% endfor %}
+{% else %}
+<p>Command unavailable ({{ (f.reproduction.reason or "not_reproducible") | replace("_", " ") }}). Run gazua run --tools --mold {{ f.mold_id | clean }} with the same configuration.</p>
+{% endif %}
+<h4>Fix</h4>
+<p>{{ f.fix | clean }} <a href="#{{ fix_anchor(f.fix_ref) }}">Reference {{ f.fix_ref }}</a></p>
+</article>
+{% endmacro %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="{{ csp }}">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Gazua report {{ doc.run_id }}</title>
+<style>{{ style | safe }}</style>
+</head>
+<body>
+<header>
+<h1>Gazua report</h1>
+{% if no_redact_warning %}
+<p class="warning" role="alert"><strong>{{ no_redact_warning }}</strong></p>
+{% endif %}
+<dl class="meta">
+<dt>Run</dt><dd>{{ doc.run_id }}</dd>
+<dt>Date (UTC)</dt><dd>{{ meta.created_at }}</dd>
+<dt>Mode</dt><dd>{{ meta.mode }}</dd>
+<dt>Target</dt><dd>{{ meta.target_ref | clean }}</dd>
+<dt>Gazua version</dt><dd>{{ (meta.gazua_version or not_reported) | clean }}</dd>
+<dt>Target version</dt><dd>{{ (meta.target_version or not_reported) | clean }}</dd>
+<dt>Model</dt><dd>{{ (meta.model or not_reported) | clean }}</dd>
+<dt>Evidence</dt><dd>{{ "masked" if doc.redaction == "masked" else "not masked (--no-redact)" }}</dd>
+<dt>Exit code</dt><dd>{{ doc.report_exit_code }}</dd>
+</dl>
+<p class="limits">Sample limits: at most {{ doc.engine.limits.max_runs }} executions, {{ doc.engine.limits.timeout }} s each, {{ doc.engine.limits.max_tool_calls }} tool calls per execution. {{ doc.engine.planned }} planned, {{ doc.engine.started }} started{% if doc.engine.interrupted %}, interrupted{% endif %}. Rates and bounds cover only evaluated repetitions.</p>
+<ul class="counters">
+{% for state in states %}
+<li><span class="label">{{ state_labels[state] }}</span> <span class="count">{{ view.totals[state] }}</span></li>
+{% endfor %}
+</ul>
+</header>
+<main>
+<section aria-labelledby="by-damage">
+<h2 id="by-damage">Summary by damage</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Damage</th>{% for state in states %}<th scope="col">{{ state_labels[state] }}</th>{% endfor %}<th scope="col">Gated</th></tr></thead>
+<tbody>
+{% for damage, label, counts, gated in view.damage_rows %}
+<tr><th scope="row">{{ label }}</th>{% for state in states %}<td>{{ counts[state] }}</td>{% endfor %}<td>{{ gated }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</section>
+<section aria-labelledby="filters-title" id="filters" hidden>
+<h2 id="filters-title">Filters</h2>
+<div class="filters">
+<label for="filter-damage">Damage</label>
+<select id="filter-damage">
+<option value="">All damages</option>
+{% for damage in damages %}
+<option value="{{ damage }}">{{ damage_labels[damage] }}</option>
+{% endfor %}
+</select>
+<label for="filter-state">State</label>
+<select id="filter-state">
+<option value="">All states</option>
+{% for state in states %}
+<option value="{{ state }}">{{ state_labels[state] }}</option>
+{% endfor %}
+</select>
+<p id="visible-count" aria-live="polite"></p>
+</div>
+</section>
+<section aria-labelledby="findings-title">
+<h2 id="findings-title">Findings ({{ view.findings | length }})</h2>
+{% if not view.findings %}
+<p class="empty">No verified finding.</p>
+{% endif %}
+{% for entry in view.groups %}
+{% if entry.findings is defined %}
+<details class="low-group" data-item data-state="finding" data-damage="{{ entry.damage }}">
+<summary>Low: {{ entry.label }}, {{ (entry.tool_name or "no tool") | clean }} ({{ entry.findings | length }} findings{% if entry.gated %}, gated{% endif %})</summary>
+{% for item in entry.findings %}
+{{ finding_block(item) }}
+{% endfor %}
+</details>
+{% else %}
+<div data-item data-state="finding" data-damage="{{ entry.finding.damage }}">
+{{ finding_block(entry) }}
+</div>
+{% endif %}
+{% endfor %}
+</section>
+{% for state, title, anchor, items in view.sections %}
+<section aria-labelledby="{{ anchor }}">
+<h2 id="{{ anchor }}">{{ title }} ({{ items | length }})</h2>
+{% if not items %}
+<p class="empty">None.</p>
+{% else %}
+<ul class="scenarios">
+{% for item in items %}
+<li data-item data-state="{{ item.result.state }}" data-damage="{{ item.result.damage }}">
+<p><strong>{{ damage_labels[item.result.damage] }}</strong>, mold {{ item.scenario.mold_id | clean }}{% if item.scenario.tool_name %}, tool {{ item.scenario.tool_name | clean }}{% endif %}: {{ item.state_label }}.</p>
+<p class="detail">{{ item.rate }}. Coverage: {{ item.result.coverage }}. Severity: {{ item.result.severity }}.</p>
+<pre class="attack">{{ item.scenario.attack | clean }}</pre>
+<p class="key">{{ item.scenario.attack_key }}</p>
+</li>
+{% endfor %}
+</ul>
+{% endif %}
+</section>
+{% endfor %}
+<section aria-labelledby="fixes-title">
+<h2 id="fixes-title">Fixes</h2>
+<dl class="fixes">
+{% for damage, text in doc.fixes.items() %}
+<dt id="{{ fix_anchor(damage) }}">{{ damage_labels[damage] }} <code>{{ damage }}</code></dt>
+<dd>{{ text | clean }}</dd>
+{% endfor %}
+</dl>
+</section>
+<section aria-labelledby="diagnostics-title">
+<h2 id="diagnostics-title">Report diagnostics ({{ doc.diagnostics | length }})</h2>
+{% if not doc.diagnostics %}
+<p class="empty">None.</p>
+{% else %}
+<ul>
+{% for item in doc.diagnostics %}
+<li>{{ item.level }}: {{ item.code }}{% if item.field %} ({{ item.field | clean }}){% endif %}</li>
+{% endfor %}
+</ul>
+{% endif %}
+{% if doc.verdicts.operational_errors %}
+<p>Operational errors: {{ doc.verdicts.operational_errors | join(", ") }}</p>
+{% endif %}
+</section>
+</main>
+<footer><p>Rendered from run.json by presentation version {{ meta.presentation_version }}, templates {{ template_version }}. A resisted attack is reported for this version only.</p></footer>
+<script>{{ script | safe }}</script>
+</body>
+</html>

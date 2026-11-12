@@ -4,7 +4,7 @@ Gazua is an open source security test suite for AI agents. It attacks an agent t
 
 Other tools ask whether the model refused; Gazua proves whether the code stops the attack.
 
-> **Status: early pre-release.** This package contains the project foundation, project configuration, the attack catalog, the tool integration API and tools mode: `gazua --help`, `gazua --version`, `gazua init`, `gazua run --list`, `gazua run --tools`, `gazua.wrap` and `@gazua.tool`. Agent mode and reports are not available yet, and Gazua makes no claim about the resistance of any agent.
+> **Status: early pre-release.** This package contains the project foundation, project configuration, the attack catalog, the tool integration API and tools mode with its reports: `gazua --help`, `gazua --version`, `gazua init`, `gazua run --list`, `gazua run --tools`, `gazua report`, `gazua clean`, `gazua.wrap` and `@gazua.tool`. Agent mode is not available yet, and Gazua makes no claim about the resistance of any agent.
 
 ## Installation
 
@@ -29,10 +29,12 @@ Every change is verified on Windows and Ubuntu with Python 3.11 and Python 3.14.
 | `gazua --version` | Shows the installed version |
 | `gazua init` | Finds the tools in a project by reading its source code and writes `gazua.yaml` for your review |
 | `gazua run --list` | Lists the attack catalog by damage and mode, with what each attack needs from `gazua.yaml`. Nothing is executed |
-| `gazua run --tools` | Calls your `safe: true` tools directly as the attacker, with no model and no key, and reports what had an effect. Exit code 0, 1 on a gated finding, 2 on an error |
+| `gazua run --tools` | Calls your `safe: true` tools directly as the attacker, with no model and no key, and writes `.gazua/report.html`, `report.md` and `run.json`. Exit code 0, 1 on a gated finding, 2 on an error |
+| `gazua report --from .gazua/run.json` | Rebuilds `report.html` and `report.md` from a run document, offline. Nothing is executed |
+| `gazua clean` | Removes Gazua's runs, reports and evidence from `.gazua/`. The last 20 runs are kept automatically |
 | `python -m gazua` | Same behavior as `gazua` |
 
-Tools mode is described in [the tools mode guide](docs/tools-mode.md). Agent mode and reports are planned, and other commands will appear in the help only when they ship. The engine that runs each attack in its own process, with a timeout, a tool call limit, a run limit and a local receiver for exfiltration attempts, is described in [the execution guide](docs/execution.md). How recorded effects become one state per attack, with its rate, upper bound and proof, is described in [the verdict guide](docs/verdicts.md).
+Tools mode is described in [the tools mode guide](docs/tools-mode.md), and its reports, masking, regeneration and retention in [the reports guide](docs/reports.md). Agent mode is planned, and other commands will appear in the help only when they ship. The engine that runs each attack in its own process, with a timeout, a tool call limit, a run limit and a local receiver for exfiltration attempts, is described in [the execution guide](docs/execution.md). How recorded effects become one state per attack, with its rate, upper bound and proof, is described in [the verdict guide](docs/verdicts.md).
 
 ## Integrating your tools
 

@@ -101,7 +101,8 @@ def test_output_escapes_untrusted_labels() -> None:
     printed = "\n".join([*inventory_lines(preview), *result_lines(result)])
     assert "\x1b" not in printed
     assert "\r" not in printed
-    assert "evil?[31m?name" in printed
+    assert "evil name" in printed
+    assert "[31m" not in printed
     assert all(line.isprintable() for line in printed.split("\n"))
 
 

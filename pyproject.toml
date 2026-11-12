@@ -45,7 +45,7 @@ exclude = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]
 packages = ["src/gazua"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src/gazua", "docs/configuration.md", "docs/execution.md", "docs/integration.md", "docs/molds.md", "docs/releasing.md", "docs/tools-mode.md", "docs/verdicts.md", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml"]
+only-include = ["src/gazua", "docs/configuration.md", "docs/execution.md", "docs/integration.md", "docs/molds.md", "docs/releasing.md", "docs/reports.md", "docs/tools-mode.md", "docs/verdicts.md", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml"]
 
 [tool.ruff]
 target-version = "py311"

@@ -83,6 +83,8 @@ A resisted attack in tools mode means this version of your code returned nothing
 
 Code 2 wins over code 1: a run with a finding and an operational error exits with 2, and the finding is still reported. Reaching `max_runs` or `max_cost` is not an error; what was left is reported as not tested. Reaching the tool call ceiling is expected for `repeat_sensitive_call`, and the verdict decides.
 
+Every run also writes `.gazua/report.html`, `.gazua/report.md` and `.gazua/run.json`, with each finding's proof, reproduction command and fix. Masking, `--no-redact`, regeneration with `gazua report --from` and `gazua clean` are described in [the reports guide](reports.md).
+
 ## Limits and evidence
 
 Limits, `target.reset`, process isolation and evidence follow [the execution guide](execution.md). With `target.reset`, attacks run one at a time. Tool returns are kept privately only until the verdict reads them, then deleted; the run folder under `.gazua/runs/` keeps the redacted call log of each attempt.

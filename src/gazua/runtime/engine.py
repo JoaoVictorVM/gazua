@@ -36,8 +36,11 @@ from gazua.runtime.budget import (
 )
 from gazua.runtime.call_log import read_call_log
 from gazua.runtime.evidence import (
+    EvidencePathError,
+    EvidenceRedactor,
     EvidenceStore,
     PrivateEvidence,
+    PublicReferences,
     Redactor,
     remove_stale_private,
     write_atomic,
@@ -78,6 +81,7 @@ EVENT_KINDS = frozenset(
 
 EventCallback = Callable[[RunEvent], None]
 EvidenceCallback = Callable[[ExecutionRecord, PrivateEvidence], None]
+STORAGE_UNAVAILABLE = "report_storage_unavailable"
 
 
 def _failure(code: str, message: str, field: str | None = None) -> ConfigError:
@@ -283,6 +287,7 @@ class _Run:
         on_event: EventCallback | None,
         on_evidence: EvidenceCallback | None,
         cancel: threading.Event | None,
+        evidence_redactor: EvidenceRedactor | None = None,
     ) -> None:
         self.plan = plan
         self.config = plan.config
@@ -305,6 +310,7 @@ class _Run:
         self.cost_warned = False
         self.cleanup: CleanupOutcome = "absent"
         self.operational_errors: list[str] = []
+        self.storage_failed = False
         self.budget = RunBudget(
             max_runs=self.limits.max_runs,
             max_cost=None if self.limits.max_cost is None else to_decimal(self.limits.max_cost),
@@ -315,7 +321,9 @@ class _Run:
         )
         self.capacity = Capacity(plan.effective_concurrency)
         self.store = EvidenceStore(
-            plan.project_root, plan.engine_root, Redactor(self.config.canaries)
+            plan.project_root,
+            plan.engine_root,
+            evidence_redactor if evidence_redactor is not None else Redactor(self.config.canaries),
         )
         self.receiver: LocalReceiver | None = None
 
@@ -346,6 +354,15 @@ class _Run:
     def error(self, code: str) -> None:
         if code not in self.operational_errors:
             self.operational_errors.append(code)
+
+    def write_failed(self) -> None:
+        """A write under the run folder failed: no new attempt starts after this one."""
+        self.storage_failed = True
+        self.error(STORAGE_UNAVAILABLE)
+
+    def stop_after_write_failure(self) -> None:
+        if self.storage_failed and self.admission_open:
+            self.close_admission(_Outcome("not_tested", STORAGE_UNAVAILABLE))
 
     def worker(self, job: dict[str, Any], folder: Path) -> SupervisedProcess:
         job_path = folder / "job.json"
@@ -491,8 +508,11 @@ class _Run:
         self.recorded.add(execution_id)
         if final:
             self.resolved.add(pending.request.key)
-        folder = self.store.public_directory(execution_id)
-        write_atomic(folder / "execution.json", record.model_dump_json(indent=2) + "\n")
+        try:
+            folder = self.store.public_directory(execution_id)
+            write_atomic(folder / "execution.json", record.model_dump_json(indent=2) + "\n")
+        except (OSError, EvidencePathError):
+            self.write_failed()
         return record
 
     def not_started(self, pending: _Pending, outcome: _Outcome) -> None:
@@ -546,7 +566,13 @@ class _Run:
     def launch(self, item: _Pending, admission: Admission) -> None:
         execution_id = self.new_execution_id()
         request = item.request
-        folder = self.store.working_directory(execution_id)
+        try:
+            folder = self.store.working_directory(execution_id)
+        except (OSError, EvidencePathError):
+            self.write_failed()
+            self.record(item, execution_id, _Outcome("not_tested", STORAGE_UNAVAILABLE))
+            self.stop_after_write_failure()
+            return
         receiver = None
         if self.receiver is not None and request.receiver_transport:
             receiver = self.receiver.register(execution_id)
@@ -563,7 +589,16 @@ class _Run:
                 usage_reporting=request.usage_reporting,
             ),
         )
-        written = write_session(session, folder)
+        try:
+            written = write_session(session, folder)
+        except OSError:
+            if self.receiver is not None:
+                self.receiver.close_execution(execution_id)
+            self.store.discard(execution_id)
+            self.write_failed()
+            self.record(item, execution_id, _Outcome("not_tested", STORAGE_UNAVAILABLE))
+            self.stop_after_write_failure()
+            return
         job = {
             **self.base_job("attack", folder, written.path),
             "execution_id": execution_id,
@@ -762,7 +797,11 @@ class _Run:
             complete=complete,
             returns=returns,
         )
-        references = self.store.persist(evidence, raw_lines if log_valid else [])
+        try:
+            references = self.store.persist(evidence, raw_lines if log_valid else [])
+        except (OSError, EvidencePathError):
+            self.write_failed()
+            references = PublicReferences(None, None, None)
         reported = sum(active.usage.values(), Decimal(0)) if active.usage else None
         record = self.record(
             active.pending,
@@ -797,6 +836,7 @@ class _Run:
             self.error("reset_failed")
             self.cancel_active(_Outcome("cancelled", "reset_failed"))
             self.close_admission(_Outcome("reset_failed", "reset_failed"))
+        self.stop_after_write_failure()
         self.snapshot()
 
     def call_log(self, active: _Active) -> tuple[list[str], tuple[Any, ...], bool, bool]:
@@ -960,7 +1000,11 @@ class _Run:
 
     def snapshot(self) -> RunSummary:
         summary = self.summary()
-        write_atomic(self.plan.engine_root / "summary.json", summary.model_dump_json(indent=2))
+        try:
+            write_atomic(self.plan.engine_root / "summary.json", summary.model_dump_json(indent=2))
+        except OSError:
+            self.write_failed()
+            summary = self.summary()
         return summary
 
     def loop(self) -> None:
@@ -1016,6 +1060,7 @@ def execute_plan(
     *,
     on_evidence: EvidenceCallback | None = None,
     cancel: threading.Event | None = None,
+    evidence_redactor: EvidenceRedactor | None = None,
 ) -> RunSummary:
     """Runs a prepared plan and returns its infrastructure summary.
 
@@ -1023,6 +1068,8 @@ def execute_plan(
     returns. ``on_evidence`` receives the raw evidence of each attempt, private tool returns
     included, which is deleted when it returns. Ctrl+C, or setting ``cancel``, stops new
     attempts, kills active ones, runs the final reset and still returns a partial summary with
-    ``interrupted`` set.
+    ``interrupted`` set. ``evidence_redactor`` replaces the conservative redaction of persisted
+    evidence. A write failure under the run folder stops admission, lets running attempts and
+    the final reset finish and still returns the summary, with ``report_storage_unavailable``.
     """
-    return _Run(plan, on_event, on_evidence, cancel).execute()
+    return _Run(plan, on_event, on_evidence, cancel, evidence_redactor).execute()

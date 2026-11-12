@@ -8,6 +8,7 @@ it is deleted. Verdicts, statistics and the gate are the verdict engine's, uncha
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
@@ -29,7 +30,14 @@ from gazua.modes.tools_models import (
 )
 from gazua.modes.tools_plan import ToolsPlan, plan_tools
 from gazua.runtime.budget import decimal_text
-from gazua.runtime.run_models import EXECUTION_STATUSES, RunEvent, RunSummary
+from gazua.runtime.evidence import EvidenceRedactor, PrivateEvidence
+from gazua.runtime.run_models import (
+    EXECUTION_STATUSES,
+    ExecutionRecord,
+    LimitOverrides,
+    RunEvent,
+    RunSummary,
+)
 from gazua.verdicts.engine import VerdictCollector
 from gazua.verdicts.models import AttackContext, VerdictSummary
 
@@ -87,6 +95,7 @@ class ToolsPreview:
 
 PreviewCallback = Callable[[ToolsPreview], None]
 EventCallback = Callable[[RunEvent], None]
+EvidenceCallback = Callable[[ExecutionRecord, PrivateEvidence], None]
 
 
 def _effective_limits(config: GazuaConfig, options: ToolsOptions) -> Limits:
@@ -169,9 +178,27 @@ def exit_code_for(failures: Sequence[str], verdicts: VerdictSummary) -> ExitCode
     return EXIT_GATED if verdicts.has_gated_findings else EXIT_CLEAN
 
 
-def reproduction_arguments(mold_id: str, config_path: str) -> list[str]:
-    """The command that runs every unit of this mold again, as an argument list."""
-    return ["gazua", "run", "--tools", "--config", config_path, "--mold", mold_id]
+_RESULT_LIMITS: Final = ("max_runs", "timeout", "max_tool_calls", "max_cost")
+
+
+def _number(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else repr(float(value))
+
+
+def reproduction_arguments(
+    mold_id: str, config_path: str, overrides: LimitOverrides | None = None
+) -> list[str]:
+    """The command that runs every unit of this mold again, as an argument list.
+
+    Limit overrides that can change a result are kept; concurrency cannot, so it is left out.
+    """
+    arguments = ["gazua", "run", "--tools", "--config", config_path, "--mold", mold_id]
+    if overrides is not None:
+        for name in _RESULT_LIMITS:
+            value = getattr(overrides, name)
+            if value is not None:
+                arguments.extend([f"--{name.replace('_', '-')}", _number(value)])
+    return arguments
 
 
 def run_tools(
@@ -184,14 +211,23 @@ def run_tools(
     on_preview: PreviewCallback | None = None,
     on_event: EventCallback | None = None,
     cancel: threading.Event | None = None,
+    on_evidence: EvidenceCallback | None = None,
+    evidence_redactor: EvidenceRedactor | None = None,
+    storage_available: bool = True,
 ) -> ToolsResult:
     """Runs the tools molds of the catalog against the project and returns the native results.
 
     Configuration problems raise ``ConfigError`` before the target is imported. Everything
     found after that, including a run where no tool can be called, is in the result and its
     exit code. ``inventory`` replaces discovery, for consumers that already have one.
+
+    ``on_evidence`` sees each attempt's private evidence after the verdict collector; its
+    failure never changes a verdict. ``evidence_redactor`` replaces the engine's default
+    redaction of persisted evidence. Without ``storage_available`` nothing is executed and the
+    whole plan is not tested, with ``report_storage_unavailable``.
     """
-    from gazua.runtime.engine import execute_plan, new_run_id, prepare_run
+    from gazua.runtime.engine import STORAGE_UNAVAILABLE, execute_plan, new_run_id, prepare_run
+    from gazua.runtime.evidence import EvidencePathError
 
     molds = tools_molds(catalog, options.mold)
     limits = _effective_limits(config, options)
@@ -210,20 +246,43 @@ def run_tools(
         if config.tools and not any(tool.registered for tool in found.tools):
             diagnostics.append(ToolsDiagnostic(code="no_tools_registered"))
     requests = plan.requests if not blocked else []
-    if requests:
+    unexecuted: str | None = None
+    summary: RunSummary | None = None
+    if requests and storage_available:
         run_plan = prepare_run(config, requests, options.overrides, project_root=project_root)
         if on_preview is not None:
             on_preview(ToolsPreview(found, plan, run_plan.limits, run_plan.effective_concurrency))
         collector = VerdictCollector.for_plan(contexts, run_plan)
-        summary = execute_plan(run_plan, on_event, on_evidence=collector, cancel=cancel)
-        verdicts = collector.finalize(summary)
+
+        def collect(record: ExecutionRecord, evidence: PrivateEvidence) -> None:
+            collector(record, evidence)
+            if on_evidence is not None:
+                with contextlib.suppress(Exception):
+                    on_evidence(record, evidence)
+
+        try:
+            summary = execute_plan(
+                run_plan,
+                on_event,
+                on_evidence=collect,
+                cancel=cancel,
+                evidence_redactor=evidence_redactor,
+            )
+        except (OSError, EvidencePathError):
+            unexecuted = STORAGE_UNAVAILABLE
+            summary = _empty_summary(run_plan.run_id, config, limits)
+        verdicts = collector.finalize(summary, unexecuted_reason=unexecuted)
     else:
         summary = _empty_summary(new_run_id(), config, limits)
         if on_preview is not None:
             on_preview(ToolsPreview(found, plan, limits, summary.effective_concurrency))
         collector = VerdictCollector(contexts, config, max_tool_calls=limits.max_tool_calls)
-        verdicts = collector.finalize(summary)
+        if requests:
+            unexecuted = STORAGE_UNAVAILABLE
+        verdicts = collector.finalize(summary, unexecuted_reason=unexecuted)
     failures = [*blocked, *operational_failures(summary, verdicts, contexts)]
+    if unexecuted is not None and unexecuted not in failures:
+        failures.append(unexecuted)
     diagnostics.extend(
         ToolsDiagnostic(code=code) for code in failures if code != "no_runnable_tool"
     )
@@ -233,10 +292,12 @@ def run_tools(
         contexts=contexts,
         engine=summary,
         verdicts=verdicts,
-        executed=bool(requests),
         diagnostics=diagnostics,
+        executed=bool(requests) and unexecuted is None,
         reproduction={
-            context.attack_key: reproduction_arguments(context.mold.id, options.config_path)
+            context.attack_key: reproduction_arguments(
+                context.mold.id, options.config_path, options.overrides
+            )
             for context in contexts
         },
         exit_code=exit_code_for(failures, verdicts),

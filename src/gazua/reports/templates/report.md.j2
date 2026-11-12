@@ -1,0 +1,118 @@
+{% macro finding_md(item) %}
+{% set f = item.finding %}
+<a id="{{ f.id }}"></a>
+
+#### {{ f.severity | capitalize }}: {{ item.damage_label | md }}{% if f.gated %} \(gated\){% endif %}
+
+- Finding: [{{ f.id }}](#{{ f.id }})
+- Mold: {{ f.mold_id | md }}{% if f.tool_name %}, tool {{ f.tool_name | md }}{% endif %}, mode {{ f.mode }}
+- Conditions of explorability: {{ (f.conditions | join(", ") if f.conditions else "none") | md }}
+- Fix: {{ f.fix | md }} [Reference {{ f.fix_ref }}](#{{ fix_anchor(f.fix_ref) }})
+{% for scenario in item.scenarios %}
+- Scenario {{ scenario.scenario.attack_key | md }}: {{ scenario.rate | md }}\. Coverage: {{ scenario.result.coverage }}
+{% endfor %}
+
+Attack:
+
+{{ f.attack | block }}
+
+{% for proof in item.proofs %}
+Proof {{ proof.id }}: source {{ proof.source }}, execution {{ proof.execution_id | md }}{% if proof.truncated %}, excerpt truncated{% endif %}{% if proof.omission_reason %}, excerpt missing \({{ proof.omission_reason | replace("_", " ") | md }}\){% endif %}\.
+
+{{ proof.locator | block("json") }}
+
+{% if proof.content is not none %}
+{{ proof.content | block("json") }}
+
+{% endif %}
+{% endfor %}
+{% if item.commands %}
+Reproduction, from the project root, with the same configuration and target code:
+
+{% for label, command in item.commands %}
+{{ label | md }}:
+
+{{ command | block("") }}
+
+{% endfor %}
+{% else %}
+Reproduction unavailable \({{ (f.reproduction.reason or "not_reproducible") | replace("_", " ") | md }}\)\. Run gazua run \-\-tools \-\-mold {{ f.mold_id | md }} with the same configuration\.
+
+{% endif %}
+{% endmacro %}
+# Gazua report
+
+{% if no_redact_warning %}
+> **{{ no_redact_warning | md }}**
+
+{% endif %}
+- Run: {{ doc.run_id | md }}
+- Date (UTC): {{ meta.created_at | md }}
+- Mode: {{ meta.mode }}
+- Target: {{ meta.target_ref | md }}
+- Gazua version: {{ (meta.gazua_version or not_reported) | md }}
+- Target version: {{ (meta.target_version or not_reported) | md }}
+- Model: {{ (meta.model or not_reported) | md }}
+- Evidence: {{ "masked" if doc.redaction == "masked" else "not masked \\(\\-\\-no\\-redact\\)" }}
+- Exit code: {{ doc.report_exit_code }}
+- Sample limits: at most {{ doc.engine.limits.max_runs }} executions, {{ doc.engine.limits.timeout | md }} s each, {{ doc.engine.limits.max_tool_calls }} tool calls per execution; {{ doc.engine.planned }} planned, {{ doc.engine.started }} started{% if doc.engine.interrupted %}, interrupted{% endif %}\. Rates and bounds cover only evaluated repetitions\.
+
+## Summary by damage
+
+| Damage |{% for state in states %} {{ state_labels[state] }} |{% endfor %} Gated |
+|---|{% for state in states %}---|{% endfor %}---|
+{% for damage, label, counts, gated in view.damage_rows %}
+| {{ label | md }} |{% for state in states %} {{ counts[state] }} |{% endfor %} {{ gated }} |
+{% endfor %}
+
+## Findings ({{ view.findings | length }})
+
+{% if not view.findings %}
+No verified finding\.
+
+{% endif %}
+{% for entry in view.groups %}
+{% if entry.findings is defined %}
+### Low: {{ entry.label | md }}, {{ (entry.tool_name or "no tool") | md }} \({{ entry.findings | length }} findings{% if entry.gated %}, gated{% endif %}\)
+
+{% for item in entry.findings %}
+{{ finding_md(item) }}
+{% endfor %}
+{% else %}
+{{ finding_md(entry) }}
+{% endif %}
+{% endfor %}
+{% for state, title, anchor, items in view.sections %}
+## {{ title }} ({{ items | length }})
+
+{% if not items %}
+None\.
+
+{% else %}
+{% for item in items %}
+- **{{ damage_labels[item.result.damage] | md }}**, mold {{ item.scenario.mold_id | md }}{% if item.scenario.tool_name %}, tool {{ item.scenario.tool_name | md }}{% endif %}: {{ item.state_label | md }}\. {{ item.rate | md }}\. Coverage: {{ item.result.coverage }}\. Key: {{ item.scenario.attack_key | md }}
+{% endfor %}
+
+{% endif %}
+{% endfor %}
+## Fixes
+
+{% for damage, text in doc.fixes.items() %}
+<a id="{{ fix_anchor(damage) }}"></a>
+- **{{ damage_labels[damage] | md }}** \({{ damage | md }}\): {{ text | md }}
+{% endfor %}
+
+## Report diagnostics ({{ doc.diagnostics | length }})
+
+{% if not doc.diagnostics %}
+None\.
+{% else %}
+{% for item in doc.diagnostics %}
+- {{ item.level }}: {{ item.code | md }}{% if item.field %} \({{ item.field | md }}\){% endif %}
+
+{% endfor %}
+{% endif %}
+{% if doc.verdicts.operational_errors %}
+
+Operational errors: {{ doc.verdicts.operational_errors | join(", ") | md }}
+{% endif %}

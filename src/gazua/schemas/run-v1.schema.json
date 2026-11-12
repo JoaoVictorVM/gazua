@@ -1,0 +1,1603 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/run-v1.schema.json",
+  "$defs": {
+    "AttackResult": {
+      "additionalProperties": false,
+      "description": "The verdict of one attack unit over all its repetitions.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "attack_key": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+          "title": "Attack Key",
+          "type": "string"
+        },
+        "mold_id": {
+          "minLength": 1,
+          "title": "Mold Id",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "tools",
+            "agent"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "damage": {
+          "enum": [
+            "prompt_only_permission",
+            "secret_in_context",
+            "idor_via_agent",
+            "unhandled_output",
+            "unlocked_memory",
+            "unchecked_spending"
+          ],
+          "title": "Damage",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "finding",
+            "conditional_risk",
+            "resisted",
+            "not_tested",
+            "not_applicable"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "planned": {
+          "minimum": 1,
+          "title": "Planned",
+          "type": "integer"
+        },
+        "evaluated": {
+          "minimum": 0,
+          "title": "Evaluated",
+          "type": "integer"
+        },
+        "successes": {
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "unknown": {
+          "minimum": 0,
+          "title": "Unknown",
+          "type": "integer"
+        },
+        "not_applicable_count": {
+          "minimum": 0,
+          "title": "Not Applicable Count",
+          "type": "integer"
+        },
+        "state_counts": {
+          "$ref": "#/$defs/StateCounts"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rate"
+        },
+        "upper_bound": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Upper Bound"
+        },
+        "confidence": {
+          "maximum": 0.95,
+          "minimum": 0.95,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "coverage": {
+          "enum": [
+            "complete",
+            "partial",
+            "none"
+          ],
+          "title": "Coverage",
+          "type": "string"
+        },
+        "gated": {
+          "title": "Gated",
+          "type": "boolean"
+        },
+        "low_fidelity": {
+          "title": "Low Fidelity",
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/Reason"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "operational_errors": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Operational Errors",
+          "type": "array"
+        },
+        "proof": {
+          "items": {
+            "$ref": "#/$defs/Proof"
+          },
+          "title": "Proof",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "attack_key",
+        "mold_id",
+        "mode",
+        "damage",
+        "state",
+        "severity",
+        "planned",
+        "evaluated",
+        "successes",
+        "unknown",
+        "not_applicable_count",
+        "state_counts",
+        "rate",
+        "upper_bound",
+        "confidence",
+        "coverage",
+        "gated",
+        "low_fidelity",
+        "reasons",
+        "operational_errors",
+        "proof"
+      ],
+      "title": "Gazua attack result",
+      "type": "object"
+    },
+    "ExecutionRecord": {
+      "additionalProperties": false,
+      "description": "How one planned execution ended. Exactly one exists per attempt and per unstarted entry.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "request_key": {
+          "minLength": 1,
+          "title": "Request Key",
+          "type": "string"
+        },
+        "mold_id": {
+          "minLength": 1,
+          "title": "Mold Id",
+          "type": "string"
+        },
+        "repetition": {
+          "exclusiveMinimum": 0,
+          "title": "Repetition",
+          "type": "integer"
+        },
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "timed_out",
+            "killed_at_ceiling",
+            "skipped_by_limit",
+            "crashed",
+            "reset_failed",
+            "rate_limited",
+            "cancelled",
+            "not_tested"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Started At"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Finished At"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration Ms"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Exit Code"
+        },
+        "admitted_tool_calls": {
+          "minimum": 0,
+          "title": "Admitted Tool Calls",
+          "type": "integer"
+        },
+        "evidence_complete": {
+          "title": "Evidence Complete",
+          "type": "boolean"
+        },
+        "truncated_tail": {
+          "title": "Truncated Tail",
+          "type": "boolean"
+        },
+        "reported_cost_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reported Cost Usd"
+        },
+        "estimated_cost_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Estimated Cost Usd"
+        },
+        "usage_complete": {
+          "title": "Usage Complete",
+          "type": "boolean"
+        },
+        "call_log": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Call Log"
+        },
+        "receiver_hits": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Receiver Hits"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Output"
+        },
+        "reset_before": {
+          "enum": [
+            "absent",
+            "succeeded",
+            "failed",
+            "timed_out",
+            "not_started"
+          ],
+          "title": "Reset Before",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "execution_id",
+        "request_key",
+        "mold_id",
+        "repetition",
+        "attempt",
+        "status",
+        "reason",
+        "started_at",
+        "finished_at",
+        "duration_ms",
+        "exit_code",
+        "admitted_tool_calls",
+        "evidence_complete",
+        "truncated_tail",
+        "reported_cost_usd",
+        "estimated_cost_usd",
+        "usage_complete",
+        "call_log",
+        "receiver_hits",
+        "output",
+        "reset_before"
+      ],
+      "title": "Gazua execution record",
+      "type": "object"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "description": "Proven scenarios of one target, mode, mold and tool, under one stable id.",
+      "properties": {
+        "id": {
+          "pattern": "^finding-[0-9a-f]{64}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "tools",
+            "agent"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "mold_id": {
+          "minLength": 1,
+          "title": "Mold Id",
+          "type": "string"
+        },
+        "tool_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tool Name"
+        },
+        "damage": {
+          "enum": [
+            "prompt_only_permission",
+            "secret_in_context",
+            "idor_via_agent",
+            "unhandled_output",
+            "unlocked_memory",
+            "unchecked_spending"
+          ],
+          "title": "Damage",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "gated": {
+          "title": "Gated",
+          "type": "boolean"
+        },
+        "scenarios": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Scenarios",
+          "type": "array"
+        },
+        "attack": {
+          "minLength": 1,
+          "title": "Attack",
+          "type": "string"
+        },
+        "proof_ids": {
+          "items": {
+            "pattern": "^proof-[0-9]{6,}$",
+            "type": "string"
+          },
+          "title": "Proof Ids",
+          "type": "array"
+        },
+        "conditions": {
+          "items": {
+            "enum": [
+              "dry_run",
+              "attempted_action_only",
+              "low_fidelity",
+              "raised_after_call",
+              "monetary_effect_not_proven",
+              "fixture_specific",
+              "exfiltration_attempt_only",
+              "gazua_ceiling",
+              "target_limit_unknown",
+              "cost_not_proven",
+              "execution_incomplete",
+              "truncated_tail",
+              "delivered_after_injection",
+              "test_sink_only",
+              "synthetic_marker"
+            ],
+            "type": "string"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "reproduction": {
+          "$ref": "#/$defs/Reproduction"
+        },
+        "fix_ref": {
+          "enum": [
+            "prompt_only_permission",
+            "secret_in_context",
+            "idor_via_agent",
+            "unhandled_output",
+            "unlocked_memory",
+            "unchecked_spending"
+          ],
+          "title": "Fix Ref",
+          "type": "string"
+        },
+        "fix": {
+          "minLength": 1,
+          "title": "Fix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "mode",
+        "mold_id",
+        "tool_name",
+        "damage",
+        "severity",
+        "gated",
+        "scenarios",
+        "attack",
+        "proof_ids",
+        "conditions",
+        "reproduction",
+        "fix_ref",
+        "fix"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Limits": {
+      "additionalProperties": false,
+      "description": "Ceilings of a run. Durations are in seconds and costs in USD.",
+      "properties": {
+        "max_runs": {
+          "default": 300,
+          "exclusiveMinimum": 0,
+          "title": "Max Runs",
+          "type": "integer"
+        },
+        "timeout": {
+          "default": 120,
+          "exclusiveMinimum": 0,
+          "title": "Timeout",
+          "type": "number"
+        },
+        "max_tool_calls": {
+          "default": 50,
+          "exclusiveMinimum": 0,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        },
+        "concurrency": {
+          "default": 2,
+          "exclusiveMinimum": 0,
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "max_cost": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Cost"
+        },
+        "cost_per_run": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Per Run"
+        }
+      },
+      "title": "Limits",
+      "type": "object"
+    },
+    "Proof": {
+      "additionalProperties": false,
+      "description": "Where an effect was observed. It points to redacted evidence and never holds raw values.",
+      "properties": {
+        "signal": {
+          "enum": [
+            "forbidden_tool_call",
+            "sensitive_tool_call",
+            "canary_in_response",
+            "canary_in_tool_arguments",
+            "receiver_hit",
+            "victim_record_access",
+            "output_sink_effect",
+            "memory_effect",
+            "tool_call_ceiling"
+          ],
+          "title": "Signal",
+          "type": "string"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "call_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Seq"
+        },
+        "hit_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hit Id"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._/-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "canary_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canary Index"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "enum": [
+                "response",
+                "tool_return",
+                "tool_arguments"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position"
+        },
+        "conditions": {
+          "items": {
+            "enum": [
+              "dry_run",
+              "attempted_action_only",
+              "low_fidelity",
+              "raised_after_call",
+              "monetary_effect_not_proven",
+              "fixture_specific",
+              "exfiltration_attempt_only",
+              "gazua_ceiling",
+              "target_limit_unknown",
+              "cost_not_proven",
+              "execution_incomplete",
+              "truncated_tail",
+              "delivered_after_injection",
+              "test_sink_only",
+              "synthetic_marker"
+            ],
+            "type": "string"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "facts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Facts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "signal",
+        "execution_id"
+      ],
+      "title": "Proof",
+      "type": "object"
+    },
+    "ProofSnapshot": {
+      "additionalProperties": false,
+      "description": "A treated excerpt of the evidence behind one native proof.\n\n``attack_key`` and ``proof_index`` locate the proof in the verdicts. ``content`` is null\nwhen no excerpt could be kept, and ``omission_reason`` then says why.",
+      "properties": {
+        "id": {
+          "pattern": "^proof-[0-9]{6,}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "attack_key": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+          "title": "Attack Key",
+          "type": "string"
+        },
+        "proof_index": {
+          "minimum": 0,
+          "title": "Proof Index",
+          "type": "integer"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "call",
+            "tool_return",
+            "output",
+            "receiver",
+            "sink",
+            "memory",
+            "operational"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "locator": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Locator",
+          "type": "object"
+        },
+        "content": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "omission_reason": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Omission Reason"
+        }
+      },
+      "required": [
+        "id",
+        "attack_key",
+        "proof_index",
+        "execution_id",
+        "source",
+        "locator",
+        "content",
+        "truncated",
+        "omission_reason"
+      ],
+      "title": "ProofSnapshot",
+      "type": "object"
+    },
+    "Reason": {
+      "additionalProperties": false,
+      "description": "Why a repetition was not tested or stayed conditional, as a closed code.",
+      "properties": {
+        "code": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "missing": {
+          "items": {
+            "enum": [
+              "tool.forbidden",
+              "tool.sensitive",
+              "tool.safe",
+              "tool.classified",
+              "tool.owner_arg",
+              "identity",
+              "fixtures.attacker",
+              "fixtures.victim",
+              "fixtures.victim.records",
+              "canaries",
+              "output_sink",
+              "target.reset",
+              "direct_tool_access",
+              "entry_supported"
+            ],
+            "type": "string"
+          },
+          "title": "Missing",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "Reason",
+      "type": "object"
+    },
+    "ReportDiagnostic": {
+      "additionalProperties": false,
+      "description": "Something the report found while treating data. It never quotes the value.",
+      "properties": {
+        "code": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "level": {
+          "default": "warning",
+          "enum": [
+            "warning",
+            "error"
+          ],
+          "title": "Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "ReportDiagnostic",
+      "type": "object"
+    },
+    "Reproduction": {
+      "additionalProperties": false,
+      "description": "An argument list to run in ``cwd``, relative to the project root. Never run by Gazua.\n\nAn unavailable command keeps its reason and is not offered for copying.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Argv",
+          "type": "array"
+        },
+        "cwd": {
+          "default": ".",
+          "pattern": "^(\\.|[A-Za-z0-9_][A-Za-z0-9._-]*(/[A-Za-z0-9_][A-Za-z0-9._-]*)*)$",
+          "title": "Cwd",
+          "type": "string"
+        },
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "argv",
+        "available"
+      ],
+      "title": "Reproduction",
+      "type": "object"
+    },
+    "RunMetadata": {
+      "additionalProperties": false,
+      "description": "When and how the run happened. Nothing absent is invented.",
+      "properties": {
+        "created_at": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+          "title": "Created At",
+          "type": "string"
+        },
+        "gazua_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gazua Version"
+        },
+        "target_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target Version"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Model"
+        },
+        "mode": {
+          "enum": [
+            "tools",
+            "agent"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "target_ref": {
+          "minLength": 1,
+          "title": "Target Ref",
+          "type": "string"
+        },
+        "language": {
+          "enum": [
+            "en",
+            "pt"
+          ],
+          "title": "Language",
+          "type": "string"
+        },
+        "presentation_version": {
+          "minimum": 1,
+          "title": "Presentation Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "created_at",
+        "gazua_version",
+        "target_version",
+        "model",
+        "mode",
+        "target_ref",
+        "language",
+        "presentation_version"
+      ],
+      "title": "RunMetadata",
+      "type": "object"
+    },
+    "RunSummary": {
+      "additionalProperties": false,
+      "description": "The infrastructure result of a run, also written when it was interrupted.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "interrupted": {
+          "title": "Interrupted",
+          "type": "boolean"
+        },
+        "limits": {
+          "$ref": "#/$defs/Limits"
+        },
+        "requested_concurrency": {
+          "exclusiveMinimum": 0,
+          "title": "Requested Concurrency",
+          "type": "integer"
+        },
+        "effective_concurrency": {
+          "exclusiveMinimum": 0,
+          "title": "Effective Concurrency",
+          "type": "integer"
+        },
+        "planned": {
+          "minimum": 0,
+          "title": "Planned",
+          "type": "integer"
+        },
+        "started": {
+          "minimum": 0,
+          "title": "Started",
+          "type": "integer"
+        },
+        "retries": {
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "counts": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "propertyNames": {
+            "enum": [
+              "completed",
+              "timed_out",
+              "killed_at_ceiling",
+              "skipped_by_limit",
+              "crashed",
+              "reset_failed",
+              "rate_limited",
+              "cancelled",
+              "not_tested"
+            ]
+          },
+          "title": "Counts",
+          "type": "object"
+        },
+        "cost_source": {
+          "enum": [
+            "estimated",
+            "reported",
+            "unavailable"
+          ],
+          "title": "Cost Source",
+          "type": "string"
+        },
+        "cost_coverage": {
+          "enum": [
+            "complete",
+            "incomplete",
+            "not_applicable"
+          ],
+          "title": "Cost Coverage",
+          "type": "string"
+        },
+        "budget_guaranteed": {
+          "title": "Budget Guaranteed",
+          "type": "boolean"
+        },
+        "reserved_estimate_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reserved Estimate Usd"
+        },
+        "reported_cost_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reported Cost Usd"
+        },
+        "cleanup": {
+          "enum": [
+            "absent",
+            "succeeded",
+            "failed",
+            "timed_out",
+            "aborted"
+          ],
+          "title": "Cleanup",
+          "type": "string"
+        },
+        "operational_errors": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Operational Errors",
+          "type": "array"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/ExecutionRecord"
+          },
+          "title": "Records",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "interrupted",
+        "limits",
+        "requested_concurrency",
+        "effective_concurrency",
+        "planned",
+        "started",
+        "retries",
+        "counts",
+        "cost_source",
+        "cost_coverage",
+        "budget_guaranteed",
+        "reserved_estimate_usd",
+        "reported_cost_usd",
+        "cleanup",
+        "operational_errors",
+        "records"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    },
+    "Scenario": {
+      "additionalProperties": false,
+      "description": "One attack unit as the report shows it. Its key finds exactly one attack result.",
+      "properties": {
+        "attack_key": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+          "title": "Attack Key",
+          "type": "string"
+        },
+        "mold_id": {
+          "minLength": 1,
+          "title": "Mold Id",
+          "type": "string"
+        },
+        "tool_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tool Name"
+        },
+        "record_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Record Index"
+        },
+        "canary_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Canary Index"
+        },
+        "entry": {
+          "enum": [
+            "user_message",
+            "tool_result",
+            "rag_document",
+            "poisoned_memory",
+            "web_page",
+            "attachment",
+            "mcp_tool_description"
+          ],
+          "title": "Entry",
+          "type": "string"
+        },
+        "technique": {
+          "enum": [
+            "fake_authority",
+            "delimiter_break",
+            "portuguese",
+            "invisible_text",
+            "encoding",
+            "two_turn"
+          ],
+          "title": "Technique",
+          "type": "string"
+        },
+        "attack": {
+          "minLength": 1,
+          "title": "Attack",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "reproduction": {
+          "$ref": "#/$defs/Reproduction"
+        }
+      },
+      "required": [
+        "attack_key",
+        "mold_id",
+        "tool_name",
+        "record_index",
+        "canary_index",
+        "entry",
+        "technique",
+        "attack",
+        "payload",
+        "reproduction"
+      ],
+      "title": "Scenario",
+      "type": "object"
+    },
+    "StateCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "finding": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Finding",
+          "type": "integer"
+        },
+        "conditional_risk": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Conditional Risk",
+          "type": "integer"
+        },
+        "resisted": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Resisted",
+          "type": "integer"
+        },
+        "not_tested": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Not Tested",
+          "type": "integer"
+        },
+        "not_applicable": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Not Applicable",
+          "type": "integer"
+        }
+      },
+      "title": "StateCounts",
+      "type": "object"
+    },
+    "SyntheticData": {
+      "additionalProperties": false,
+      "description": "Declared test data that stays visible: fixture identities, records and canaries.",
+      "properties": {
+        "identities": {
+          "items": {
+            "$ref": "#/$defs/SyntheticIdentity"
+          },
+          "title": "Identities",
+          "type": "array"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/SyntheticRecord"
+          },
+          "title": "Records",
+          "type": "array"
+        },
+        "canaries": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Canaries",
+          "type": "array"
+        }
+      },
+      "title": "SyntheticData",
+      "type": "object"
+    },
+    "SyntheticIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "enum": [
+            "attacker",
+            "victim"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "id"
+      ],
+      "title": "SyntheticIdentity",
+      "type": "object"
+    },
+    "SyntheticRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "enum": [
+            "attacker",
+            "victim"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "tool": {
+          "minLength": 1,
+          "title": "Tool",
+          "type": "string"
+        },
+        "id_arg": {
+          "minLength": 1,
+          "title": "Id Arg",
+          "type": "string"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Id"
+        }
+      },
+      "required": [
+        "owner",
+        "tool",
+        "id_arg",
+        "id"
+      ],
+      "title": "SyntheticRecord",
+      "type": "object"
+    },
+    "VerdictSummary": {
+      "additionalProperties": false,
+      "description": "Every attack result of one run, with counts per damage and the overall gate.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/AttackResult"
+          },
+          "title": "Results",
+          "type": "array"
+        },
+        "counts_by_damage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/StateCounts"
+          },
+          "propertyNames": {
+            "enum": [
+              "prompt_only_permission",
+              "secret_in_context",
+              "idor_via_agent",
+              "unhandled_output",
+              "unlocked_memory",
+              "unchecked_spending"
+            ]
+          },
+          "title": "Counts By Damage",
+          "type": "object"
+        },
+        "has_gated_findings": {
+          "title": "Has Gated Findings",
+          "type": "boolean"
+        },
+        "operational_errors": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Operational Errors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "results",
+        "counts_by_damage",
+        "has_gated_findings",
+        "operational_errors"
+      ],
+      "title": "Gazua verdict summary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Everything the reports need, checked against the native verdicts.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "run_id": {
+      "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/RunMetadata"
+    },
+    "redaction": {
+      "enum": [
+        "masked",
+        "none"
+      ],
+      "title": "Redaction",
+      "type": "string"
+    },
+    "synthetic_data": {
+      "$ref": "#/$defs/SyntheticData"
+    },
+    "engine": {
+      "$ref": "#/$defs/RunSummary"
+    },
+    "verdicts": {
+      "$ref": "#/$defs/VerdictSummary"
+    },
+    "scenarios": {
+      "items": {
+        "$ref": "#/$defs/Scenario"
+      },
+      "title": "Scenarios",
+      "type": "array"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "proofs": {
+      "items": {
+        "$ref": "#/$defs/ProofSnapshot"
+      },
+      "title": "Proofs",
+      "type": "array"
+    },
+    "fixes": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "propertyNames": {
+        "enum": [
+          "prompt_only_permission",
+          "secret_in_context",
+          "idor_via_agent",
+          "unhandled_output",
+          "unlocked_memory",
+          "unchecked_spending"
+        ]
+      },
+      "title": "Fixes",
+      "type": "object"
+    },
+    "diagnostics": {
+      "items": {
+        "$ref": "#/$defs/ReportDiagnostic"
+      },
+      "title": "Diagnostics",
+      "type": "array"
+    },
+    "report_exit_code": {
+      "enum": [
+        0,
+        1,
+        2
+      ],
+      "title": "Report Exit Code",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "metadata",
+    "redaction",
+    "synthetic_data",
+    "engine",
+    "verdicts",
+    "scenarios",
+    "findings",
+    "proofs",
+    "fixes",
+    "diagnostics",
+    "report_exit_code"
+  ],
+  "title": "Gazua run document",
+  "type": "object"
+}
