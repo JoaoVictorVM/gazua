@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{{ csp }}">
+<meta name="referrer" content="no-referrer">
+<title>{{ text.title }}</title>
+<style>{{ style }}</style>
+</head>
+<body>
+<main>
+<h1>{{ text.title }}</h1>
+<p class="notice" role="note">{{ notice }}</p>
+<p>{{ text.intro }}</p>
+{% for part in parts %}
+<section aria-labelledby="mode-{{ part.mode }}">
+<h2 id="mode-{{ part.mode }}">{{ part.heading }}</h2>
+{% if part.started %}
+<p>{{ text.exit_code }} {{ part.exit_code }}. {{ text.findings }} {{ part.findings }}.</p>
+{% if part.links %}
+<ul>
+{% for label, href in part.links %}
+<li><a href="{{ href }}">{{ label }}</a></li>
+{% endfor %}
+</ul>
+{% else %}
+<p>{{ text.no_reports }}</p>
+{% endif %}
+{% else %}
+<p>{{ text.not_started }} ({{ part.reason }}).</p>
+{% endif %}
+</section>
+{% endfor %}
+<p class="small">{{ text.reproduce }}</p>
+<p class="small">{{ text.clean }}</p>
+</main>
+</body>
+</html>

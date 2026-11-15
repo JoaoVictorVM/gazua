@@ -610,3 +610,78 @@ def agent_project(tmp_path: Path) -> AgentProject:
     root = tmp_path / "project"
     root.mkdir()
     return AgentProject(root)
+
+
+HOSTILE_HOST_CONFIG = (
+    "schema_version: 1\nentrypoint: 'host_project_that_must_not_load:entrypoint'\ntools: {}\n"
+)
+
+
+def _demo_environment(spy: Path | None = None, credentials: bool = False) -> dict[str, str]:
+    from demo_support import SPY_SITE
+
+    env = build_clean_environment()
+    if credentials:
+        env.update(FAKE_CREDENTIALS)
+        env["GAZUA_DEMO_TEST_TOKEN"] = "sentinel-not-a-real-token"  # noqa: S105
+    if spy is not None:
+        env["PYTHONPATH"] = str(SPY_SITE)
+        env["GAZUA_DEMO_SPY"] = str(spy)
+    return env
+
+
+@pytest.fixture(scope="session")
+def spied_demo(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """A full demo from a folder whose own gazua.yaml must be ignored, with fake credentials
+    in the environment and every Python process of the run observed."""
+    from demo_support import DemoRun, run_demo_process
+
+    host = tmp_path_factory.mktemp("spied-demo")
+    (host / "gazua.yaml").write_text(HOSTILE_HOST_CONFIG, encoding="utf-8")
+    spy = tmp_path_factory.mktemp("spy-log")
+    result = run_demo_process(host, _demo_environment(spy, credentials=True))
+    return DemoRun(host=host, result=result, spy=spy)
+
+
+@pytest.fixture(scope="session")
+def clean_demo(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """A full demo from an empty folder, with no credential of any kind in the environment."""
+    from demo_support import DemoRun, run_demo_process
+
+    host = tmp_path_factory.mktemp("clean-demo")
+    result = run_demo_process(host, _demo_environment())
+    return DemoRun(host=host, result=result)
+
+
+@pytest.fixture(scope="session")
+def reused_demo(tmp_path_factory: pytest.TempPathFactory, clean_demo: Any) -> Any:
+    """The clean demo's folder after gazua clean, with 20 older runs seeded, run again."""
+    from demo_support import DemoRun, copy_workspace, run_demo_process
+
+    host = tmp_path_factory.mktemp("reused-demo")
+    workspace = copy_workspace(clean_demo.workspace, host / "gazua-demo")
+    cleaned = subprocess.run(
+        [sys.executable, "-m", "gazua", "clean"],
+        cwd=workspace,
+        env=_demo_environment(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    after_clean = sorted(item.name for item in workspace.iterdir())
+    runs = workspace / ".gazua" / "runs"
+    left = sorted(item.name for item in runs.iterdir()) if runs.exists() else []
+    runs.mkdir(parents=True, exist_ok=True)
+    old = sorted((clean_demo.workspace / ".gazua" / "runs").iterdir())[0]
+    for number in range(20):
+        run_id = f"GAZUA-run-20200101{number:06d}-000000"
+        seeded = runs / run_id
+        shutil.copytree(old, seeded)
+        manifest = json.loads((seeded / "manifest.json").read_text(encoding="utf-8"))
+        manifest.update(run_id=run_id, created_at=f"2020-01-01T00:00:{number:02d}.000000Z")
+        (seeded / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    result = run_demo_process(host, _demo_environment())
+    run = DemoRun(host=host, result=result)
+    return {"run": run, "clean": cleaned, "after_clean": after_clean, "left": left}
