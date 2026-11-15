@@ -8,7 +8,7 @@ Every `gazua run --tools` ends with three files in `.gazua/` of the project, nex
 | `.gazua/report.html` | One self-contained page that opens offline, with filters by damage and state. |
 | `.gazua/report.md` | The same content as portable Markdown. |
 
-The terminal prints the summary by damage and state, each finding with its conditions, reproduction command and fix, and the paths of the files that were actually written. The exit code stays the one of the mode: 0 when nothing at a gated severity was found, 1 for a gated finding, 2 for an operational error, which wins over 1.
+The terminal prints the summary by damage and state, each finding with its conditions, reproduction command and fix, and the paths of the files that were actually written. The exit code stays the one of the mode: 0 when nothing at a gated severity was found, 1 for a gated finding, 2 for an operational error, which wins over 1. With a baseline, only a new gated finding gives 1, and the report adds a baseline comparison section; see [the baseline guide](baseline.md).
 
 ```console
 gazua run --tools
@@ -85,7 +85,7 @@ gazua report --from .gazua/run.json
 gazua report --from /path/to/an/old/run.json
 ```
 
-`gazua report` reads a local `run.json` (at most 64 MiB and 64 levels deep), validates it and rewrites `report.html` and `report.md` in `.gazua/` of the current directory, with a copy of the source as `.gazua/run.json`. It does not import the target, read `gazua.yaml`, open the evidence files the document mentions or run any attack, and it does not create a run, change the history or the retention. The same document and the same Gazua version give the same reports. A document captured with `--no-redact` needs `--no-redact` again to be rebuilt, which is refused in CI. An unknown `schema_version` exits with 2 and asks for a migration.
+`gazua report` reads a local `run.json` (at most 64 MiB and 64 levels deep), validates it and rewrites `report.html` and `report.md` in `.gazua/` of the current directory, with a copy of the source as `.gazua/run.json`. It does not import the target, read `gazua.yaml`, open the evidence files the document mentions or run any attack, and it does not create a run, change the history or the retention. The same document and the same Gazua version give the same reports. A document captured with `--no-redact` needs `--no-redact` again to be rebuilt, which is refused in CI. Documents with `schema_version` 1 and 2 are read; a document with schema version 1 is adapted in memory and the file is not rewritten. A baseline comparison or verification in the document is shown as it was saved, without reading the baseline file again. An unknown `schema_version` exits with 2 and asks for a migration.
 
 `gazua run` writes under the folder of the configuration; `gazua report` and `gazua clean` work on the current directory.
 
@@ -105,7 +105,7 @@ The latest set is replaced as a recoverable transaction. If a publication is int
 
 After each new run, Gazua keeps the last 20 finished runs, ordered by date, and removes the oldest one with its engine folder. Only folders with a valid manifest count; unknown folders are never removed.
 
-`gazua clean` removes every finished run, the latest set and Gazua's temporary files. It keeps `.gazua/` itself, the lock file and anything it does not recognize, never follows links and refuses to run while another Gazua command holds the lock. Running it again removes nothing. A run folder from an older Gazua without a manifest is kept unless the engine's private marker identifies it as an interrupted run.
+`gazua clean` removes every finished run, the latest set and Gazua's temporary files. The baseline, `gazua-baseline.json`, lives outside `.gazua/` and is never removed by clean or retention. It keeps `.gazua/` itself, the lock file and anything it does not recognize, never follows links and refuses to run while another Gazua command holds the lock. Running it again removes nothing. A run folder from an older Gazua without a manifest is kept unless the engine's private marker identifies it as an interrupted run.
 
 A command that changes `.gazua/` takes the lock before the target is imported; a second command in the same project exits with 2 instead of waiting.
 
@@ -124,4 +124,4 @@ Gazua checks the ignore rule with `git check-ignore` when Git is available. A ru
 
 ## For other tools
 
-The run document follows `src/gazua/schemas/run-v1.schema.json`, `schema_version` 1. Its findings, scenarios, proof snapshots and fixed fix references are the contract later commands build on; they are available from `gazua.reports` without importing a target.
+New run documents follow `src/gazua/schemas/run-v2.schema.json`, `schema_version` 2. Version 2 keeps every field of version 1 and adds `baseline_reference` to each scenario (the SHA-256 of its attack key and its language), `baseline`, the comparison with the baseline the run read, and `verification`, the decision of `gazua verify`; both are null when they do not apply. `report_exit_code` is the effective decision, while the native gates stay in `verdicts`. `src/gazua/schemas/run-v1.schema.json` describes the documents written before. The `baseline` object is the status projection CI consumers read: finding ids, states and gates, with no attack text. Its findings, scenarios, proof snapshots and fixed fix references are the contract later commands build on; they are available from `gazua.reports` without importing a target.

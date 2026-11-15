@@ -560,6 +560,7 @@ REPORT_FILES = (
     "reports/builder.py",
     "reports/capture.py",
     "reports/fixes.py",
+    "reports/legacy.py",
     "reports/lifecycle.py",
     "reports/models.py",
     "reports/redaction.py",
@@ -571,6 +572,7 @@ REPORT_FILES = (
     "reports/assets/report.css",
     "reports/assets/report.js",
     "schemas/run-v1.schema.json",
+    "schemas/run-v2.schema.json",
 )
 
 
@@ -593,7 +595,8 @@ def test_report_assets_schema_and_guide_are_distributed(
     script = copy / ".github/scripts/generate_report_schema.py"
     script.parent.mkdir(parents=True)
     shutil.copy(project_root / ".github/scripts/generate_report_schema.py", script)
-    (schemas / "run-v1.schema.json").unlink()
+    for generated_name in ("run-v1.schema.json", "run-v2.schema.json"):
+        (schemas / generated_name).unlink()
     earlier = {path.name: path.read_bytes() for path in schemas.iterdir()}
     generated = run_isolated(
         [sys.executable, script], cwd=copy, env={**os.environ, "PYTHONPATH": ""}
@@ -601,8 +604,9 @@ def test_report_assets_schema_and_guide_are_distributed(
     assert generated.returncode == 0, generated.stderr
     for name, content in earlier.items():
         assert (schemas / name).read_bytes() == content
-    published = (project_root / "src/gazua/schemas/run-v1.schema.json").read_bytes()
-    assert (schemas / "run-v1.schema.json").read_bytes() == published.replace(b"\r\n", b"\n")
+    for generated_name in ("run-v1.schema.json", "run-v2.schema.json"):
+        published = (project_root / "src/gazua/schemas" / generated_name).read_bytes()
+        assert (schemas / generated_name).read_bytes() == published.replace(b"\r\n", b"\n")
 
     environment = tmp_path / "environment"
     created = run_isolated(["uv", "venv", "--python", sys.executable, environment], cwd=tmp_path)
@@ -659,7 +663,7 @@ def test_agent_guide_and_schemas_ship(
     for module in AGENT_MODULES:
         assert f"gazua/modes/{module}.py" in wheel_files
         assert f"src/gazua/modes/{module}.py" in sdist_files
-    for schema in ("config-v1.schema.json", "run-v1.schema.json"):
+    for schema in ("config-v1.schema.json", "run-v1.schema.json", "run-v2.schema.json"):
         assert wheel_files[f"gazua/schemas/{schema}"].replace(b"\r\n", b"\n") == sdist_files[
             f"src/gazua/schemas/{schema}"
         ].replace(b"\r\n", b"\n")
