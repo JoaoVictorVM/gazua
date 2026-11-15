@@ -104,7 +104,7 @@ def _effective_limits(config: GazuaConfig, options: ToolsOptions) -> Limits:
     return effective_limits(config, options.overrides)
 
 
-def _empty_summary(run_id: str, config: GazuaConfig, limits: Limits) -> RunSummary:
+def empty_summary(run_id: str, config: GazuaConfig, limits: Limits) -> RunSummary:
     """The summary of a run where nothing could start; it records no execution."""
     estimated = limits.cost_per_run is not None
     return RunSummary(
@@ -270,10 +270,10 @@ def run_tools(
             )
         except (OSError, EvidencePathError):
             unexecuted = STORAGE_UNAVAILABLE
-            summary = _empty_summary(run_plan.run_id, config, limits)
+            summary = empty_summary(run_plan.run_id, config, limits)
         verdicts = collector.finalize(summary, unexecuted_reason=unexecuted)
     else:
-        summary = _empty_summary(new_run_id(), config, limits)
+        summary = empty_summary(new_run_id(), config, limits)
         if on_preview is not None:
             on_preview(ToolsPreview(found, plan, limits, summary.effective_concurrency))
         collector = VerdictCollector(contexts, config, max_tool_calls=limits.max_tool_calls)

@@ -26,10 +26,10 @@ HOSTILE = "evil\x1b[31m\nname"
 
 
 def finished(configuration: Any, described: Any, molds: list[Any], **fields: Any) -> ToolsResult:
-    from gazua.modes.tools import _empty_summary  # pyright: ignore[reportPrivateUsage]
+    from gazua.modes.tools import empty_summary
 
     plan = plan_tools(molds, configuration, described)
-    summary = _empty_summary("GAZUA-run-20260101000000-abc123", configuration, configuration.limits)
+    summary = empty_summary("GAZUA-run-20260101000000-abc123", configuration, configuration.limits)
     verdicts = VerdictCollector(plan.contexts, configuration).finalize(summary)
     values: dict[str, Any] = {
         "run_id": summary.run_id,
