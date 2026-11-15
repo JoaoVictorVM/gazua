@@ -128,3 +128,54 @@ def test_missing_metadata_reports_broken_installation(monkeypatch: pytest.Monkey
     assert result.exit_code == 2
     assert result.stdout == ""
     assert "Reinstall" in result.stderr
+
+
+AGENT_CONFLICTS = [
+    (("--tools", "--agent"), "--tools and --agent are different modes"),
+    (("--agent", "--mode", "tools"), "--mode tools conflicts"),
+    (("--tools", "--mode", "agent"), "--mode agent conflicts"),
+    (("--quick",), "--quick applies only to --agent"),
+    (("--tools", "--quick"), "--quick applies only to --agent"),
+    (("--mode", "agent", "--quick"), "--quick applies only to --agent"),
+    (("--list", "--agent", "--quick"), "--quick applies to --agent"),
+    (("--list", "--quick"), "--quick applies to --agent"),
+    (("--list", "--agent", "--max-runs", "3"), "limit options apply"),
+    (("--mode", "agent"), "gazua run --agent sends"),
+    (("--agent", "--mold", "secret-01"), "supports agent mode"),
+    (("--agent", "--mold", "secret-404"), "supports agent mode"),
+]
+
+
+@pytest.mark.parametrize(("arguments", "message"), AGENT_CONFLICTS)
+def test_agent_option_conflicts_fail_before_target_import(
+    tmp_path: Path, arguments: tuple[str, ...], message: str
+) -> None:
+    marker = tmp_path / "imported.txt"
+    (tmp_path / "agent_trap.py").write_text(
+        f"open({str(marker)!r}, 'w').write('imported')\n"
+        "def entrypoint(message):\n    raise AssertionError('never called')\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "gazua.yaml").write_text(
+        "schema_version: 1\nentrypoint: agent_trap:entrypoint\n", encoding="utf-8"
+    )
+    with contextlib.chdir(tmp_path):
+        result = CliRunner().invoke(cli.app, ["run", *arguments])
+
+    assert result.exit_code == 2, result.output
+    assert message in result.output
+    assert "Traceback" not in result.output
+    assert not marker.exists()
+    assert not (tmp_path / ".gazua").exists()
+
+
+def test_agent_listing_reads_only_the_catalog(tmp_path: Path) -> None:
+    with contextlib.chdir(tmp_path):
+        listed = CliRunner().invoke(cli.app, ["run", "--list", "--agent"])
+        by_mode = CliRunner().invoke(cli.app, ["run", "--list", "--mode", "agent"])
+
+    assert listed.exit_code == 0, listed.output
+    assert listed.output == by_mode.output
+    assert "secret-04" in listed.output
+    assert "secret-01" not in listed.output
+    assert not (tmp_path / ".gazua").exists()

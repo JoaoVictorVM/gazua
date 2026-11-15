@@ -35,12 +35,15 @@ Scenarios of the same mold and tool, such as two victim records, belong to one f
 
 A conditional risk stays outside the findings: it is an unhandled output that could not be verified, for example because no `output_sink` is declared.
 
+Agent reports add a legitimate use section: `Legitimate use: 1/2 tasks used the expected tool (50%)`, the tasks not tested and the coverage, with one row per task and its execution. Without `legit_tasks` the section says exactly `Legitimate use: not tested`. Task requests are not copied into the report. An agent report from before this section existed says `Legitimate use: not reported`; it is never read as a perfect rate. When agent mode stopped early, the report starts with the reason, such as `The agent could not authenticate; Gazua does not manage its key`.
+
 ## Reproduction
 
 The command runs every scenario of the mold again, from the project root, with the same configuration and target code:
 
 ```console
 gazua run --tools --config gazua.yaml --mold idor-01
+gazua run --agent --config gazua.yaml --mold secret-04
 ```
 
 Limit options that can change a result, such as `--max-tool-calls` or `--timeout`, are kept; `--concurrency` is not, and `--no-redact` is never added. Reproducing needs the same `gazua.yaml` and the same code of the target; the command does not replay a single scenario. When an argument has control characters, or masking changed it, no command is offered and the report says why.

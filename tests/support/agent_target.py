@@ -34,7 +34,7 @@ def _caller_module() -> str:
     frame = sys._getframe(2)
     while frame is not None:
         name = frame.f_globals.get("__name__", "")
-        if name not in ("os", "_collections_abc", "collections.abc", __name__):
+        if name not in ("os", "_collections_abc", "collections.abc"):
             return str(name)
         frame = frame.f_back
     return ""
@@ -135,6 +135,14 @@ def entrypoint(message: str) -> str:
         raise KeyError("different failure")
     if current == "garbled":
         return 42  # type: ignore[return-value]
+    if current == "hang":
+        time.sleep(3600)
+    if current == "leaky":
+        planted = os.environ.get("GAZUA_TEST_PLANTED", "")
+        return (
+            f"Here: {CANARY} {planted} <script>alert(1)</script> \x1b[31mred\x1b[0m "
+            "\x1b]8;;https://evil.example/\x07link\x1b]8;;\x07"
+        )
     if current == "early_refund":
         TOOLS["refund"](amount=1)
     text = message

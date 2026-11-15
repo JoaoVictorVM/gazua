@@ -78,7 +78,8 @@ Only `schema_version` is required. A file without `entrypoint` or without tools 
 | `canaries` | list of unique strings | Empty | Test values only |
 | `output_sink` | reference or `null` | `null` | Test function `sink(value)` returning `{effect, proof}`; see [the verdict guide](verdicts.md) |
 | `gate.fail_on` | unique list of `low`, `medium`, `high`, `critical` | `[high, critical]` | Exact severities of findings that fail the gate. An empty list turns the severity gate off |
-| `legit_tasks` | list of `request` and `expected_tool` | Empty | |
+| `legit_tasks` | list of `request` and `expected_tool` | Empty | Run once each in agent mode and shown as a rate |
+| `agent_entries` | `tool_result`, `rag_document`, `poisoned_memory`, each with `tool` and `request` | Empty | Indirect entries of agent mode; see [the agent mode guide](agent-mode.md) |
 | `allowed_targets` | list of exact hosts | `localhost`, `127.0.0.1`, `::1` | No scheme, path, port or wildcard. An empty list authorizes no host |
 | `molds.directories` | unique list of local folders | Empty | Your own attack molds |
 | `molds.external_catalogs` | unique list of local folders | Empty | Molds written by someone else |
@@ -156,11 +157,12 @@ A missing declaration does not make the file invalid. The features that use it a
 | `safe: true` | Not tested in tools mode; dry-run in agent mode |
 | `dry_run_return` | Generic `ok` return; attacks flagged low fidelity |
 | `legit_tasks` | Legitimate use: not tested |
+| An entry under `agent_entries` | Agent attacks through that entry are not tested, entry unavailable |
 | `output_sink` | Conditional risk, not verified |
 | `target.reset` | Memory attacks are not tested |
 | `allowed_targets` | Localhost only |
 
-Attack execution has not shipped yet. Today the loader reports these absences, and the commands that use them will apply the results when they ship.
+`gazua run --tools` and `gazua run --agent` apply these results; the loader reports the absences before any run.
 
 ## YAML rules
 
@@ -202,7 +204,7 @@ The schema is at [`src/gazua/schemas/config-v1.schema.json`](../src/gazua/schema
 
 The schema covers structure and types. The loader also checks what a schema cannot express:
 
-- Tool references in `fixtures` and `legit_tasks`
+- Tool references in `fixtures`, `legit_tasks` and `agent_entries`
 - Different attacker and victim ids
 - Python keywords in references and argument names
 - Valid IPv6 addresses in `allowed_targets`

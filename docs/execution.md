@@ -1,6 +1,6 @@
 # Running attacks safely
 
-This page explains how Gazua runs each attack against your agent: the limits that stop a runaway execution, what happens to cost and rate limits, how `target.reset` is used, where exfiltration attempts end up and what is recorded. The engine described here is what the run modes use. `gazua run --tools` uses it today, as described in [the tools mode guide](tools-mode.md); agent mode reuses it when it ships.
+This page explains how Gazua runs each attack against your agent: the limits that stop a runaway execution, what happens to cost and rate limits, how `target.reset` is used, where exfiltration attempts end up and what is recorded. The engine described here is what the run modes use. `gazua run --tools` uses it, as described in [the tools mode guide](tools-mode.md), and so does `gazua run --agent`, as described in [the agent mode guide](agent-mode.md).
 
 ## Before the first attack
 
@@ -79,6 +79,10 @@ except provider.RateLimitError as error:
 Gazua then halves the number of attempts it runs at once, never below one, waits 1 second and then 2 seconds (or the `retry_after` you passed, up to 60 seconds) and tries again, at most twice per execution. Each retry is a new attempt that counts in `max_runs`. A 429 is recognized only through this exception, never by reading error messages.
 
 A retry repeats the attack. Gazua retries only when the failed attempt made no real tool call, or when `target.reset` restores the state before the new attempt. Otherwise the attempt is recorded as `rate_limited` with the reason `retry_unsafe`.
+
+## Stopping when the agent keeps failing
+
+Agent mode adds a stop policy to the engine. A failure the entrypoint reports with `gazua.GazuaAuthenticationError` closes admission at once. Five consecutive executions that fail the same way, with the same normalized code and exception class, close it too, and so does a persistent 429: an execution that exhausts its two retries, or five consecutive executions ended by 429. Executions already running finish under their limits, every pending slot gets a not tested record with the reason, the final reset runs and the summary names the reason and the shared failure, never a message. A stop is not an interruption. Tools mode runs without this policy.
 
 ## `target.reset`
 

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from typing import Final
 
-from gazua.modes.agent_models import NOT_REPORTED_TEXT, LegitimateUse
+from gazua.modes.agent_models import NOT_REPORTED_TEXT, AgentPreview, LegitimateUse
+from gazua.reports.terminal import safe_line as sanitize
 from gazua.runtime.run_models import IDENTICAL_FAILURE_LIMIT, RunSummary
 
 AUTHENTICATION_MESSAGE: Final = "The agent could not authenticate; Gazua does not manage its key"
@@ -58,4 +59,74 @@ def legitimate_task_lines(measured: LegitimateUse | None) -> list[str]:
             detail += ", call in dry-run"
         where = f" ({task.execution_id}, call {task.call_seq})" if task.call_seq else ""
         lines.append(f"  Task {task.task_index}, expects {task.expected_tool}: {detail}{where}")
+    return lines
+
+
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" + ("" if count == 1 else "s")
+
+
+def _cost_line(preview: AgentPreview) -> str:
+    if preview.max_cost is None:
+        return "Cost: no max_cost set; Gazua does not limit spending for this run."
+    limit = f"{preview.max_cost:g} USD"
+    if preview.cost_source == "estimated" and preview.cost_per_run is not None:
+        return (
+            f"Cost: limit {limit}, estimated at {preview.cost_per_run:g} USD per execution "
+            "from cost_per_run."
+        )
+    if preview.cost_source == "reported":
+        return (
+            f"Cost: limit {limit}, applied only to the cost your agent reports with "
+            "gazua.report_usage."
+        )
+    return f"Cost: limit {limit}, but no reported usage or cost_per_run; it cannot apply."
+
+
+def preview_lines(preview: AgentPreview) -> list[str]:
+    """What the run shows before the first call to the agent. Names are sanitized."""
+    selection = preview.selection
+    shape = _plural(preview.molds, "mold")
+    if selection.quick:
+        shape += " (quick: up to 15 molds, spread over the damages)"
+    repetition = _plural(selection.repetitions, "repetition")
+    lines = [
+        f"Agent mode: {shape}, {_plural(preview.scenarios, 'scenario')} "
+        f"({preview.executable_scenarios} can run), {repetition} each, "
+        f"{_plural(preview.legitimate_tasks, 'legitimate task')}.",
+        f"Planned: {_plural(preview.planned_executions, 'execution')} "
+        f"({preview.attack_slots} attack, {preview.legitimate_tasks} legitimate). "
+        f"Limit {preview.max_runs}. {preview.impeded_slots} impeded slots are not tested and "
+        "use no budget.",
+        f"Retries after a reported 429: up to {preview.max_retries} per execution, counted in "
+        f"the limit of {preview.max_runs}.",
+    ]
+    concurrency = f"Concurrency {preview.effective_concurrency}"
+    if preview.effective_concurrency < preview.requested_concurrency:
+        concurrency += (
+            f" (requested {preview.requested_concurrency}, target.reset runs one at a time)."
+        )
+    else:
+        concurrency += "."
+    lines.append(concurrency)
+    lines.append(_cost_line(preview))
+    if selection.quick or selection.exact_mold is not None:
+        lines.append(
+            "Selected molds: " + ", ".join(sanitize(item.mold_id) for item in selection.molds)
+        )
+    for item in selection.molds:
+        if item.impediments:
+            reasons = ", ".join(code.replace("_", " ") for code in item.impediments)
+            lines.append(
+                f"  {sanitize(item.mold_id)}: {item.executable} of "
+                f"{_plural(item.scenarios, 'scenario')} can run; not tested: {reasons}."
+            )
+    registered = [tool for tool in preview.inventory.tools if tool.registered]
+    real = [sanitize(tool.name) for tool in registered if tool.runnable]
+    dry = [sanitize(tool.name) for tool in registered if not tool.runnable]
+    lines.append(
+        f"Tools: real {', '.join(real) if real else 'none'}; "
+        f"dry-run {', '.join(dry) if dry else 'none'}."
+    )
+    lines.append(f"Warning: {AGENT_WARNING}")
     return lines

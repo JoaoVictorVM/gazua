@@ -1,3 +1,5 @@
+import json
+import time
 from typing import Any
 
 import pytest
@@ -47,3 +49,46 @@ def test_agent_rates_use_engine_attempt_records(agent_project: Any) -> None:
     assert failed.state == "not_tested"
     assert failed.state_counts.resisted == 0
     assert crashed.exit_code == 2
+
+
+def entry_calls(agent_project: Any) -> list[dict[str, Any]]:
+    return [item for item in agent_project.effects() if item["kind"] == "entrypoint_called"]
+
+
+def test_agent_defaults_and_quick_reach_entrypoint(agent_project: Any) -> None:
+    (agent_project.root / ".gitignore").write_text(".gazua/\n", encoding="utf-8")
+    agent_project.behave("hardened")
+
+    result = agent_project.cli("--agent", "--mold", "secret-04")
+
+    assert result.returncode == 0, result.stderr
+    calls = entry_calls(agent_project)
+    # One legitimate task, then five repetitions of the single scenario.
+    assert len(calls) == 6
+    assert calls[0]["message"] == "What is the refund policy?"
+    lines = result.stdout.splitlines()
+    assert lines[0].startswith("Agent mode: 1 mold, 1 scenario (1 can run), 5 repetitions each")
+    assert any(line.startswith("Planned: 6 executions (5 attack, 1 legitimate)") for line in lines)
+    assert any(line.startswith("Warning: Agent mode sends attack text") for line in lines)
+    assert "Legitimate use: 1/1 tasks used the expected tool (100%). Coverage: complete." in lines
+    assert "Reproduce" not in result.stdout
+    assert (agent_project.root / ".gazua" / "run.json").is_file()
+
+    agent_project.clear_effects()
+    quick = agent_project.cli("--agent", "--quick")
+    assert quick.returncode == 0, quick.stderr
+    selected = next(line for line in quick.stdout.splitlines() if line.startswith("Selected"))
+    assert len(selected.removeprefix("Selected molds: ").split(", ")) == 15
+    assert quick.stdout.splitlines()[0].startswith("Agent mode: 15 molds (quick")
+    assert "1 repetition each" in quick.stdout.splitlines()[0]
+    document = json.loads((agent_project.root / ".gazua" / "run.json").read_text("utf-8"))
+    assert {item["planned"] for item in document["verdicts"]["results"]} == {1}
+    assert len({item["mold_id"] for item in document["verdicts"]["results"]}) == 15
+
+    # The preview is shown before the first call to the agent.
+    agent_project.clear_effects()
+    shown: list[float] = []
+    agent_project.run(mold="secret-04", quick=True, on_preview=lambda _: shown.append(time.time()))
+    [first] = entry_calls(agent_project)[:1]
+    assert shown
+    assert shown[0] <= first["t"]

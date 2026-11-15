@@ -637,3 +637,60 @@ def test_report_assets_schema_and_guide_are_distributed(
     result = run_isolated([python, "-c", probe], cwd=workdir)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "ok"
+
+
+AGENT_MODULES = (
+    "agent",
+    "agent_executor",
+    "agent_legitimate",
+    "agent_models",
+    "agent_plan",
+    "agent_presentation",
+)
+
+
+def test_agent_guide_and_schemas_ship(
+    distributions: Path, project_root: Path, tmp_path: Path, run_isolated
+) -> None:
+    wheel_files = wheel_entries(wheel_in(distributions))
+    sdist_files = sdist_entries(sdist_in(distributions))
+
+    assert "docs/agent-mode.md" in sdist_files
+    for module in AGENT_MODULES:
+        assert f"gazua/modes/{module}.py" in wheel_files
+        assert f"src/gazua/modes/{module}.py" in sdist_files
+    for schema in ("config-v1.schema.json", "run-v1.schema.json"):
+        assert wheel_files[f"gazua/schemas/{schema}"].replace(b"\r\n", b"\n") == sdist_files[
+            f"src/gazua/schemas/{schema}"
+        ].replace(b"\r\n", b"\n")
+    for name in [*wheel_files, *sdist_files]:
+        assert not FORBIDDEN_PARTS & set(Path(name).parts)
+
+    environment = tmp_path / "environment"
+    created = run_isolated(["uv", "venv", "--python", sys.executable, environment], cwd=tmp_path)
+    assert created.returncode == 0, created.stderr
+    python = interpreter_of(environment)
+    installed = run_isolated(
+        ["uv", "pip", "install", "--python", python, wheel_in(distributions)], cwd=tmp_path
+    )
+    assert installed.returncode == 0, installed.stderr
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    listed = run_isolated([python, "-m", "gazua", "run", "--list", "--agent"], cwd=workdir)
+    assert listed.returncode == 0, listed.stderr
+    assert "secret-04" in listed.stdout
+    probe = "\n".join(
+        [
+            "from gazua.config.models import packaged_json_schema, render_json_schema",
+            "from gazua.reports.models import packaged_run_json_schema, render_run_json_schema",
+            "assert packaged_json_schema().splitlines() == render_json_schema().splitlines()",
+            "assert packaged_run_json_schema().splitlines() == "
+            "render_run_json_schema().splitlines()",
+            "import gazua",
+            "assert gazua.GazuaAuthenticationError.__module__ == 'gazua.integration.telemetry'",
+            "print('ok')",
+        ]
+    )
+    result = run_isolated([python, "-c", probe], cwd=workdir)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
