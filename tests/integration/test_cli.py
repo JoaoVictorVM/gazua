@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 
 from gazua import cli
 
-DEFERRED_COMMANDS = ("baseline", "verify")
+DEFERRED_COMMANDS = ("export", "sarif")
 
 unknown_options = st.from_regex(r"--[a-z][a-z0-9-]{0,20}", fullmatch=True).filter(
     lambda option: option not in {"--help", "--version"}
@@ -40,6 +40,8 @@ def test_help_lists_only_delivered_commands(
     assert re.search(r"\binit\b", result.stdout)
     assert re.search(r"\brun\b", result.stdout)
     assert re.search(r"\bdemo\b", result.stdout)
+    assert re.search(r"\bbaseline\b", result.stdout)
+    assert re.search(r"\bverify\b", result.stdout)
     for command in DEFERRED_COMMANDS:
         assert not re.search(rf"\b{command}\b", result.stdout), command
 
@@ -93,7 +95,7 @@ def test_module_and_console_entrypoints_agree(
     )
 
 
-@pytest.mark.parametrize("argument", ["baseline", "--opcao-inexistente"])
+@pytest.mark.parametrize("argument", ["export", "--opcao-inexistente"])
 def test_unsupported_argument_reports_usage_on_stderr(
     console_script: Path, workdir: Path, argument: str
 ) -> None:

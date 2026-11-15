@@ -103,11 +103,20 @@ def attack_key(
 
 @dataclass(frozen=True, slots=True)
 class PlannedAttack:
-    """One attack unit, with its engine request when nothing impedes it."""
+    """One attack unit, with its engine request when nothing impedes it.
+
+    ``repeated`` holds the requests of repetitions after the first, only when a caller asked
+    for more than one; a regular tools run makes one request per unit.
+    """
 
     context: AttackContext
     request: ExecutionRequest | None
     diagnostics: tuple[ToolsDiagnostic, ...] = ()
+    repeated: tuple[ExecutionRequest, ...] = ()
+
+    @property
+    def requests(self) -> tuple[ExecutionRequest, ...]:
+        return () if self.request is None else (self.request, *self.repeated)
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,7 +129,7 @@ class ToolsPlan:
 
     @property
     def requests(self) -> list[ExecutionRequest]:
-        return [item.request for item in self.attacks if item.request is not None]
+        return [request for item in self.attacks for request in item.requests]
 
     @property
     def diagnostics(self) -> list[ToolsDiagnostic]:
@@ -162,10 +171,19 @@ class _Unit:
 
 
 class _Planner:
-    def __init__(self, config: GazuaConfig, inventory: ToolsInventory, language: Language) -> None:
+    def __init__(
+        self,
+        config: GazuaConfig,
+        inventory: ToolsInventory,
+        language: Language,
+        repetitions: int = 1,
+        key_suffix: str = "",
+    ) -> None:
         self.config = config
         self.inventory = inventory
         self.language: Language = language
+        self.repetitions = repetitions
+        self.key_suffix = key_suffix
         self.capabilities = Capabilities(
             direct_tool_access=True,
             inventory_complete=inventory.complete,
@@ -248,8 +266,11 @@ class _Planner:
         return None
 
     def plan(self, unit: _Unit) -> PlannedAttack:
-        key = attack_key(unit.mold, unit.tool_name, unit.record, unit.canary)
-        request_key = f"{key}:r1"
+        key = attack_key(unit.mold, unit.tool_name, unit.record, unit.canary) + self.key_suffix
+        slots = [
+            RequestSlot(request_key=f"{key}:r{number}", repetition=number)
+            for number in range(1, self.repetitions + 1)
+        ]
         impediment, bound, diagnostics = self.impediment(unit, key)
         marker = unit.action.variant if isinstance(unit.action, ProbeOutputSink) else None
         context = AttackContext(
@@ -260,16 +281,21 @@ class _Planner:
             record_index=unit.record[0] if unit.record else None,
             canary_index=unit.canary[0] if unit.canary else None,
             marker_id=marker,
-            requests=[RequestSlot(request_key=request_key, repetition=1)],
+            requests=slots,
             capabilities=self.capabilities,
             impediment=impediment,
         )
         if bound is None:
             return PlannedAttack(context, None, tuple(diagnostics))
-        request = ExecutionRequest(
-            key=request_key,
+        requests = [self.request(unit, context, slot) for slot in slots]
+        return PlannedAttack(context, requests[0], tuple(diagnostics), tuple(requests[1:]))
+
+    def request(self, unit: _Unit, context: AttackContext, slot: RequestSlot) -> ExecutionRequest:
+        key = context.attack_key
+        return ExecutionRequest(
+            key=slot.request_key,
             mold_id=unit.mold.id,
-            repetition=1,
+            repetition=slot.repetition,
             mode="tools",
             executor=EXECUTOR,
             payload={
@@ -285,7 +311,6 @@ class _Planner:
             usage_reporting=False,
             actor="attacker" if needs_attacker(unit.action) else None,
         )
-        return PlannedAttack(context, request, tuple(diagnostics))
 
 
 def plan_tools(
@@ -294,12 +319,16 @@ def plan_tools(
     inventory: ToolsInventory,
     *,
     language: Language = "en",
+    repetitions: int = 1,
+    key_suffix: str = "",
 ) -> ToolsPlan:
     """Every unit of the given molds, in their order, then by tool name, record and canary.
 
-    Molds without tools support are left out; selection is the caller's job.
+    Molds without tools support are left out; selection is the caller's job. A regular run
+    makes one repetition per unit; a verification asks for more, each a slot with its own
+    request key, and appends ``key_suffix`` to every attack key it plans.
     """
-    planner = _Planner(config, inventory, language)
+    planner = _Planner(config, inventory, language, repetitions, key_suffix)
     attacks = [
         planner.plan(unit)
         for mold in molds
