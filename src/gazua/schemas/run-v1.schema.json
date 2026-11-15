@@ -419,6 +419,35 @@
       "title": "Gazua execution record",
       "type": "object"
     },
+    "FailureFingerprint": {
+      "additionalProperties": false,
+      "description": "What makes two failures identical: a normalized code and the exception class only.",
+      "properties": {
+        "code": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "error_type": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Type"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "FailureFingerprint",
+      "type": "object"
+    },
     "Finding": {
       "additionalProperties": false,
       "description": "Proven scenarios of one target, mode, mold and tool, under one stable id.",
@@ -1035,7 +1064,7 @@
     },
     "RunSummary": {
       "additionalProperties": false,
-      "description": "The infrastructure result of a run, also written when it was interrupted.",
+      "description": "The infrastructure result of a run, also written when it was interrupted.\n\n``stop_reason`` names the stop policy that closed admission, and ``stop_error`` the shared\nfailure behind it. Both stay null for runs that ended any other way.",
       "properties": {
         "schema_version": {
           "const": 1,
@@ -1171,6 +1200,30 @@
           },
           "title": "Records",
           "type": "array"
+        },
+        "stop_reason": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Reason"
+        },
+        "stop_error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FailureFingerprint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

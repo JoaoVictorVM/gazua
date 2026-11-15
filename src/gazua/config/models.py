@@ -218,6 +218,42 @@ class LegitTask(_Declaration):
     expected_tool: ToolName
 
 
+MAX_AGENT_REQUEST_CHARACTERS: Final = 16_384
+
+
+def _check_request(value: str) -> str:
+    if "\x00" in value:
+        raise _invalid("invalid_text", "Text cannot contain NUL characters.")
+    return value
+
+
+class AgentEntry(_Declaration):
+    """A declared tool that reads content the agent consumes, and the message that triggers it.
+
+    The request is sent as literal text: it is never read as a template.
+    """
+
+    tool: ToolName
+    request: Annotated[
+        str,
+        Field(min_length=1, max_length=MAX_AGENT_REQUEST_CHARACTERS),
+        AfterValidator(_check_request),
+    ]
+
+
+class AgentEntries(_Declaration):
+    """Indirect entries agent mode can reach. An absent entry is reported as not tested."""
+
+    tool_result: AgentEntry | None = None
+    rag_document: AgentEntry | None = None
+    poisoned_memory: AgentEntry | None = None
+
+    def get(self, entry: str) -> AgentEntry | None:
+        if entry not in AgentEntries.model_fields:
+            return None
+        return getattr(self, entry)
+
+
 class MoldSources(_Declaration):
     """Local folders with extra attack molds. Paths are relative to the ``gazua.yaml`` folder.
 
@@ -253,6 +289,7 @@ class GazuaConfig(_Declaration):
     output_sink: Reference | None = None
     gate: Gate = Field(default_factory=Gate)
     legit_tasks: list[LegitTask] = Field(default_factory=list[LegitTask])
+    agent_entries: AgentEntries = Field(default_factory=AgentEntries)
     allowed_targets: list[Host] = Field(
         default_factory=lambda: list(DEFAULT_ALLOWED_TARGETS),
         json_schema_extra={"default": list(DEFAULT_ALLOWED_TARGETS)},

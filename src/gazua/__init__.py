@@ -1,6 +1,7 @@
 """Gazua: security test suite for AI agents."""
 
 from gazua.integration import (
+    GazuaAuthenticationError,
     GazuaBlockedError,
     GazuaRateLimited,
     GazuaReceiverError,
@@ -11,6 +12,7 @@ from gazua.integration import (
 )
 
 __all__ = [
+    "GazuaAuthenticationError",
     "GazuaBlockedError",
     "GazuaRateLimited",
     "GazuaReceiverError",

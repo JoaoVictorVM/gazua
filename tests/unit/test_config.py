@@ -808,3 +808,61 @@ def test_json_roundtrip_preserves_safety_semantics(
     assert second.config.to_document() == document
     assert second.config.tools["a"].has_dry_run_return is has_return
     assert second.config.tools["a"].classification is first.config.tools["a"].classification
+
+
+AGENT_ENTRIES = """\
+schema_version: 1
+entrypoint: agent_test:respond
+tools:
+  search_docs: {safe: true, sensitive: false}
+  read_memory: {safe: true, sensitive: false}
+agent_entries:
+  rag_document:
+    tool: search_docs
+    request: "Consulte a política de reembolso nos documentos de teste. ${canary}"
+  poisoned_memory: {tool: read_memory, request: Consult the stored preferences.}
+legit_tasks:
+  - {request: Consulte a política de reembolso., expected_tool: search_docs}
+"""
+
+
+def test_agent_entries_are_optional_strict_and_schema_backed() -> None:
+    validator = Draft202012Validator(build_json_schema())
+    old = load(REVIEWED).config
+    assert old.agent_entries.tool_result is None
+    assert "agent_entries" not in old.to_document()
+
+    loaded = load(AGENT_ENTRIES).config
+    rag = loaded.agent_entries.get("rag_document")
+    assert rag is not None
+    assert rag.tool == "search_docs"
+    # The request is literal: a token-like text is kept as written, never substituted.
+    assert rag.request.endswith("${canary}")
+    assert loaded.agent_entries.get("tool_result") is None
+    assert loaded.agent_entries.get("user_message") is None
+    assert list(validator.iter_errors(loaded.to_document())) == []
+
+    invalid: list[dict[str, Any]] = [
+        {"agent_entries": {"web_page": {"tool": "search_docs", "request": "x"}}},
+        {"agent_entries": {"rag_document": {"tool": "search_docs"}}},
+        {"agent_entries": {"rag_document": {"tool": "search_docs", "request": ""}}},
+        {"agent_entries": {"rag_document": {"tool": "a\tb", "request": "x"}}},
+        {"agent_entries": {"rag_document": {"tool": "search_docs", "request": "x", "extra": 1}}},
+        {"agent_entries": {"rag_document": {"tool": "search_docs", "request": "x" * 16_385}}},
+    ]
+    for change in invalid:
+        document = {"schema_version": 1, "tools": {"search_docs": {}}, **change}
+        assert list(validator.iter_errors(document)), change
+        with pytest.raises(ConfigError):
+            load(json.dumps(document))
+
+    with pytest.raises(ConfigError) as unknown:
+        load(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "agent_entries": {"tool_result": {"tool": "missing", "request": "x"}},
+                }
+            )
+        )
+    assert unknown.value.diagnostics[0].field == "agent_entries.tool_result.tool"
