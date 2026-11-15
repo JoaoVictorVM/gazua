@@ -10,18 +10,29 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from typing import Annotated, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
+from gazua.baseline.models import (
+    BaselineComparison,
+    ScenarioReference,
+    VerificationResult,
+    original_key,
+    scenario_digest,
+)
 from gazua.catalog.models import DAMAGES, Damage, Entry, Language, Mode, Technique
 from gazua.config.models import SCHEMA_DIALECT, Severity
 from gazua.modes.agent_models import LegitimateUse
 from gazua.runtime.run_models import GazuaId, NonEmptyText, RunSummary, UtcTimestamp
 from gazua.verdicts.models import AttackKey, ProofCondition, VerdictSummary
 
-RUN_SCHEMA_FILE = "run-v1.schema.json"
-RUN_SCHEMA_VERSION = 1
+if TYPE_CHECKING:
+    from gazua.reports import legacy
+
+RUN_SCHEMA_FILE = "run-v2.schema.json"
+RUN_SCHEMA_VERSION = 2
+SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2)
 PRESENTATION_VERSION = 1
 _SCHEMA_BASE = "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/"
 SEVERITY_ORDER: dict[Severity, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -120,6 +131,8 @@ class Scenario(_Strict):
     attack: NonEmptyText
     payload: JsonValue
     reproduction: Reproduction
+    # The original key's digest and language, taken before any operational suffix or redaction.
+    baseline_reference: ScenarioReference
 
 
 class Finding(_Strict):
@@ -164,7 +177,7 @@ class RunDocument(_Strict):
 
     model_config = ConfigDict(title="Gazua run document")
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     run_id: GazuaId
     metadata: RunMetadata
     redaction: RedactionMode
@@ -178,10 +191,12 @@ class RunDocument(_Strict):
     diagnostics: list[ReportDiagnostic]
     report_exit_code: ExitCode
     legitimate_use: LegitimateUse | None = None
+    baseline: BaselineComparison | None
+    verification: VerificationResult | None
 
     @model_validator(mode="after")
     def _consistent(self) -> RunDocument:
-        problems = check_document(self)
+        problems = [*check_document(self), *snapshot_problems(self)]
         if problems:
             raise ValueError("; ".join(problems))
         return self
@@ -198,7 +213,7 @@ def _duplicates(values: list[str]) -> bool:
     return len(set(values)) != len(values)
 
 
-def check_document(document: RunDocument) -> list[str]:
+def check_document(document: RunDocument | legacy.RunDocument) -> list[str]:
     """Every cross-reference rule the document must keep; empty when it is consistent."""
     problems: list[str] = []
     if document.engine.run_id != document.run_id or document.verdicts.run_id != document.run_id:
@@ -261,7 +276,7 @@ def check_document(document: RunDocument) -> list[str]:
     return problems
 
 
-def _legitimate_problems(document: RunDocument) -> list[str]:
+def _legitimate_problems(document: RunDocument | legacy.RunDocument) -> list[str]:
     """A legacy document without the field is valid; tools mode never measures tasks."""
     measured = document.legitimate_use
     if measured is None:
@@ -276,6 +291,74 @@ def _legitimate_problems(document: RunDocument) -> list[str]:
         if task.execution_id is not None and task.request_key not in keys:
             return ["A legitimate task points to a request outside this run."]
     return []
+
+
+def snapshot_problems(document: RunDocument) -> list[str]:
+    """Rules of the scenario references and of the baseline and verification snapshots."""
+    problems: list[str] = []
+    verifying = document.verification is not None
+    for scenario in document.scenarios:
+        reference = scenario.baseline_reference
+        split = original_key(scenario.attack_key) if verifying else None
+        if split is not None:
+            key, language = split
+            if reference.language != language:
+                problems.append("A verified scenario's language is its key's.")
+        else:
+            key = scenario.attack_key
+            if reference.language != document.metadata.language:
+                problems.append("A scenario's language is the run's.")
+        if reference.scenario_digest != scenario_digest(key):
+            problems.append("A scenario's reference is the digest of its original key.")
+    comparison = document.baseline
+    if comparison is not None:
+        observed = {item.finding_id: item for item in comparison.observed}
+        if set(observed) != {item.id for item in document.findings}:
+            problems.append("Each finding has exactly one observed comparison entry.")
+        elif any(observed[item.id].native_gated != item.gated for item in document.findings):
+            problems.append("A comparison keeps the finding's native gate.")
+        if document.verification is None and document.report_exit_code != 2:
+            expected = 1 if comparison.has_new_gated_findings else 0
+            if document.report_exit_code != expected:
+                problems.append("With a baseline, only a new gated finding fails the run.")
+    verification = document.verification
+    if verification is not None:
+        scenarios = {item.attack_key: item for item in document.scenarios}
+        results = {item.attack_key: item for item in document.verdicts.results}
+        for sample in verification.samples:
+            scenario = scenarios.get(sample.attack_key)
+            result = results.get(sample.attack_key)
+            if scenario is None or result is None:
+                problems.append("A verification sample points to a scenario of this run.")
+                continue
+            if scenario.baseline_reference.pair != sample.reference.pair:
+                problems.append("A verification sample keeps its scenario's reference.")
+            copied = (
+                result.planned,
+                result.evaluated,
+                result.successes,
+                result.unknown,
+                result.not_applicable_count,
+                result.coverage,
+                result.low_fidelity,
+                result.rate,
+                result.upper_bound,
+            )
+            if copied != (
+                sample.planned,
+                sample.evaluated,
+                sample.successes,
+                sample.unknown,
+                sample.not_applicable_count,
+                sample.coverage,
+                sample.low_fidelity,
+                sample.rate,
+                sample.upper_bound,
+            ):
+                problems.append("A verification sample copies its native result.")
+        if document.report_exit_code != verification.exit_code:
+            problems.append("A verification's exit code is its outcome's.")
+    return problems
 
 
 def build_run_json_schema() -> dict[str, Any]:

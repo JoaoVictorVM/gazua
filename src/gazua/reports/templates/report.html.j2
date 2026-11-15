@@ -99,6 +99,53 @@
 <p>Legitimate use counts calls of the expected tool, not whether the answer or its arguments were right.</p>
 </section>
 {% endif %}
+{% if verification %}
+<section aria-labelledby="verification-title">
+<h2 id="verification-title">Verification</h2>
+<p>{{ verification.decision }}</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Scenario</th><th scope="col">Language</th><th scope="col">Result</th><th scope="col">Coverage</th></tr></thead>
+<tbody>
+{% for key, language, result, coverage in verification.rows %}
+<tr><td>{{ key }}</td><td>{{ language }}</td><td>{{ result }}</td><td>{{ coverage }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% for note in verification.notes %}
+<p>{{ note }}</p>
+{% endfor %}
+<p>This report records the decision proposed when the verification ran, not the current state of the baseline file.</p>
+</section>
+{% endif %}
+{% if comparison %}
+<section aria-labelledby="baseline-title">
+<h2 id="baseline-title">Baseline comparison</h2>
+<p>{{ comparison.summary }}</p>
+{% if comparison.observed %}
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Finding</th><th scope="col">Baseline</th><th scope="col">This run</th><th scope="col">Fails the build</th></tr></thead>
+<tbody>
+{% for finding_id, previous, status, gated in comparison.observed %}
+<tr><td><a href="#{{ finding_id }}">{{ finding_id }}</a></td><td>{{ previous }}</td><td>{{ status }}</td><td>{{ gated }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{% if comparison.unobserved %}
+<p>{{ comparison.note }}</p>
+<ul>
+{% for finding_id, status in comparison.unobserved %}
+<li>{{ finding_id }}: {{ status }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+<p>Known findings keep their proofs below; the baseline only changes which of them fail the build. This comparison is a snapshot of the baseline read by this run.</p>
+</section>
+{% endif %}
 <section aria-labelledby="by-damage">
 <h2 id="by-damage">Summary by damage</h2>
 <div class="table-wrap">

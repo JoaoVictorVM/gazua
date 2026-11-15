@@ -81,6 +81,48 @@ Reproduction unavailable \({{ (f.reproduction.reason or "not_reproducible") | re
 Legitimate use counts calls of the expected tool, not whether the answer or its arguments were right\.
 
 {% endif %}
+{% if verification %}
+## Verification
+
+{{ verification.decision | md }}
+
+| Scenario | Language | Result | Coverage |
+|---|---|---|---|
+{% for key, language, result, coverage in verification.rows %}
+| {{ key | md }} | {{ language }} | {{ result | md }} | {{ coverage }} |
+{% endfor %}
+
+{% for note in verification.notes %}
+{{ note | md }}
+
+{% endfor %}
+This report records the decision proposed when the verification ran, not the current state of the baseline file\.
+
+{% endif %}
+{% if comparison %}
+## Baseline comparison
+
+{{ comparison.summary | md }}
+
+{% if comparison.observed %}
+| Finding | Baseline | This run | Fails the build |
+|---|---|---|---|
+{% for finding_id, previous, status, gated in comparison.observed %}
+| [{{ finding_id }}](#{{ finding_id }}) | {{ previous }} | {{ status | md }} | {{ gated }} |
+{% endfor %}
+
+{% endif %}
+{% if comparison.unobserved %}
+{{ comparison.note | md }}
+
+{% for finding_id, status in comparison.unobserved %}
+- {{ finding_id }}: {{ status }}
+{% endfor %}
+
+{% endif %}
+Known findings keep their proofs below; the baseline only changes which of them fail the build\. This comparison is a snapshot of the baseline read by this run\.
+
+{% endif %}
 ## Summary by damage
 
 | Damage |{% for state in states %} {{ state_labels[state] }} |{% endfor %} Gated |

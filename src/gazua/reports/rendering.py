@@ -20,6 +20,13 @@ from functools import cache
 from importlib.resources import files
 from typing import Any, Final
 
+from gazua.baseline.models import ComparisonEntry
+from gazua.baseline.presentation import (
+    comparison_lines,
+    comparison_view,
+    verification_lines,
+    verification_view,
+)
 from gazua.catalog.models import DAMAGES, Damage
 from gazua.reports.fixes import fix_anchor
 from gazua.reports.models import Finding, ProofSnapshot, RunDocument, Scenario
@@ -183,6 +190,15 @@ class ReportView:
     totals: dict[str, int]
 
 
+def baseline_label(entry: ComparisonEntry) -> str:
+    """How a finding stands against the baseline, next to its proofs, which stay shown."""
+    if entry.status == "open":
+        return "known, accepted as open; it does not fail the build"
+    if entry.regression:
+        return "new: closed before and found again"
+    return "new"
+
+
 def build_view(document: RunDocument) -> ReportView:
     results = {item.attack_key: item for item in document.verdicts.results}
     views = {
@@ -259,6 +275,8 @@ def _context(document: RunDocument) -> dict[str, Any]:
         "legitimate": legitimate_view(document),
         "stop_text": stop_text(document),
         "demo_notice": demo_notice(document),
+        "comparison": comparison_view(document.baseline),
+        "verification": verification_view(document.verification, metadata.mode),
     }
 
 
@@ -354,6 +372,14 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
     stopped = stop_text(document)
     if stopped is not None:
         lines.append(stopped)
+    if document.baseline is not None:
+        lines.extend(comparison_lines(document.baseline))
+    if document.verification is not None:
+        lines.extend(verification_lines(document.verification, metadata.mode))
+    compared = {
+        item.finding_id: item
+        for item in (document.baseline.observed if document.baseline is not None else [])
+    }
     snapshots = {item.id: item for item in document.proofs}
     for finding in document.findings:
         damage = DAMAGE_LABELS[finding.damage]
@@ -361,6 +387,9 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
         attack = " ".join(finding.attack.split())
         lines.append(f"{finding.severity.capitalize()}: {damage}. {attack}{gate}")
         lines.append(f"  Finding: {finding.id}. Mold: {finding.mold_id}.")
+        entry = compared.get(finding.id)
+        if entry is not None:
+            lines.append(f"  Baseline: {baseline_label(entry)}.")
         conditions = ", ".join(finding.conditions) if finding.conditions else "none"
         lines.append(f"  Conditions: {conditions}.")
         for proof_id in finding.proof_ids:

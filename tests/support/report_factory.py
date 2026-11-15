@@ -26,6 +26,7 @@ from verdict_factory import (
     summary,
 )
 
+from gazua.baseline.models import BaselineDocument
 from gazua.config.models import GazuaConfig
 from gazua.reports.builder import ExcerptSource, PlainTreatment, Treatment, build_run_document
 from gazua.reports.models import RunDocument
@@ -98,6 +99,7 @@ def document(
     excerpts: ExcerptSource | None = None,
     exit_code: int = 1,
     language: str = "en",
+    baseline: BaselineDocument | None = None,
 ) -> RunDocument:
     chosen = scenarios or five_states()
     collector = VerdictCollector(chosen.contexts, chosen.configuration)
@@ -134,4 +136,6 @@ def document(
         config=chosen.configuration,
         excerpts=excerpts,
         gazua_version="0.1.0",
+        baseline=baseline,
+        baseline_digest=None if baseline is None else "d" * 64,
     )

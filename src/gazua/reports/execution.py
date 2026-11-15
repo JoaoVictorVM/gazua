@@ -14,10 +14,14 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 from gazua.config.models import GazuaConfig
 from gazua.reports.models import RunDocument
+
+if TYPE_CHECKING:
+    from gazua.baseline.models import ScenarioReference, VerificationResult
+    from gazua.baseline.storage import LoadedBaseline
 
 STORAGE_UNAVAILABLE: Final = (
     "Cannot write to .gazua/ in the project folder: no attack was run. The full summary follows."
@@ -25,6 +29,8 @@ STORAGE_UNAVAILABLE: Final = (
 INTERRUPTED_BEFORE_ATTACKS: Final = "Interrupted before any attack ran."
 
 Mode = Literal["tools", "agent"]
+Runner = Callable[[dict[str, Any]], Any]
+Decider = Callable[[Any], "VerificationResult"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,12 +82,79 @@ def execute_mode(
     target_version: str | None = None,
     cancel: threading.Event | None = None,
     demo: bool = False,
+    baseline: LoadedBaseline | None = None,
 ) -> ExecutionOutcome:
     """Runs the mode, then shows and saves its reports.
 
     Configuration problems raise ``ConfigError`` before the target is imported, as the modes
     do. A failure to write the reports keeps the previous ones and returns exit code 2.
-    Setting ``cancel`` stops the run as Ctrl+C does.
+    Setting ``cancel`` stops the run as Ctrl+C does. With ``baseline`` the findings are
+    compared with it and the exit code is the effective one; the baseline is only read.
+    """
+
+    def run(common: dict[str, Any]) -> Any:
+        if mode == "tools":
+            from gazua.modes.tools import ToolsPreview, run_tools
+            from gazua.modes.tools_presentation import inventory_lines
+
+            def show_tools_preview(preview: ToolsPreview) -> None:
+                for line in inventory_lines(preview):
+                    output.say(line)
+
+            return run_tools(
+                config, entries, options, project_root, on_preview=show_tools_preview, **common
+            )
+        from gazua.modes.agent import run_agent
+        from gazua.modes.agent_models import AgentPreview
+        from gazua.modes.agent_presentation import preview_lines
+
+        def show_agent_preview(preview: AgentPreview) -> None:
+            output.lines(preview_lines(preview))
+
+        return run_agent(
+            config, entries, options, project_root, on_preview=show_agent_preview, **common
+        )
+
+    return execute_runner(
+        mode,
+        run,
+        config,
+        options.language,
+        project_root,
+        output,
+        locked=locked,
+        no_redact=no_redact,
+        model=model,
+        target_version=target_version,
+        cancel=cancel,
+        demo=demo,
+        baseline=baseline,
+    )
+
+
+def execute_runner(
+    mode: Mode,
+    runner: Runner,
+    config: GazuaConfig,
+    language: Literal["en", "pt"],
+    project_root: Path,
+    output: ReportOutput,
+    *,
+    locked: bool,
+    no_redact: bool = False,
+    model: str | None = None,
+    target_version: str | None = None,
+    cancel: threading.Event | None = None,
+    demo: bool = False,
+    baseline: LoadedBaseline | None = None,
+    decide: Decider | None = None,
+    references: dict[str, ScenarioReference] | None = None,
+) -> ExecutionOutcome:
+    """Runs ``runner`` with capture and redaction, then builds, shows and saves the reports.
+
+    ``runner`` receives the keyword arguments every mode takes (events, evidence, redaction,
+    storage and cancel) and returns the mode's native result. ``decide`` turns that result
+    into the verification decision the document keeps.
     """
     from gazua.reports.builder import build_run_document
     from gazua.reports.capture import ReportEvidenceCollector
@@ -109,28 +182,7 @@ def execute_mode(
         "cancel": cancel,
     }
     try:
-        if mode == "tools":
-            from gazua.modes.tools import ToolsPreview, run_tools
-            from gazua.modes.tools_presentation import inventory_lines
-
-            def show_tools_preview(preview: ToolsPreview) -> None:
-                for line in inventory_lines(preview):
-                    output.say(line)
-
-            result: Any = run_tools(
-                config, entries, options, project_root, on_preview=show_tools_preview, **common
-            )
-        else:
-            from gazua.modes.agent import run_agent
-            from gazua.modes.agent_models import AgentPreview
-            from gazua.modes.agent_presentation import preview_lines
-
-            def show_agent_preview(preview: AgentPreview) -> None:
-                output.lines(preview_lines(preview))
-
-            result = run_agent(
-                config, entries, options, project_root, on_preview=show_agent_preview, **common
-            )
+        result: Any = runner(common)
     except KeyboardInterrupt:
         output.warn(INTERRUPTED_BEFORE_ATTACKS)
         return ExecutionOutcome(exit_code=2, interrupted=True)
@@ -139,7 +191,7 @@ def execute_mode(
         created_at=created_at,
         target_ref=config.entrypoint or "",
         mode=mode,
-        language=options.language,
+        language=language,
         engine=result.engine,
         verdicts=result.verdicts,
         contexts=result.contexts,
@@ -154,6 +206,10 @@ def execute_mode(
         diagnostics=capture.diagnostics(),
         legitimate_use=getattr(result, "legitimate_use", None),
         demo=demo,
+        baseline=None if baseline is None else baseline.document,
+        baseline_digest=None if baseline is None else baseline.digest,
+        verification=None if decide is None else decide(result),
+        references=references,
     )
     output.lines(terminal_lines(document))
     if mode == "tools":
@@ -186,5 +242,6 @@ __all__ = [
     "ExecutionOutcome",
     "ReportOutput",
     "execute_mode",
+    "execute_runner",
     "installed_version",
 ]

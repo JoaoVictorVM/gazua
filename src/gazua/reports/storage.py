@@ -18,11 +18,17 @@ import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, cast
 
 from pydantic import ValidationError
 
-from gazua.reports.models import RUN_SCHEMA_VERSION, ExitCode, ReportDiagnostic, RunDocument
+from gazua.reports.models import (
+    RUN_SCHEMA_VERSION,
+    SUPPORTED_RUN_SCHEMA_VERSIONS,
+    ExitCode,
+    ReportDiagnostic,
+    RunDocument,
+)
 from gazua.runtime.evidence import EvidencePathError, safe_directory, write_atomic
 
 GAZUA_FOLDER: Final = ".gazua"
@@ -108,7 +114,10 @@ def read_run_bytes(path: Path) -> bytes:
 
 
 def parse_run_document(content: bytes) -> RunDocument:
-    """A validated document from JSON text; references inside it are never opened."""
+    """A validated document from JSON text; references inside it are never opened.
+
+    Schema 1 documents are validated as written and adapted in memory, without snapshots.
+    """
     try:
         data = json.loads(content.decode("utf-8"))
     except RecursionError:
@@ -119,11 +128,16 @@ def parse_run_document(content: bytes) -> RunDocument:
         raise RunLoadError("run_file_too_deep")
     if not isinstance(data, dict):
         raise RunLoadError("run_file_invalid")
-    version = data.get("schema_version")  # type: ignore[union-attr]
-    if version != RUN_SCHEMA_VERSION:
+    fields = cast("dict[str, Any]", data)
+    version: object = fields.get("schema_version")
+    if type(version) is not int or version not in SUPPORTED_RUN_SCHEMA_VERSIONS:
         raise RunLoadError("run_schema_version_unsupported")
     try:
-        return RunDocument.model_validate_json(content)
+        if version == RUN_SCHEMA_VERSION:
+            return RunDocument.model_validate_json(content)
+        from gazua.reports import legacy
+
+        return legacy.adapt(legacy.RunDocument.model_validate_json(content))
     except ValidationError:
         raise RunLoadError("run_file_invalid") from None
 

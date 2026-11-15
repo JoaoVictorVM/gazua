@@ -339,7 +339,7 @@ def merge_findings(
     else:
         document = BaselineDocument(
             schema_version=1,
-            gazua_version=_version(gazua_version),
+            gazua_version=package_version(gazua_version),
             revision=1 if existing is None else existing.revision + 1,
             entries=ordered,
         )
@@ -354,7 +354,8 @@ def merge_findings(
     )
 
 
-def _version(value: str | None) -> str | None:
+def package_version(value: str | None) -> str | None:
+    """The installed version when it fits the baseline's version pattern; else None."""
     if value is None:
         return None
     try:
@@ -468,6 +469,7 @@ __all__ = [
     "accept_report",
     "accepted_findings",
     "merge_findings",
+    "package_version",
     "parse_baseline",
     "read_baseline",
     "resolve_baseline_path",

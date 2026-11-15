@@ -3,6 +3,7 @@
 import sys
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import StrEnum
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -224,8 +225,8 @@ LOAD_MESSAGES = {
     "run_file_too_deep": "This run.json nests deeper than 64 levels.",
     "run_file_invalid_json": "This file is not valid JSON.",
     "run_schema_version_unsupported": (
-        "This run.json uses a schema version this Gazua does not know; it needs a migration "
-        "to schema_version 1."
+        "This run.json uses a schema version this Gazua does not know; it reads schema_version "
+        "1 and 2, so it needs a migration."
     ),
     "run_file_invalid": "This run.json does not follow the run schema.",
 }
@@ -266,12 +267,46 @@ def _load_tools_config(config_path: Path, http_refusal: str | None = None) -> An
         raise typer.Exit(EXIT_USAGE) from None
 
 
+@dataclass(frozen=True, slots=True)
+class BaselineChoice:
+    """What run was told about the baseline: an explicit file, none, or the default if any."""
+
+    path: Path | None = None
+    disabled: bool = False
+
+
+def _run_baseline(project_root: Path, config_path: Path, choice: BaselineChoice | None) -> Any:
+    """The baseline a run compares with, read before the target is imported.
+
+    Without flags the default file is used when it exists; an explicit file must exist. A
+    file that exists but cannot be read is an error, never an empty baseline.
+    """
+    from gazua.baseline.models import BASELINE_FILE
+    from gazua.baseline.storage import BaselineError, read_baseline, resolve_baseline_path
+
+    chosen = choice or BaselineChoice()
+    if chosen.disabled:
+        return None
+    try:
+        path = resolve_baseline_path(
+            project_root,
+            chosen.path if chosen.path is not None else Path(BASELINE_FILE),
+            config_path=config_path.resolve(),
+        )
+        return read_baseline(path)
+    except BaselineError as error:
+        if error.code == "baseline_missing" and chosen.path is None:
+            return None
+        raise _baseline_error(error) from None
+
+
 def _run_tools(
     config_path: Path,
     mold: str | None,
     language: str,
     limits: dict[str, Any],
     no_redact: bool = False,
+    choice: BaselineChoice | None = None,
 ) -> None:
     from pydantic import ValidationError
 
@@ -320,8 +355,9 @@ def _run_tools(
     except OSError:
         lock = None
     try:
+        baseline = _run_baseline(project_root, config_path, choice)
         code = _execute_tools(
-            config, catalog.entries, options, project_root, lock is not None, no_redact
+            config, catalog.entries, options, project_root, lock is not None, no_redact, baseline
         )
     finally:
         if lock is not None:
@@ -340,7 +376,13 @@ def _report_output() -> Any:
 
 
 def _execute_tools(
-    config: Any, entries: Any, options: Any, project_root: Path, locked: bool, no_redact: bool
+    config: Any,
+    entries: Any,
+    options: Any,
+    project_root: Path,
+    locked: bool,
+    no_redact: bool,
+    baseline: Any = None,
 ) -> int:
     from gazua.reports.execution import execute_mode
 
@@ -354,6 +396,7 @@ def _execute_tools(
             _report_output(),
             locked=locked,
             no_redact=no_redact,
+            baseline=baseline,
         )
     return outcome.exit_code
 
@@ -365,6 +408,7 @@ def _run_agent(
     language: str,
     limits: dict[str, Any],
     no_redact: bool = False,
+    choice: BaselineChoice | None = None,
 ) -> None:
     from pydantic import ValidationError
 
@@ -413,8 +457,9 @@ def _run_agent(
     except OSError:
         lock = None
     try:
+        baseline = _run_baseline(project_root, config_path, choice)
         code = _execute_agent(
-            config, catalog.entries, options, project_root, lock is not None, no_redact
+            config, catalog.entries, options, project_root, lock is not None, no_redact, baseline
         )
     finally:
         if lock is not None:
@@ -423,7 +468,13 @@ def _run_agent(
 
 
 def _execute_agent(
-    config: Any, entries: Any, options: Any, project_root: Path, locked: bool, no_redact: bool
+    config: Any,
+    entries: Any,
+    options: Any,
+    project_root: Path,
+    locked: bool,
+    no_redact: bool,
+    baseline: Any = None,
 ) -> int:
     from gazua.reports.execution import execute_mode
 
@@ -437,6 +488,7 @@ def _execute_agent(
             _report_output(),
             locked=locked,
             no_redact=no_redact,
+            baseline=baseline,
         )
     return outcome.exit_code
 
@@ -450,8 +502,12 @@ def _check_run_options(
     mode: ModeChoice | None,
     no_redact: bool,
     limits: dict[str, Any],
+    baseline: Path | None = None,
+    no_baseline: bool = False,
 ) -> None:
     """Contradictory selections fail before any configuration or target is read."""
+    if baseline is not None and no_baseline:
+        raise _usage_error("--baseline and --no-baseline contradict each other; choose one.")
     if tools and agent:
         raise _usage_error("--tools and --agent are different modes; choose one.")
     if tools and mode is ModeChoice.agent:
@@ -468,6 +524,10 @@ def _check_run_options(
         if limits:
             raise _usage_error(
                 "--list only reads the catalog; limit options apply to --tools and --agent."
+            )
+        if baseline is not None or no_baseline:
+            raise _usage_error(
+                "--list only reads the catalog; baseline options apply to --tools and --agent."
             )
         return
     if quick and not agent:
@@ -565,6 +625,20 @@ def run_command(
             help="Keep captured evidence unmasked in this local run. Refused in CI.",
         ),
     ] = False,
+    baseline: Annotated[
+        Path | None,
+        typer.Option(
+            "--baseline",
+            metavar="PATH",
+            help="Compare with this baseline; it must exist. Defaults to gazua-baseline.json "
+            "when present.",
+            show_default=False,
+        ),
+    ] = None,
+    no_baseline: Annotated[
+        bool,
+        typer.Option("--no-baseline", help="Ignore any baseline: every gated finding fails."),
+    ] = False,
 ) -> None:
     """Run the attacks in tools or agent mode, or list the attack catalog by damage and mode."""
     limits: dict[str, Any] = {
@@ -586,6 +660,8 @@ def run_command(
         mode=mode,
         no_redact=no_redact,
         limits=limits,
+        baseline=baseline,
+        no_baseline=no_baseline,
     )
     _refuse_no_redact_in_ci(no_redact)
     if list_molds:
@@ -597,12 +673,13 @@ def run_command(
         _list_catalog(config_path, listed, mold, "pt" if language is LanguageChoice.pt else "en")
         return
     path = config_path if config_path is not None else DEFAULT_CONFIG
+    choice = BaselineChoice(path=baseline, disabled=no_baseline)
     if agent:
-        _run_agent(path, mold, quick, language.value, limits, no_redact)
+        _run_agent(path, mold, quick, language.value, limits, no_redact, choice)
         return
     if not tools:
         raise _usage_error(RUN_CHOICE_MESSAGE)
-    _run_tools(path, mold, language.value, limits, no_redact)
+    _run_tools(path, mold, language.value, limits, no_redact, choice)
 
 
 @app.command(name="demo")

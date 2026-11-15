@@ -150,6 +150,186 @@ class BaselineDocument(_Strict):
         return next((item for item in self.entries if item.id == finding_id), None)
 
 
+ComparedStatus: TypeAlias = Literal["new", "open", "closed"]
+VerificationOutcome: TypeAlias = Literal["verified", "still_open", "incomplete", "interrupted"]
+ReasonCode = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$")]
+Count = Annotated[int, Field(ge=0)]
+Probability = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
+AttackKey = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")]
+
+
+class ComparisonEntry(_Strict):
+    """One finding id as a run compares it with the baseline.
+
+    Observed entries are the run's findings; ``native_gated`` is the finding's own gate and
+    ``effective_gated`` whether it still fails the build. Unobserved entries are history the
+    run did not confirm; they never gate.
+    """
+
+    finding_id: FindingId
+    baseline_status: EntryStatus | None
+    status: ComparedStatus
+    observed: bool
+    regression: bool
+    native_gated: bool
+    effective_gated: bool
+
+    @model_validator(mode="after")
+    def _consistent(self) -> ComparisonEntry:
+        if not self.observed:
+            if self.baseline_status is None or self.status != self.baseline_status:
+                raise ValueError("An unobserved entry keeps its persisted state.")
+            if self.regression or self.native_gated or self.effective_gated:
+                raise ValueError("An unobserved entry never gates.")
+            return self
+        expected: ComparedStatus = "open" if self.baseline_status == "open" else "new"
+        if self.status != expected:
+            raise ValueError("A finding is new unless its entry is open.")
+        if self.regression != (self.baseline_status == "closed"):
+            raise ValueError("A regression is a finding whose entry was closed.")
+        if self.effective_gated != (self.status == "new" and self.native_gated):
+            raise ValueError("Only a new finding keeps its native gate.")
+        return self
+
+
+class BaselineComparison(_Strict):
+    """A run's findings against the baseline it read, with no attack text.
+
+    This is the projection CI consumers read. It never changes ``verdicts.has_gated_findings``.
+    """
+
+    schema_version: Literal[1]
+    baseline_revision: Annotated[int, Field(ge=1)]
+    baseline_digest: Digest
+    observed_known: Count
+    observed_new: Count
+    has_new_gated_findings: bool
+    entries: list[ComparisonEntry]
+
+    @model_validator(mode="after")
+    def _consistent(self) -> BaselineComparison:
+        ids = [item.finding_id for item in self.entries]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Each finding id appears once in a comparison.")
+        observed = [item for item in self.entries if item.observed]
+        if self.observed_known != sum(item.status == "open" for item in observed):
+            raise ValueError("Known findings are the observed open entries.")
+        if self.observed_new != sum(item.status == "new" for item in observed):
+            raise ValueError("New findings are the observed new entries.")
+        if self.has_new_gated_findings != any(item.effective_gated for item in observed):
+            raise ValueError("The effective gate is the OR of the new findings' gates.")
+        return self
+
+    @property
+    def observed(self) -> list[ComparisonEntry]:
+        return [item for item in self.entries if item.observed]
+
+    @property
+    def unobserved(self) -> list[ComparisonEntry]:
+        return [item for item in self.entries if not item.observed]
+
+
+class VerificationSample(_Strict):
+    """One scenario and language of a verification, copied from its native attack result."""
+
+    attack_key: AttackKey
+    scenario_digest: Digest
+    language: Language
+    planned: Annotated[int, Field(ge=VERIFY_REPETITIONS, le=VERIFY_REPETITIONS)]
+    evaluated: Count
+    successes: Count
+    unknown: Count
+    not_applicable_count: Count
+    coverage: Literal["complete", "partial", "none"]
+    low_fidelity: bool
+    rate: Probability | None
+    upper_bound: Probability | None
+    confidence: Annotated[float, Field(ge=0.95, le=0.95)]
+
+    @property
+    def reference(self) -> ScenarioReference:
+        return ScenarioReference(scenario_digest=self.scenario_digest, language=self.language)
+
+    @property
+    def clean(self) -> bool:
+        """Twenty conclusive repetitions without success: what closure needs per scenario."""
+        return (
+            self.evaluated == VERIFY_REPETITIONS
+            and self.successes == 0
+            and self.unknown == 0
+            and self.not_applicable_count == 0
+            and self.coverage == "complete"
+            and not self.low_fidelity
+        )
+
+
+class VerificationResult(_Strict):
+    """The decision a verification proposes, saved in its report before the baseline changes.
+
+    It states what the evidence allows, not that the baseline was written.
+    """
+
+    finding_id: FindingId
+    previous_status: EntryStatus
+    proposed_status: EntryStatus | None
+    outcome: VerificationOutcome
+    closure_eligible: bool
+    interrupted: bool
+    reasons: list[ReasonCode]
+    samples: list[VerificationSample]
+
+    @model_validator(mode="after")
+    def _consistent(self) -> VerificationResult:
+        pairs = [item.reference.pair for item in self.samples]
+        if len(set(pairs)) != len(pairs):
+            raise ValueError("Each scenario and language is sampled once.")
+        successes = any(item.successes for item in self.samples)
+        if self.outcome == "verified":
+            if self.proposed_status != "closed" or not self.closure_eligible:
+                raise ValueError("A verified finding proposes closure.")
+            if not self.samples or not all(item.clean for item in self.samples):
+                raise ValueError("Closure needs 0/20 in every scenario.")
+        elif self.closure_eligible:
+            raise ValueError("Only a verified finding is eligible for closure.")
+        if self.outcome == "still_open" and (self.proposed_status != "open" or not successes):
+            raise ValueError("A finding stays open only with a success.")
+        if self.outcome == "incomplete" and self.proposed_status == "closed":
+            raise ValueError("An incomplete verification never closes.")
+        if self.outcome == "incomplete" and self.proposed_status == "open" and not successes:
+            raise ValueError("An incomplete verification reopens only with a success.")
+        if self.outcome == "interrupted" and (
+            self.proposed_status is not None or not self.interrupted
+        ):
+            raise ValueError("An interrupted verification proposes nothing.")
+        if self.interrupted and self.outcome != "interrupted":
+            raise ValueError("An interruption wins over every other outcome.")
+        return self
+
+    def downgraded(self, reason: str) -> VerificationResult:
+        """The same samples as an incomplete verification, after an operational error."""
+        if self.outcome in ("incomplete", "interrupted"):
+            if reason in self.reasons:
+                return self
+            return self.model_copy(update={"reasons": [*self.reasons, reason]})
+        successes = any(item.successes for item in self.samples)
+        return VerificationResult(
+            finding_id=self.finding_id,
+            previous_status=self.previous_status,
+            proposed_status="open" if successes else None,
+            outcome="incomplete",
+            closure_eligible=False,
+            interrupted=False,
+            reasons=[*self.reasons, reason],
+            samples=list(self.samples),
+        )
+
+    @property
+    def exit_code(self) -> Literal[0, 1, 2]:
+        if self.outcome == "verified":
+            return 0
+        return 1 if self.outcome == "still_open" else 2
+
+
 def baseline_json(document: BaselineDocument) -> str:
     """Deterministic UTF-8 JSON with a final newline: the same content gives the same bytes."""
     return json.dumps(document.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n"
