@@ -17,20 +17,10 @@ from typing import Final, Literal
 from jinja2 import Environment, select_autoescape
 from markupsafe import Markup
 
+from gazua.demo import SIMULATION_NOTICE
 from gazua.demo.models import BrowserOutcome, ModeOutcome
 
 Language = Literal["en", "pt"]
-
-SIMULATION_NOTICE: Final[dict[Language, str]] = {
-    "en": (
-        "This demo uses a simulated model that follows a fixed script. It shows that Gazua and "
-        "the controls it exercises work; it does not measure how a real model resists attacks."
-    ),
-    "pt": (
-        "Esta demo usa um modelo simulado que segue um roteiro fixo. Ela mostra que o Gazua e os "
-        "controles exercitados funcionam; não mede a resistência de um modelo real a ataques."
-    ),
-}
 
 _TEXT: Final[dict[Language, dict[str, str]]] = {
     "en": {
@@ -137,7 +127,7 @@ def render_index(root: Path, tools: ModeOutcome, agent: ModeOutcome, language: L
     )
     return environment.from_string(source).render(
         lang=language,
-        csp=csp,
+        csp=Markup(csp),  # noqa: S704
         # Constant text whose hash is in the policy; escaping it would break the match.
         style=Markup(_STYLE),  # noqa: S704
         text=_TEXT[language],

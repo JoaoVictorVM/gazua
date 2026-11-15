@@ -134,6 +134,7 @@ def _run_mode(
             model=MODEL_ID if mode == "agent" else None,
             target_version=TARGET_VERSION,
             cancel=cancel,
+            demo=True,
         )
     except ConfigError as error:
         for diagnostic in error.diagnostics:

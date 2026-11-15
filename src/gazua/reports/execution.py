@@ -75,6 +75,7 @@ def execute_mode(
     model: str | None = None,
     target_version: str | None = None,
     cancel: threading.Event | None = None,
+    demo: bool = False,
 ) -> ExecutionOutcome:
     """Runs the mode, then shows and saves its reports.
 
@@ -152,6 +153,7 @@ def execute_mode(
         model=model,
         diagnostics=capture.diagnostics(),
         legitimate_use=getattr(result, "legitimate_use", None),
+        demo=demo,
     )
     output.lines(terminal_lines(document))
     if mode == "tools":

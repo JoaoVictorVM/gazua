@@ -46,6 +46,10 @@ Reproduction unavailable \({{ (f.reproduction.reason or "not_reproducible") | re
 > **{{ no_redact_warning | md }}**
 
 {% endif %}
+{% if demo_notice %}
+> **{{ demo_notice | md }}**
+
+{% endif %}
 - Run: {{ doc.run_id | md }}
 - Date (UTC): {{ meta.created_at | md }}
 - Mode: {{ meta.mode }}

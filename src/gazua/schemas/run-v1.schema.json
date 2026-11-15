@@ -1208,6 +1208,11 @@
           "minimum": 1,
           "title": "Presentation Version",
           "type": "integer"
+        },
+        "demo": {
+          "default": false,
+          "title": "Demo",
+          "type": "boolean"
         }
       },
       "required": [
