@@ -29,6 +29,10 @@ ListingStatus: TypeAlias = Literal[
 ADAPTER_PENDING_ENTRIES: Final[frozenset[Entry]] = frozenset(
     {"web_page", "attachment", "mcp_tool_description"}
 )
+# Entries agent mode reaches only through a declared tool whose text result carries the turn.
+INDIRECT_ENTRIES: Final[frozenset[Entry]] = frozenset(
+    {"tool_result", "rag_document", "poisoned_memory"}
+)
 
 _TOOL_CHECKS: dict[Requirement, Callable[[Tool], bool]] = {
     "tool.forbidden": lambda tool: tool.classification is ToolClass.FORBIDDEN,
