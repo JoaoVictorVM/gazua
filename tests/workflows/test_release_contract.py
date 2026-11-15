@@ -218,7 +218,11 @@ def test_release_reuses_validated_artifact_digests(
             if step.get("uses", "").startswith("actions/download-artifact@")
         ]
         assert len(downloads) == 1
-        assert downloads[0]["with"]["artifact-ids"] == "${{ needs.build.outputs.artifact-id }}"
+        # The image job's artifact is the tested image, with its own digest file.
+        assert downloads[0]["with"]["artifact-ids"] in {
+            "${{ needs.build.outputs.artifact-id }}",
+            "${{ needs.image.outputs.artifact-id }}",
+        }
         commands = " ".join(step.get("run", "") for step in steps_of(job))
         assert re.search(r"verify-inventory|verify-published|sha256sum --check --strict", commands)
 

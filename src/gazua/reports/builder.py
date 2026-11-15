@@ -318,11 +318,13 @@ def build_run_document(
     model: str | None = None,
     diagnostics: Sequence[ReportDiagnostic] = (),
     legitimate_use: LegitimateUse | None = None,
+    demo: bool = False,
 ) -> RunDocument:
     """The validated document of one run. Each result appears once, in planned order.
 
     ``legitimate_use`` is agent mode's measurement of the declared tasks, carried as it is
-    apart from tool names, which pass through the treatment like every other text.
+    apart from tool names, which pass through the treatment like every other text. ``demo``
+    marks a run of the scripted demo model; it changes no verdict, rate or exit code.
     """
     by_key = {context.attack_key: context for context in contexts}
     treated = _treated_verdicts(verdicts, treatment)
@@ -395,6 +397,7 @@ def build_run_document(
             target_ref=treatment.text(target_ref, "metadata.target_ref"),
             language=language,
             presentation_version=PRESENTATION_VERSION,
+            demo=demo,
         ),
         redaction=treatment.mode,
         synthetic_data=synthetic_data(config),

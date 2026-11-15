@@ -258,6 +258,7 @@ def _context(document: RunDocument) -> dict[str, Any]:
         "template_version": TEMPLATE_VERSION,
         "legitimate": legitimate_view(document),
         "stop_text": stop_text(document),
+        "demo_notice": demo_notice(document),
     }
 
 
@@ -289,6 +290,15 @@ def legitimate_view(document: RunDocument) -> LegitimateView | None:
         for task in (measured.tasks if measured is not None else [])
     )
     return LegitimateView(legitimate_text(measured), rows)
+
+
+def demo_notice(document: RunDocument) -> str | None:
+    """The fixed simulation notice of a demo run, in the run's language; None otherwise."""
+    from gazua.demo import SIMULATION_NOTICE
+
+    if not document.metadata.demo:
+        return None
+    return SIMULATION_NOTICE[document.metadata.language]
 
 
 def stop_text(document: RunDocument) -> str | None:
@@ -329,6 +339,9 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
     if document.redaction == "none":
         lines.append(NO_REDACT_WARNING)
     metadata = document.metadata
+    notice = demo_notice(document)
+    if notice is not None:
+        lines.append(notice)
     lines.extend(
         summary_lines(document.verdicts, version=metadata.gazua_version, model=metadata.model)
     )

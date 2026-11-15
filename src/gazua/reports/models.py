@@ -83,6 +83,8 @@ class RunMetadata(_Strict):
     target_ref: NonEmptyText
     language: Language
     presentation_version: Annotated[int, Field(ge=1)]
+    # A run of gazua demo against its scripted model; documents written before it read false.
+    demo: bool = False
 
 
 class SyntheticIdentity(_Strict):

@@ -55,6 +55,9 @@
 {% if no_redact_warning %}
 <p class="warning" role="alert"><strong>{{ no_redact_warning }}</strong></p>
 {% endif %}
+{% if demo_notice %}
+<p class="warning" role="note"><strong>{{ demo_notice }}</strong></p>
+{% endif %}
 <dl class="meta">
 <dt>Run</dt><dd>{{ doc.run_id }}</dd>
 <dt>Date (UTC)</dt><dd>{{ meta.created_at }}</dd>

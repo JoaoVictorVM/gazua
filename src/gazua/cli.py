@@ -218,9 +218,6 @@ GITIGNORE_WARNING = (
     "Add .gazua/ to .gitignore."
 )
 LOCK_BUSY = "Another Gazua command is using .gazua/ in this project. Try again when it finishes."
-STORAGE_UNAVAILABLE = (
-    "Cannot write to .gazua/ in the project folder: no attack was run. The full summary follows."
-)
 LOAD_MESSAGES = {
     "run_file_not_found": "No run.json at this path.",
     "run_file_too_large": "This run.json is larger than 64 MiB.",
@@ -241,13 +238,6 @@ def _refuse_no_redact_in_ci(no_redact: bool) -> None:
 
     if no_redact and running_in_ci(os.environ):
         raise _usage_error(NO_REDACT_IN_CI)
-
-
-def _installed_version() -> str | None:
-    try:
-        return version("gazua")
-    except PackageNotFoundError:
-        return None
 
 
 def _say_lines(lines: list[str], *, err: bool = False) -> None:
@@ -339,86 +329,33 @@ def _run_tools(
     raise typer.Exit(code)
 
 
+def _report_output() -> Any:
+    from gazua.reports.execution import ReportOutput
+
+    return ReportOutput(
+        say=_say,
+        lines=lambda lines: _say_lines(list(lines)),
+        warn=lambda text: _say(text, err=True),
+    )
+
+
 def _execute_tools(
     config: Any, entries: Any, options: Any, project_root: Path, locked: bool, no_redact: bool
 ) -> int:
-    from datetime import UTC, datetime
+    from gazua.reports.execution import execute_mode
 
-    from gazua.modes.tools import ToolsPreview, run_tools
-    from gazua.modes.tools_presentation import diagnostic_lines, inventory_lines
-    from gazua.reports.builder import build_run_document
-    from gazua.reports.capture import ReportEvidenceCollector
-    from gazua.reports.redaction import EngineRedaction, ReportRedactionPolicy, ReportRedactor
-    from gazua.reports.rendering import render_report, terminal_lines
-    from gazua.reports.storage import StorageError, save_run, storage_ready
-    from gazua.runtime.run_models import Progress, RunEvent
-
-    def show_preview(preview: ToolsPreview) -> None:
-        for line in inventory_lines(preview):
-            _say(line)
-
-    def show_progress(event: RunEvent) -> None:
-        progress = getattr(event, "progress", None)
-        if event.kind == "execution_finished" and isinstance(progress, Progress):
-            _say(progress.text)
-
-    ready = locked and storage_ready(project_root)
-    if not ready:
-        _say(STORAGE_UNAVAILABLE, err=True)
-    redactor = ReportRedactor(ReportRedactionPolicy.from_config(config, no_redact=no_redact))
-    capture = ReportEvidenceCollector(redactor)
-    created_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    try:
-        with exit_on_config_error():
-            result = run_tools(
-                config,
-                entries,
-                options,
-                project_root,
-                on_preview=show_preview,
-                on_event=show_progress,
-                on_evidence=capture,
-                evidence_redactor=EngineRedaction(redactor),
-                storage_available=ready,
-            )
-    except KeyboardInterrupt:
-        raise _usage_error("Interrupted before any attack ran.") from None
-    document = build_run_document(
-        run_id=result.run_id,
-        created_at=created_at,
-        target_ref=config.entrypoint,
-        mode="tools",
-        language=options.language,
-        engine=result.engine,
-        verdicts=result.verdicts,
-        contexts=result.contexts,
-        reproduction=result.reproduction,
-        treatment=redactor,
-        exit_code=result.exit_code,
-        config=config,
-        excerpts=capture,
-        gazua_version=_installed_version(),
-        diagnostics=capture.diagnostics(),
-    )
-    _say_lines(terminal_lines(document))
-    _say_lines(diagnostic_lines(result))
-    if not ready:
-        return 2
-    try:
-        html, markdown = render_report(document)
-        saved = save_run(project_root, document, html, markdown)
-    except StorageError as error:
-        _say(
-            f"The reports could not be written ({error.code.replace('_', ' ')}); the summary "
-            "above is complete and the previous reports were kept.",
-            err=True,
+    with exit_on_config_error():
+        outcome = execute_mode(
+            "tools",
+            config,
+            entries,
+            options,
+            project_root,
+            _report_output(),
+            locked=locked,
+            no_redact=no_redact,
         )
-        return 2
-    for diagnostic in saved.diagnostics:
-        _say(f"Retention: {diagnostic.code.replace('_', ' ')}.", err=True)
-    _say(f"Reports: {saved.paths['html']}, {saved.paths['markdown']}, {saved.paths['json']}")
-    _say(f"Archived as {saved.paths['archive']}; the last {saved.retained_runs} runs are kept.")
-    return max(document.report_exit_code, saved.exit_code)
+    return outcome.exit_code
 
 
 def _run_agent(
@@ -488,83 +425,20 @@ def _run_agent(
 def _execute_agent(
     config: Any, entries: Any, options: Any, project_root: Path, locked: bool, no_redact: bool
 ) -> int:
-    from datetime import UTC, datetime
+    from gazua.reports.execution import execute_mode
 
-    from gazua.modes.agent import run_agent
-    from gazua.modes.agent_models import AgentPreview
-    from gazua.modes.agent_presentation import preview_lines
-    from gazua.reports.builder import build_run_document
-    from gazua.reports.capture import ReportEvidenceCollector
-    from gazua.reports.redaction import EngineRedaction, ReportRedactionPolicy, ReportRedactor
-    from gazua.reports.rendering import render_report, terminal_lines
-    from gazua.reports.storage import StorageError, save_run, storage_ready
-    from gazua.runtime.run_models import Progress, RunEvent
-
-    def show_preview(preview: AgentPreview) -> None:
-        _say_lines(preview_lines(preview))
-
-    def show_progress(event: RunEvent) -> None:
-        progress = getattr(event, "progress", None)
-        if event.kind == "execution_finished" and isinstance(progress, Progress):
-            _say(progress.text)
-
-    ready = locked and storage_ready(project_root)
-    if not ready:
-        _say(STORAGE_UNAVAILABLE, err=True)
-    redactor = ReportRedactor(ReportRedactionPolicy.from_config(config, no_redact=no_redact))
-    capture = ReportEvidenceCollector(redactor)
-    created_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    try:
-        with exit_on_config_error():
-            result = run_agent(
-                config,
-                entries,
-                options,
-                project_root,
-                on_preview=show_preview,
-                on_event=show_progress,
-                on_evidence=capture,
-                evidence_redactor=EngineRedaction(redactor),
-                storage_available=ready,
-            )
-    except KeyboardInterrupt:
-        raise _usage_error("Interrupted before any attack ran.") from None
-    document = build_run_document(
-        run_id=result.run_id,
-        created_at=created_at,
-        target_ref=config.entrypoint,
-        mode="agent",
-        language=options.language,
-        engine=result.engine,
-        verdicts=result.verdicts,
-        contexts=result.contexts,
-        reproduction=result.reproduction,
-        treatment=redactor,
-        exit_code=result.exit_code,
-        config=config,
-        excerpts=capture,
-        gazua_version=_installed_version(),
-        diagnostics=capture.diagnostics(),
-        legitimate_use=result.legitimate_use,
-    )
-    _say_lines(terminal_lines(document))
-    if not ready:
-        return 2
-    try:
-        html, markdown = render_report(document)
-        saved = save_run(project_root, document, html, markdown)
-    except StorageError as error:
-        _say(
-            f"The reports could not be written ({error.code.replace('_', ' ')}); the summary "
-            "above is complete and the previous reports were kept.",
-            err=True,
+    with exit_on_config_error():
+        outcome = execute_mode(
+            "agent",
+            config,
+            entries,
+            options,
+            project_root,
+            _report_output(),
+            locked=locked,
+            no_redact=no_redact,
         )
-        return 2
-    for diagnostic in saved.diagnostics:
-        _say(f"Retention: {diagnostic.code.replace('_', ' ')}.", err=True)
-    _say(f"Reports: {saved.paths['html']}, {saved.paths['markdown']}, {saved.paths['json']}")
-    _say(f"Archived as {saved.paths['archive']}; the last {saved.retained_runs} runs are kept.")
-    return max(document.report_exit_code, saved.exit_code)
+    return outcome.exit_code
 
 
 def _check_run_options(
@@ -729,6 +603,48 @@ def run_command(
     if not tools:
         raise _usage_error(RUN_CHOICE_MESSAGE)
     _run_tools(path, mold, language.value, limits, no_redact)
+
+
+@app.command(name="demo")
+def demo_command(
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            metavar="PATH",
+            help="Folder of the demo: its configuration, reports and page. Created if missing.",
+        ),
+    ] = Path("gazua-demo"),
+    no_open: Annotated[
+        bool,
+        typer.Option("--no-open", help="Do not open the demo page in a browser."),
+    ] = False,
+    language: Annotated[
+        LanguageChoice,
+        typer.Option("--language", help="Language of the attack text and of the demo notice."),
+    ] = LanguageChoice.en,
+) -> None:
+    """Attack a fictional store assistant run by a scripted model: tools mode, then agent mode.
+
+    Needs no key, configuration or network. The scripted model shows that Gazua works; it does
+    not measure how a real model resists.
+    """
+    from gazua.demo.models import DemoOptions
+    from gazua.demo.runner import run_demo
+    from gazua.demo.workspace import DemoError
+
+    options = DemoOptions(
+        output=str(output),
+        no_open=no_open,
+        language="pt" if language is LanguageChoice.pt else "en",
+    )
+    try:
+        result = run_demo(options, _report_output())
+    except DemoError as error:
+        raise _usage_error(error.message) from None
+    except KeyboardInterrupt:
+        raise _usage_error("Interrupted; the demo stopped before its next mode.") from None
+    raise typer.Exit(result.exit_code)
 
 
 @app.command(name="report")

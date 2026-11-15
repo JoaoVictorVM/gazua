@@ -89,6 +89,8 @@ gazua report --from /path/to/an/old/run.json
 
 `gazua run` writes under the folder of the configuration; `gazua report` and `gazua clean` work on the current directory.
 
+Runs of [`gazua demo`](demo.md) carry `"demo": true` in `metadata`. Their terminal summary, HTML and Markdown, regenerated ones included, state that the scripted model shows that Gazua works and does not measure how a real model resists. The flag changes no verdict, rate, finding id or exit code. Documents written before the flag existed read as `false`; a Gazua version older than the flag rejects documents that have it, because the run schema does not allow unknown fields.
+
 ## Storage, retention and cleaning
 
 | Path | Content |
