@@ -1,0 +1,4 @@
+# Only the validated wheel and the pinned requirements enter the image context.
+*
+!dist/gazua-*.whl
+!dist/requirements.txt

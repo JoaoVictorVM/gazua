@@ -144,6 +144,88 @@ jobs:
         with:
           packages-dir: release-artifacts/dist
 
+  image:
+    needs: [build, publish]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          enable-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: release-artifacts
+      - name: Check the digests
+        working-directory: release-artifacts
+        run: |
+          test "$(find dist -type f | wc -l)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+      - name: Prepare the image context from the validated wheel and the locked requirements
+        run: |
+          mkdir dist
+          cp release-artifacts/dist/gazua-*.whl dist/
+          uv export --frozen --no-dev --no-emit-project --format requirements.txt -o dist/requirements.txt
+      - name: Name the image after the package version
+        run: echo "GAZUA_IMAGE=ghcr.io/joaovictorvm/gazua:${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: Build the image and run the demo in it with networking disabled
+        run: |
+          docker build --pull --tag "$GAZUA_IMAGE" .
+          uv sync --frozen
+          uv run --frozen pytest tests/workflows/test_demo_image.py
+      - name: Save the tested image with its digest
+        run: |
+          mkdir image
+          docker save --output image/gazua-image.tar "$GAZUA_IMAGE"
+          echo "$GAZUA_IMAGE" > image/IMAGE
+          (cd image && sha256sum gazua-image.tar > SHA256SUMS)
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-image
+          path: image
+          if-no-files-found: error
+
+  publish-image:
+    needs: [image]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.image.outputs.artifact-id }}
+          path: image
+      - name: Check the digest of the tested image
+        working-directory: image
+        run: sha256sum --check --strict SHA256SUMS
+      - name: Publish exactly the tested image and record its digest
+        working-directory: image
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          name="$(cat IMAGE)"
+          case "$name" in ghcr.io/joaovictorvm/gazua:*) ;; *) exit 1 ;; esac
+          docker load --input gazua-image.tar
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          mkdir -p "$DOCKER_CONFIG"
+          auth="$(printf '%s:%s' "$GITHUB_ACTOR" "$REGISTRY_TOKEN" | base64 --wrap=0)"
+          printf '{"auths":{"ghcr.io":{"auth":"%s"}}}' "$auth" > "$DOCKER_CONFIG/config.json"
+          docker push "$name"
+          rm -rf "$DOCKER_CONFIG"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$name")"
+          {
+            echo "Image: $name"
+            echo "Digest: $digest"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   verify-publication:
     needs: [build, publish]
     runs-on: ${{ matrix.os }}
