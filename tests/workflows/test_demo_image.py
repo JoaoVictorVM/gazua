@@ -19,6 +19,10 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 IMAGE = os.environ.get("GAZUA_IMAGE")
 SHA_PIN = re.compile(r"@[0-9a-f]{40}$")
+READ_MODES = (
+    "import glob, json; print(json.dumps(sorted(json.load(open(path))['metadata']['mode'] "
+    "for path in glob.glob('/work/gazua-demo/.gazua/runs/*/run.json'))))"
+)
 
 
 def _load(name: str) -> dict[Any, Any]:
@@ -53,13 +57,18 @@ def test_image_runs_offline_non_root(tmp_path: Path) -> None:
     assert user.stdout.strip() != "0"
     assert result.returncode == 1, result.stderr
     assert SIMULATION_NOTICE["en"] in result.stdout
-    demo = work / "gazua-demo"
-    assert (demo / "index.html").is_file()
-    modes = sorted(
-        json.loads(path.read_text(encoding="utf-8"))["metadata"]["mode"]
-        for path in (demo / ".gazua" / "runs").glob("*/run.json")
+    assert (work / "gazua-demo" / "index.html").is_file()
+    # Evidence is private to the image's user, so it is read inside the image as that user.
+    listed = subprocess.run(
+        [
+            *(docker, "run", "--rm", "--network", "none", "--volume", f"{work}:/work"),
+            *("--entrypoint", "python", IMAGE, "-c", READ_MODES),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     )
-    assert modes == ["agent", "tools"]
+    assert json.loads(listed.stdout) == ["agent", "tools"]
     inspected = subprocess.run(
         [docker, "image", "inspect", IMAGE, "--format", "{{json .Config.ExposedPorts}}"],
         capture_output=True,
