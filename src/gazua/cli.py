@@ -710,6 +710,103 @@ def report_command(
     _say(f"Reports: {paths['html']}, {paths['markdown']}, {paths['json']}")
 
 
+DEFAULT_RUN_JSON = Path(".gazua") / "run.json"
+
+
+def _baseline_error(error: Any) -> typer.Exit:
+    from gazua.config.diagnostics import sanitize
+
+    where = f" ({sanitize(error.field)})" if error.field else ""
+    return _usage_error(f"{error.code}{where}: {error.message}")
+
+
+def _project_config(config_path: Path) -> Any:
+    from gazua.config.loader import load_config
+
+    if not config_path.is_file():
+        raise _usage_error(
+            "No configuration at this path. Create one with gazua init, or pass --config."
+        )
+    with exit_on_config_error():
+        return load_config(config_path).config
+
+
+@app.command(name="baseline")
+def baseline_command(
+    config_path: Annotated[
+        Path,
+        typer.Option(
+            "--config", metavar="PATH", help="Configuration of the project. Nothing is imported."
+        ),
+    ] = DEFAULT_CONFIG,
+    source: Annotated[
+        Path,
+        typer.Option(
+            "--from",
+            metavar="PATH",
+            help="The run.json whose findings are accepted. Nothing is executed.",
+        ),
+    ] = DEFAULT_RUN_JSON,
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            metavar="PATH",
+            help="Baseline file inside the project, outside .gazua/. Created or merged.",
+        ),
+    ] = Path("gazua-baseline.json"),
+) -> None:
+    """Accept the findings of a saved run as known, in a versionable baseline file.
+
+    Entries the run does not show are kept: nothing is closed by absence. Only gazua verify
+    closes a finding.
+    """
+    from gazua.baseline.storage import BaselineError, accept_report, resolve_baseline_path
+    from gazua.reports.execution import installed_version
+    from gazua.reports.lifecycle import LifecycleLock, LockBusy
+    from gazua.reports.storage import RunLoadError, parse_run_document, read_run_bytes
+
+    _project_config(config_path)
+    root = config_path.parent.resolve()
+    origin = source if source.is_absolute() else root / source
+    try:
+        document = parse_run_document(read_run_bytes(origin))
+    except RunLoadError as error:
+        raise _usage_error(LOAD_MESSAGES.get(error.code, "This run.json cannot be read.")) from None
+    lock: Any = LifecycleLock(root)
+    try:
+        lock.__enter__()
+    except LockBusy:
+        raise _usage_error(LOCK_BUSY) from None
+    except OSError:
+        lock = None
+    try:
+        target = resolve_baseline_path(root, output, config_path=config_path.resolve())
+        result = accept_report(target, document, installed_version())
+    except BaselineError as error:
+        raise _baseline_error(error) from None
+    finally:
+        if lock is not None:
+            lock.__exit__(None, None, None)
+    shown = output.as_posix()
+    if result.untested:
+        _say(
+            f"Warning: {result.untested} scenarios of run {document.run_id} were not tested; "
+            "the baseline does not certify them.",
+            err=True,
+        )
+    counts = f"{result.accepted} accepted, {result.preserved} preserved, {result.reopened} reopened"
+    if not result.changed:
+        _say_lines([f"Baseline {shown} unchanged ({counts}, revision {result.revision})."])
+        return
+    verb = "Created" if result.created else "Updated"
+    _say_lines([f"{verb} baseline {shown}: {counts} (revision {result.revision})."])
+    _say(
+        "Accepted findings stay open: they no longer fail the build, and only gazua verify "
+        "closes them."
+    )
+
+
 @app.command(name="clean")
 def clean_command() -> None:
     """Remove Gazua's runs, reports and evidence from ./.gazua. Unknown files stay."""
