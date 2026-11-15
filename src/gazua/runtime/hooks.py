@@ -15,8 +15,10 @@ from typing import Any, cast
 
 from gazua.config.references import resolve_reference
 from gazua.diagnostics import ConfigError, Diagnostic
-from gazua.integration.telemetry import GazuaRateLimited
+from gazua.integration.telemetry import GazuaAuthenticationError, GazuaRateLimited
 
+MAX_ERROR_TYPE = 128
+GENERIC_ERROR_TYPE = "Exception"
 _resolved: dict[tuple[str, str], Callable[..., Any]] = {}
 
 
@@ -25,14 +27,32 @@ class HookError(Exception):
 
     code = "entrypoint_error"
 
-    def __init__(self, hook: str, reason: str) -> None:
+    def __init__(self, hook: str, reason: str, error_type: str | None = None) -> None:
         self.hook = hook
         self.reason = reason
+        self.error_type = None if error_type is None else safe_error_type(error_type)
         super().__init__(f"{hook}: {reason}")
 
     @property
     def diagnostic(self) -> Diagnostic:
         return Diagnostic(code=self.code, field=self.hook, message=self.reason)
+
+
+def safe_error_type(name: object) -> str:
+    """An exception class name fit for a failure fingerprint; anything else is generic.
+
+    Only a plain identifier is kept, so no message, path or value of the target can travel
+    as a class name.
+    """
+    if not isinstance(name, str) or len(name) > MAX_ERROR_TYPE:
+        return GENERIC_ERROR_TYPE
+    return name if name.isidentifier() and name.isascii() else GENERIC_ERROR_TYPE
+
+
+class AuthenticationFailed(HookError):
+    """The entrypoint raised ``GazuaAuthenticationError``. Nothing of the provider is kept."""
+
+    code = "agent_authentication_failed"
 
 
 class ResetFailed(HookError):
@@ -84,32 +104,43 @@ def _call(
     hook: str,
     error: type[HookError],
     *args: Any,
-    rate_limits: bool = False,
+    agent_signals: bool = False,
 ) -> Any:
     try:
         result = function(*args)
         if inspect.isawaitable(result):
             result = asyncio.run(_wait(result))
     except GazuaRateLimited as signal:
-        if not rate_limits:
+        if not agent_signals:
             raise error(hook, f"The call raised {type(signal).__name__}.") from None
         raise RateLimited(hook, signal.retry_after) from None
+    except GazuaAuthenticationError as signal:
+        name = type(signal).__name__
+        if not agent_signals:
+            raise error(hook, f"The call raised {name}.", name) from None
+        raise AuthenticationFailed(hook, "The agent reported an authentication failure.") from None
     # Hooks are the target's code; any failure, even SystemExit, is reported, not propagated.
     except (Exception, SystemExit) as failure:  # noqa: BLE001
-        raise error(hook, f"The call raised {type(failure).__name__}.") from None
+        name = type(failure).__name__
+        raise error(hook, f"The call raised {name}.", name) from None
     return result
 
 
 def call_entrypoint(reference: str, message: str) -> str:
     """Sends one message to the agent and returns its text response.
 
-    A ``GazuaRateLimited`` raised by the entrypoint becomes ``RateLimited``; any other failure
-    is a ``HookError`` that names only the exception class.
+    A ``GazuaRateLimited`` raised by the entrypoint becomes ``RateLimited`` and a
+    ``GazuaAuthenticationError`` becomes ``AuthenticationFailed``; any other failure is a
+    ``HookError`` that names only the exception class.
     """
     entrypoint = _resolve(reference, "entrypoint", HookError)
-    response = _call(entrypoint, "entrypoint", HookError, message, rate_limits=True)
+    response = _call(entrypoint, "entrypoint", HookError, message, agent_signals=True)
     if not isinstance(response, str):
-        raise HookError("entrypoint", f"The response is {type(response).__name__}, expected str.")
+        raise HookError(
+            "entrypoint",
+            f"The response is {type(response).__name__}, expected str.",
+            "ResponseNotText",
+        )
     return response
 
 

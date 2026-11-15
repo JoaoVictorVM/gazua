@@ -122,3 +122,69 @@ def test_typed_rate_limit_survives_entrypoint_error_translation(
 
     with pytest.raises(ValueError, match="retry_after"):
         GazuaRateLimited(retry_after=-1)
+
+
+AUTH_PROBE = """
+import json, os, sys
+reads = []
+class Watched(type(os.environ)):
+    def __getitem__(self, key):
+        reads.append(key)
+        return super().__getitem__(key)
+os.environ.__class__ = Watched
+opened = []
+sys.addaudithook(lambda event, args: opened.append(event) if event.startswith("socket.") else None)
+from gazua import GazuaAuthenticationError
+from gazua.integration import GazuaAuthenticationError as again
+error = GazuaAuthenticationError()
+print(json.dumps({
+    "same": error.__class__ is again,
+    "args": list(error.args),
+    "providers": [name for name in sys.modules if name in ("openai", "anthropic", "pydantic")],
+    "reads": reads,
+    "network": opened,
+}))
+"""
+
+AUTH_TARGET = """
+import gazua
+
+def refused(message):
+    raise gazua.GazuaAuthenticationError()
+
+def leaked(message):
+    raise PermissionError("401 invalid key sk-private-" + message)
+"""
+
+
+def test_authentication_signal_is_stdlib_only_and_keyless(
+    run_isolated: Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = run_isolated([sys.executable, "-c", AUTH_PROBE], cwd=tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["same"] is True
+    assert report["providers"] == []
+    assert report["reads"] == []
+    assert report["network"] == []
+    assert "key" not in " ".join(report["args"]).lower()
+    with pytest.raises(TypeError):
+        gazua.GazuaAuthenticationError("sk-private")  # type: ignore[call-arg]
+
+    from gazua.runtime.hooks import AuthenticationFailed
+
+    name = f"auth_target_{tmp_path.name.replace('-', '_')}"
+    (tmp_path / f"{name}.py").write_text(AUTH_TARGET, encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    with pytest.raises(AuthenticationFailed) as refused:
+        call_entrypoint(f"{name}:refused", "GAZUA-secret")
+    assert refused.value.code == "agent_authentication_failed"
+    assert "GAZUA-secret" not in str(refused.value)
+
+    # A provider error the target did not translate stays a generic failure, named by class.
+    with pytest.raises(HookError) as leaked:
+        call_entrypoint(f"{name}:leaked", "x")
+    assert not isinstance(leaked.value, AuthenticationFailed)
+    assert leaked.value.error_type == "PermissionError"
+    assert "sk-private" not in str(leaked.value)

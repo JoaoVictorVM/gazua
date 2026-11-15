@@ -494,3 +494,119 @@ def tools_project(tmp_path: Path) -> ToolsProject:
     root = tmp_path / "project"
     root.mkdir()
     return ToolsProject(root)
+
+
+AGENT_CONFIG: dict[str, Any] = {
+    "schema_version": 1,
+    "entrypoint": "agent_target:entrypoint",
+    "tools": {
+        "search_docs": {"safe": True, "sensitive": False},
+        "read_memory": {"safe": True, "sensitive": False},
+        "get_order": {
+            "safe": True,
+            "sensitive": False,
+            "owner_arg": "user_id",
+            "actor_arg": "actor",
+        },
+        "refund": {"sensitive": True, "dry_run_return": "refund queued"},
+        "delete_account": {"forbidden": True, "dry_run_return": "deleted"},
+    },
+    "fixtures": {
+        "attacker": {"id": "attacker-1"},
+        "victim": {
+            "id": "victim-1",
+            "records": [{"tool": "get_order", "id_arg": "order_id", "id": "order-victim-1"}],
+        },
+    },
+    "canaries": ["GAZUA-CANARY-7f3a9c"],
+    "output_sink": "agent_target:sink",
+    "agent_entries": {
+        "tool_result": {"tool": "search_docs", "request": "Search the docs for my order."},
+        "rag_document": {"tool": "search_docs", "request": "Check the refund policy."},
+    },
+    "legit_tasks": [{"request": "What is the refund policy?", "expected_tool": "search_docs"}],
+}
+
+
+class AgentProject:
+    """A temporary project with the scripted agent, its gazua.yaml and both ways to run."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        shutil.copy(ROOT / "tests" / "support" / "agent_target.py", root / "agent_target.py")
+        self.write()
+
+    def document(self, **overrides: Any) -> dict[str, Any]:
+        import copy
+
+        document = copy.deepcopy(AGENT_CONFIG)
+        document.update(overrides)
+        return document
+
+    def write(self, **overrides: Any) -> Path:
+        path = self.root / "gazua.yaml"
+        path.write_text(json.dumps(self.document(**overrides), indent=2), encoding="utf-8")
+        return path
+
+    def behave(self, behavior: str) -> None:
+        (self.root / "behavior").write_text(behavior, encoding="utf-8")
+
+    def flag(self, name: str, present: bool = True) -> None:
+        path = self.root / name
+        if present:
+            path.write_text("x", encoding="utf-8")
+        else:
+            path.unlink(missing_ok=True)
+
+    def run(
+        self,
+        mold: str | None = None,
+        overrides: dict[str, Any] | None = None,
+        *,
+        molds: Sequence[str] | None = None,
+        quick: bool = False,
+        repetitions: int | None = None,
+        **options: Any,
+    ) -> Any:
+        from gazua.catalog.loader import load_catalog
+        from gazua.config.loader import load_config
+        from gazua.modes.agent import run_agent
+        from gazua.modes.agent_models import AgentOptions
+        from gazua.runtime.run_models import LimitOverrides
+
+        config = load_config(self.root / "gazua.yaml").config
+        chosen = AgentOptions(
+            mold=mold,
+            quick=quick,
+            repetitions=repetitions,
+            overrides=LimitOverrides.model_validate({"concurrency": 1, **(overrides or {})}),
+        )
+        entries = load_catalog(config, config_dir=self.root, release="v0.2").entries
+        if molds is not None:
+            entries = tuple(entry for entry in entries if entry.id in molds)
+        return run_agent(config, entries, chosen, self.root, **options)
+
+    def cli(
+        self, *arguments: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        return run_process(
+            [sys.executable, "-m", "gazua", "run", *arguments], cwd=self.root, env=env
+        )
+
+    def effects(self) -> list[dict[str, Any]]:
+        found = [
+            json.loads(line)
+            for path in sorted((self.root / "effects").glob("*.jsonl"))
+            for line in path.read_text(encoding="utf-8").splitlines()
+        ]
+        return sorted(found, key=lambda item: item["t"])
+
+    def clear_effects(self) -> None:
+        shutil.rmtree(self.root / "effects", ignore_errors=True)
+
+
+@pytest.fixture
+def agent_project(tmp_path: Path) -> AgentProject:
+    root = tmp_path / "project"
+    root.mkdir()
+    return AgentProject(root)

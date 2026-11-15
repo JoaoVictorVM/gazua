@@ -256,7 +256,45 @@ def _context(document: RunDocument) -> dict[str, Any]:
         "fix_anchor": fix_anchor,
         "no_redact_warning": NO_REDACT_WARNING if document.redaction == "none" else None,
         "template_version": TEMPLATE_VERSION,
+        "legitimate": legitimate_view(document),
+        "stop_text": stop_text(document),
     }
+
+
+@dataclass(frozen=True, slots=True)
+class LegitimateView:
+    """The legitimate use section of an agent report: a fixed sentence and one row per task."""
+
+    text: str
+    tasks: tuple[tuple[int, str, str, str, str], ...]
+
+
+def legitimate_view(document: RunDocument) -> LegitimateView | None:
+    """None outside agent mode, so tools reports stay as they were."""
+    from gazua.modes.agent_presentation import legitimate_text
+
+    if document.metadata.mode != "agent":
+        return None
+    measured = document.legitimate_use
+    rows = tuple(
+        (
+            task.task_index,
+            task.expected_tool,
+            task.state.replace("_", " ") + (" (dry-run call)" if task.dry_run else ""),
+            (task.reason or "").replace("_", " "),
+            f"{task.execution_id}, call {task.call_seq}"
+            if task.call_seq is not None
+            else (task.execution_id or ""),
+        )
+        for task in (measured.tasks if measured is not None else [])
+    )
+    return LegitimateView(legitimate_text(measured), rows)
+
+
+def stop_text(document: RunDocument) -> str | None:
+    from gazua.modes.agent_presentation import stop_message
+
+    return stop_message(document.engine)
 
 
 def render_html(document: RunDocument) -> str:
@@ -294,6 +332,15 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
     lines.extend(
         summary_lines(document.verdicts, version=metadata.gazua_version, model=metadata.model)
     )
+    legitimate = legitimate_view(document)
+    if legitimate is not None:
+        from gazua.modes.agent_presentation import legitimate_task_lines
+
+        lines.append(legitimate.text)
+        lines.extend(legitimate_task_lines(document.legitimate_use))
+    stopped = stop_text(document)
+    if stopped is not None:
+        lines.append(stopped)
     snapshots = {item.id: item for item in document.proofs}
     for finding in document.findings:
         damage = DAMAGE_LABELS[finding.damage]
@@ -321,7 +368,7 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
         else:
             reason = (finding.reproduction.reason or "not_reproducible").replace("_", " ")
             lines.append(
-                f"  Reproduce: unavailable ({reason}); run gazua run --tools --mold "
+                f"  Reproduce: unavailable ({reason}); run gazua run --{finding.mode} --mold "
                 f"{finding.mold_id} with the same configuration."
             )
         lines.append(f"  Fix ({fix_anchor(finding.damage)}): {finding.fix}")

@@ -36,7 +36,7 @@ Reproduction, from the project root, with the same configuration and target code
 
 {% endfor %}
 {% else %}
-Reproduction unavailable \({{ (f.reproduction.reason or "not_reproducible") | replace("_", " ") | md }}\)\. Run gazua run \-\-tools \-\-mold {{ f.mold_id | md }} with the same configuration\.
+Reproduction unavailable \({{ (f.reproduction.reason or "not_reproducible") | replace("_", " ") | md }}\)\. Run gazua run \-\-{{ f.mode }} \-\-mold {{ f.mold_id | md }} with the same configuration\.
 
 {% endif %}
 {% endmacro %}
@@ -57,6 +57,26 @@ Reproduction unavailable \({{ (f.reproduction.reason or "not_reproducible") | re
 - Exit code: {{ doc.report_exit_code }}
 - Sample limits: at most {{ doc.engine.limits.max_runs }} executions, {{ doc.engine.limits.timeout | md }} s each, {{ doc.engine.limits.max_tool_calls }} tool calls per execution; {{ doc.engine.planned }} planned, {{ doc.engine.started }} started{% if doc.engine.interrupted %}, interrupted{% endif %}\. Rates and bounds cover only evaluated repetitions\.
 
+{% if stop_text %}
+> {{ stop_text | md }}
+
+{% endif %}
+{% if legitimate %}
+## Legitimate use
+
+{{ legitimate.text | clean }}
+
+{% if legitimate.tasks %}
+| Task | Expected tool | State | Reason | Evidence |
+|---|---|---|---|---|
+{% for index, tool, state, reason, where in legitimate.tasks %}
+| {{ index }} | {{ tool | md }} | {{ state | md }} | {{ reason | md }} | {{ where | md }} |
+{% endfor %}
+
+{% endif %}
+Legitimate use counts calls of the expected tool, not whether the answer or its arguments were right\.
+
+{% endif %}
 ## Summary by damage
 
 | Damage |{% for state in states %} {{ state_labels[state] }} |{% endfor %} Gated |

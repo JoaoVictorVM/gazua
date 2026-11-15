@@ -12,6 +12,7 @@ PUBLIC_DOCUMENTS = (
     "docs/molds.md",
     "docs/releasing.md",
     "docs/tools-mode.md",
+    "docs/agent-mode.md",
     "docs/verdicts.md",
 )
 PLANNING_REFERENCE = re.compile(r"\b(PRD|F\d{2})\b|\.planning|\.harness|spec\.md|plan\.md")
@@ -213,3 +214,28 @@ def test_readme_and_guides_point_to_the_tools_mode_guide(project_root: Path) -> 
     assert "tools-mode.md" in read(project_root, "docs/execution.md")
     assert "tools-mode.md" in read(project_root, "docs/molds.md")
     assert not re.search(r"approved|secure", read(project_root, "docs/tools-mode.md"), re.I)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Gazua never asks for, reads or stores your provider key",
+        "nightly and pre-release runs",
+        "Legitimate use: not tested",
+        "The agent could not authenticate; Gazua does not manage its key",
+        "5 consecutive identical failures",
+        "the rest is not tested",
+        "never resisted",
+        "does not support two-turn attacks",
+        "Code 2 wins over code 1",
+    ],
+)
+def test_agent_mode_guide_states_key_limits_and_metrics(project_root: Path, statement: str) -> None:
+    assert statement in read(project_root, "docs/agent-mode.md")
+
+
+def test_readme_and_guides_point_to_the_agent_mode_guide(project_root: Path) -> None:
+    assert "docs/agent-mode.md" in read(project_root, "README.md")
+    for name in ("docs/configuration.md", "docs/execution.md", "docs/integration.md"):
+        assert "agent-mode.md" in read(project_root, name)
+    assert not re.search(r"approved|secure", read(project_root, "docs/agent-mode.md"), re.I)

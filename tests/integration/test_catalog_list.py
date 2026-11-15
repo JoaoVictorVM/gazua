@@ -100,7 +100,10 @@ def test_list_groups_and_filters_without_executing_target(
     assert listed.index("permission-01") < listed.index("secret-01") < listed.index("idor-01")
     assert listed.index("idor-01") < listed.index("custom-web") < listed.index("output-01")
     assert "custom-web" not in mold_lines(tools_only.stdout)
-    assert mold_lines(agent_only.stdout) == ["custom-web"]
+    agent_listed = mold_lines(agent_only.stdout)
+    assert "custom-web" in agent_listed
+    assert "secret-04" in agent_listed
+    assert not set(agent_listed) & set(mold_lines(tools_only.stdout))
     assert mold_lines(in_portuguese.stdout) == mold_lines(tools_only.stdout)
     assert "Permissão só no prompt" in in_portuguese.stdout
 
@@ -222,4 +225,4 @@ def test_run_without_list_is_actionable_until_engine_exists(
     assert list(workdir.iterdir()) == []
     assert "--list" in flags.stdout
     assert "--tools" in flags.stdout
-    assert "--agent" not in flags.stdout
+    assert "--agent" in flags.stdout

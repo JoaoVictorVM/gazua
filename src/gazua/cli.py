@@ -13,8 +13,11 @@ import typer
 EXIT_USAGE = 2
 DEFAULT_CONFIG = Path("gazua.yaml")
 RUN_CHOICE_MESSAGE = (
-    "Choose what to run: gazua run --tools runs the attacks; to read the catalog, "
-    "use gazua run --list."
+    "Choose what to run: gazua run --tools calls the tools directly, gazua run --agent sends "
+    "the attacks to your agent; to read the catalog, use gazua run --list."
+)
+AGENT_HTTP_REFUSAL = (
+    "--agent over HTTP is not available yet; point entrypoint to a Python test function."
 )
 
 # Plain rendering keeps help and errors free of Rich panels, whose box drawing depends on
@@ -185,6 +188,8 @@ def _list_catalog(
         config,
         config_dir=path.parent,
         on_warning=lambda warning: _say(warning.message, err=True),
+        # Agent molds arrive with v0.2; the tools listing keeps its own release.
+        release="v0.2" if mode == "agent" else None,
     )
     if mold is not None:
         entries = tuple(entry for entry in result.entries if entry.id == mold)
@@ -252,7 +257,7 @@ def _say_lines(lines: list[str], *, err: bool = False) -> None:
         _say(clean_terminal(line), err=err)
 
 
-def _load_tools_config(config_path: Path) -> Any:
+def _load_tools_config(config_path: Path, http_refusal: str | None = None) -> Any:
     from gazua.config.diagnostics import ConfigError
     from gazua.config.loader import load_config
     from gazua.modes.tools import HTTP_REFUSAL
@@ -265,7 +270,7 @@ def _load_tools_config(config_path: Path) -> Any:
         return load_config(config_path).config
     except ConfigError as error:
         if any(item.code == "http_target" for item in error.diagnostics):
-            raise _usage_error(HTTP_REFUSAL) from None
+            raise _usage_error(http_refusal or HTTP_REFUSAL) from None
         for diagnostic in error.diagnostics:
             _say(diagnostic.render(), err=True)
         raise typer.Exit(EXIT_USAGE) from None
@@ -416,6 +421,185 @@ def _execute_tools(
     return max(document.report_exit_code, saved.exit_code)
 
 
+def _run_agent(
+    config_path: Path,
+    mold: str | None,
+    quick: bool,
+    language: str,
+    limits: dict[str, Any],
+    no_redact: bool = False,
+) -> None:
+    from pydantic import ValidationError
+
+    from gazua.catalog.loader import load_catalog
+    from gazua.modes.agent import select_agent_molds
+    from gazua.modes.agent_models import AgentOptions
+    from gazua.reports.lifecycle import LifecycleLock, LockBusy, gitignore_covers
+    from gazua.runtime.run_models import LimitOverrides
+
+    config = _load_tools_config(config_path, AGENT_HTTP_REFUSAL)
+    catalog = load_catalog(
+        config,
+        config_dir=config_path.parent,
+        on_warning=lambda warning: _say(warning.message, err=True),
+        release="v0.2",
+    )
+    if catalog.has_errors:
+        for diagnostic in catalog.diagnostics:
+            _say(diagnostic.render(), err=True)
+        raise typer.Exit(EXIT_USAGE)
+    with exit_on_config_error():
+        select_agent_molds(catalog.entries, AgentOptions(mold=mold, quick=quick))
+    if config.entrypoint is None:
+        raise _usage_error("Agent mode sends messages to the entrypoint; declare entrypoint.")
+    try:
+        overrides = LimitOverrides.model_validate(limits)
+    except ValidationError:
+        raise _usage_error("Limit options must be positive numbers.") from None
+    project_root = config_path.parent.resolve()
+    options = AgentOptions(
+        mold=mold,
+        quick=quick,
+        language="pt" if language == "pt" else "en",
+        overrides=overrides,
+        config_path=config_path.name,
+    )
+    if no_redact:
+        _say(NO_REDACT_LOCAL, err=True)
+    if not gitignore_covers(project_root):
+        _say(GITIGNORE_WARNING, err=True)
+    lock: LifecycleLock | None = LifecycleLock(project_root)
+    try:
+        lock.__enter__()  # type: ignore[union-attr]
+    except LockBusy:
+        raise _usage_error(LOCK_BUSY) from None
+    except OSError:
+        lock = None
+    try:
+        code = _execute_agent(
+            config, catalog.entries, options, project_root, lock is not None, no_redact
+        )
+    finally:
+        if lock is not None:
+            lock.__exit__(None, None, None)
+    raise typer.Exit(code)
+
+
+def _execute_agent(
+    config: Any, entries: Any, options: Any, project_root: Path, locked: bool, no_redact: bool
+) -> int:
+    from datetime import UTC, datetime
+
+    from gazua.modes.agent import run_agent
+    from gazua.modes.agent_models import AgentPreview
+    from gazua.modes.agent_presentation import preview_lines
+    from gazua.reports.builder import build_run_document
+    from gazua.reports.capture import ReportEvidenceCollector
+    from gazua.reports.redaction import EngineRedaction, ReportRedactionPolicy, ReportRedactor
+    from gazua.reports.rendering import render_report, terminal_lines
+    from gazua.reports.storage import StorageError, save_run, storage_ready
+    from gazua.runtime.run_models import Progress, RunEvent
+
+    def show_preview(preview: AgentPreview) -> None:
+        _say_lines(preview_lines(preview))
+
+    def show_progress(event: RunEvent) -> None:
+        progress = getattr(event, "progress", None)
+        if event.kind == "execution_finished" and isinstance(progress, Progress):
+            _say(progress.text)
+
+    ready = locked and storage_ready(project_root)
+    if not ready:
+        _say(STORAGE_UNAVAILABLE, err=True)
+    redactor = ReportRedactor(ReportRedactionPolicy.from_config(config, no_redact=no_redact))
+    capture = ReportEvidenceCollector(redactor)
+    created_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    try:
+        with exit_on_config_error():
+            result = run_agent(
+                config,
+                entries,
+                options,
+                project_root,
+                on_preview=show_preview,
+                on_event=show_progress,
+                on_evidence=capture,
+                evidence_redactor=EngineRedaction(redactor),
+                storage_available=ready,
+            )
+    except KeyboardInterrupt:
+        raise _usage_error("Interrupted before any attack ran.") from None
+    document = build_run_document(
+        run_id=result.run_id,
+        created_at=created_at,
+        target_ref=config.entrypoint,
+        mode="agent",
+        language=options.language,
+        engine=result.engine,
+        verdicts=result.verdicts,
+        contexts=result.contexts,
+        reproduction=result.reproduction,
+        treatment=redactor,
+        exit_code=result.exit_code,
+        config=config,
+        excerpts=capture,
+        gazua_version=_installed_version(),
+        diagnostics=capture.diagnostics(),
+        legitimate_use=result.legitimate_use,
+    )
+    _say_lines(terminal_lines(document))
+    if not ready:
+        return 2
+    try:
+        html, markdown = render_report(document)
+        saved = save_run(project_root, document, html, markdown)
+    except StorageError as error:
+        _say(
+            f"The reports could not be written ({error.code.replace('_', ' ')}); the summary "
+            "above is complete and the previous reports were kept.",
+            err=True,
+        )
+        return 2
+    for diagnostic in saved.diagnostics:
+        _say(f"Retention: {diagnostic.code.replace('_', ' ')}.", err=True)
+    _say(f"Reports: {saved.paths['html']}, {saved.paths['markdown']}, {saved.paths['json']}")
+    _say(f"Archived as {saved.paths['archive']}; the last {saved.retained_runs} runs are kept.")
+    return max(document.report_exit_code, saved.exit_code)
+
+
+def _check_run_options(
+    *,
+    list_molds: bool,
+    tools: bool,
+    agent: bool,
+    quick: bool,
+    mode: ModeChoice | None,
+    no_redact: bool,
+    limits: dict[str, Any],
+) -> None:
+    """Contradictory selections fail before any configuration or target is read."""
+    if tools and agent:
+        raise _usage_error("--tools and --agent are different modes; choose one.")
+    if tools and mode is ModeChoice.agent:
+        raise _usage_error("--tools runs tools mode; --mode agent conflicts with it.")
+    if agent and mode is ModeChoice.tools:
+        raise _usage_error("--agent runs agent mode; --mode tools conflicts with it.")
+    if list_molds:
+        if quick:
+            raise _usage_error("--list only reads the catalog; --quick applies to --agent.")
+        if no_redact:
+            raise _usage_error(
+                "--list only reads the catalog; --no-redact applies to --tools and --agent."
+            )
+        if limits:
+            raise _usage_error(
+                "--list only reads the catalog; limit options apply to --tools and --agent."
+            )
+        return
+    if quick and not agent:
+        raise _usage_error("--quick applies only to --agent.")
+
+
 @app.command(name="run")
 def run_command(
     list_molds: Annotated[
@@ -428,6 +612,21 @@ def run_command(
             "--tools",
             help="Call the tools directly as the attacker, with no model. With --list, list "
             "the tools molds only.",
+        ),
+    ] = False,
+    agent: Annotated[
+        bool,
+        typer.Option(
+            "--agent",
+            help="Send the attacks to your agent, which uses its own model and key; 5 "
+            "repetitions each. With --list, list the agent molds only.",
+        ),
+    ] = False,
+    quick: Annotated[
+        bool,
+        typer.Option(
+            "--quick",
+            help="With --agent: about 15 molds spread over the damages, 1 repetition each.",
         ),
     ] = False,
     config_path: Annotated[
@@ -493,7 +692,7 @@ def run_command(
         ),
     ] = False,
 ) -> None:
-    """Run the attacks in tools mode, or list the attack catalog by damage and mode."""
+    """Run the attacks in tools or agent mode, or list the attack catalog by damage and mode."""
     limits: dict[str, Any] = {
         name: value
         for name, value in (
@@ -505,24 +704,30 @@ def run_command(
         )
         if value is not None
     }
-    if tools and mode is ModeChoice.agent:
-        raise _usage_error("--tools runs tools mode; --mode agent conflicts with it.")
+    _check_run_options(
+        list_molds=list_molds,
+        tools=tools,
+        agent=agent,
+        quick=quick,
+        mode=mode,
+        no_redact=no_redact,
+        limits=limits,
+    )
     _refuse_no_redact_in_ci(no_redact)
     if list_molds:
-        if no_redact:
-            raise _usage_error("--list only reads the catalog; --no-redact applies to --tools.")
-        if limits:
-            raise _usage_error("--list only reads the catalog; limit options apply to --tools.")
         listed: Literal["tools", "agent"] | None = None
         if tools or mode is ModeChoice.tools:
             listed = "tools"
-        elif mode is ModeChoice.agent:
+        elif agent or mode is ModeChoice.agent:
             listed = "agent"
         _list_catalog(config_path, listed, mold, "pt" if language is LanguageChoice.pt else "en")
         return
+    path = config_path if config_path is not None else DEFAULT_CONFIG
+    if agent:
+        _run_agent(path, mold, quick, language.value, limits, no_redact)
+        return
     if not tools:
         raise _usage_error(RUN_CHOICE_MESSAGE)
-    path = config_path if config_path is not None else DEFAULT_CONFIG
     _run_tools(path, mold, language.value, limits, no_redact)
 
 

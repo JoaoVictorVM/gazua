@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 from gazua.catalog.models import DAMAGES, Damage, Entry, Language, Mode, Technique
 from gazua.config.models import SCHEMA_DIALECT, Severity
+from gazua.modes.agent_models import LegitimateUse
 from gazua.runtime.run_models import GazuaId, NonEmptyText, RunSummary, UtcTimestamp
 from gazua.verdicts.models import AttackKey, ProofCondition, VerdictSummary
 
@@ -174,6 +175,7 @@ class RunDocument(_Strict):
     fixes: dict[Damage, NonEmptyText]
     diagnostics: list[ReportDiagnostic]
     report_exit_code: ExitCode
+    legitimate_use: LegitimateUse | None = None
 
     @model_validator(mode="after")
     def _consistent(self) -> RunDocument:
@@ -253,7 +255,25 @@ def check_document(document: RunDocument) -> list[str]:
     proven_keys = {key for key, item in results.items() if item.state == "finding"}
     if proven_keys != grouped:
         problems.append("Every proven scenario belongs to exactly one finding.")
+    problems.extend(_legitimate_problems(document))
     return problems
+
+
+def _legitimate_problems(document: RunDocument) -> list[str]:
+    """A legacy document without the field is valid; tools mode never measures tasks."""
+    measured = document.legitimate_use
+    if measured is None:
+        return []
+    if document.metadata.mode != "agent":
+        return ["Only agent mode measures legitimate use."]
+    executions = {record.execution_id for record in document.engine.records}
+    keys = {record.request_key for record in document.engine.records}
+    for task in measured.tasks:
+        if task.execution_id is not None and task.execution_id not in executions:
+            return ["A legitimate task points to an execution outside this run."]
+        if task.execution_id is not None and task.request_key not in keys:
+            return ["A legitimate task points to a request outside this run."]
+    return []
 
 
 def build_run_json_schema() -> dict[str, Any]:

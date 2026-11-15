@@ -4,7 +4,7 @@ Gazua is an open source security test suite for AI agents. It attacks an agent t
 
 Other tools ask whether the model refused; Gazua proves whether the code stops the attack.
 
-> **Status: early pre-release.** This package contains the project foundation, project configuration, the attack catalog, the tool integration API and tools mode with its reports: `gazua --help`, `gazua --version`, `gazua init`, `gazua run --list`, `gazua run --tools`, `gazua report`, `gazua clean`, `gazua.wrap` and `@gazua.tool`. Agent mode is not available yet, and Gazua makes no claim about the resistance of any agent.
+> **Status: early pre-release.** This package contains the project foundation, project configuration, the attack catalog, the tool integration API tools mode, agent mode and their reports: `gazua --help`, `gazua --version`, `gazua init`, `gazua run --list`, `gazua run --tools`, `gazua run --agent`, `gazua report`, `gazua clean`, `gazua.wrap` and `@gazua.tool`. Gazua makes no claim about the resistance of any agent.
 
 ## Installation
 
@@ -34,7 +34,7 @@ Every change is verified on Windows and Ubuntu with Python 3.11 and Python 3.14.
 | `gazua clean` | Removes Gazua's runs, reports and evidence from `.gazua/`. The last 20 runs are kept automatically |
 | `python -m gazua` | Same behavior as `gazua` |
 
-Tools mode is described in [the tools mode guide](docs/tools-mode.md), and its reports, masking, regeneration and retention in [the reports guide](docs/reports.md). Agent mode is planned, and other commands will appear in the help only when they ship. The engine that runs each attack in its own process, with a timeout, a tool call limit, a run limit and a local receiver for exfiltration attempts, is described in [the execution guide](docs/execution.md). How recorded effects become one state per attack, with its rate, upper bound and proof, is described in [the verdict guide](docs/verdicts.md).
+Tools mode is described in [the tools mode guide](docs/tools-mode.md), and its reports, masking, regeneration and retention in [the reports guide](docs/reports.md). `gazua run --agent` sends the attacks to your real agent, which uses its own model and key, repeats each one 5 times and measures legitimate tasks too; `--quick` runs about 15 molds once. It is meant for nightly and pre-release runs and is described in [the agent mode guide](docs/agent-mode.md). Other commands will appear in the help only when they ship. The engine that runs each attack in its own process, with a timeout, a tool call limit, a run limit and a local receiver for exfiltration attempts, is described in [the execution guide](docs/execution.md). How recorded effects become one state per attack, with its rate, upper bound and proof, is described in [the verdict guide](docs/verdicts.md).
 
 ## Integrating your tools
 

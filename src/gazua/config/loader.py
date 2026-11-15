@@ -141,6 +141,10 @@ def _relation_errors(config: GazuaConfig, file: str, source_map: SourceMap) -> l
     for index, task in enumerate(config.legit_tasks):
         if task.expected_tool not in config.tools:
             report(("legit_tasks", index, "expected_tool"), unknown_tool)
+    for entry in ("tool_result", "rag_document", "poisoned_memory"):
+        declared = config.agent_entries.get(entry)
+        if declared is not None and declared.tool not in config.tools:
+            report(("agent_entries", entry, "tool"), unknown_tool)
     return errors
 
 

@@ -2,6 +2,70 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/config-v1.schema.json",
   "$defs": {
+    "AgentEntries": {
+      "additionalProperties": false,
+      "description": "Indirect entries agent mode can reach. An absent entry is reported as not tested.",
+      "properties": {
+        "tool_result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rag_document": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "poisoned_memory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "AgentEntries",
+      "type": "object"
+    },
+    "AgentEntry": {
+      "additionalProperties": false,
+      "description": "A declared tool that reads content the agent consumes, and the message that triggers it.\n\nThe request is sent as literal text: it is never read as a template.",
+      "properties": {
+        "tool": {
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f]+$",
+          "title": "Tool",
+          "type": "string"
+        },
+        "request": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Request",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "request"
+      ],
+      "title": "AgentEntry",
+      "type": "object"
+    },
     "FixtureRecord": {
       "additionalProperties": false,
       "description": "A synthetic record that belongs to an identity.",
@@ -397,6 +461,9 @@
       },
       "title": "Legit Tasks",
       "type": "array"
+    },
+    "agent_entries": {
+      "$ref": "#/$defs/AgentEntries"
     },
     "allowed_targets": {
       "default": [

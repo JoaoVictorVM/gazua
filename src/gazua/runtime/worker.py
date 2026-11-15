@@ -95,7 +95,7 @@ def _attack(job: Mapping[str, Any]) -> dict[str, Any]:
     from gazua.diagnostics import ConfigError
     from gazua.integration.errors import GazuaBlockedError
     from gazua.integration.telemetry import GazuaRateLimited
-    from gazua.runtime.hooks import HookError, RateLimited
+    from gazua.runtime.hooks import HookError, RateLimited, safe_error_type
 
     reset = job.get("reset")
     if reset is not None:
@@ -124,12 +124,16 @@ def _attack(job: Mapping[str, Any]) -> dict[str, Any]:
     except GazuaRateLimited as limited:
         return {"status": "rate_limited", "retry_after": limited.retry_after}
     except HookError as failure:
-        return {"status": "error", "code": failure.code}
+        return {"status": "error", "code": failure.code, "error_type": failure.error_type}
     except GazuaBlockedError as blocked:
         return {"status": "error", "code": "blocked", "reason": blocked.reason}
     # The executor runs the target's code; any failure is recorded by class, never by message.
     except (Exception, SystemExit) as failure:  # noqa: BLE001
-        return {"status": "error", "code": "executor_error", "error_type": type(failure).__name__}
+        return {
+            "status": "error",
+            "code": "executor_error",
+            "error_type": safe_error_type(type(failure).__name__),
+        }
     return _executor_result(value)
 
 

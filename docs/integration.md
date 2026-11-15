@@ -96,6 +96,8 @@ Some attacks arrive in content that the agent reads, such as a retrieved documen
 
 Only text results can carry an attack. When the chosen tool returns anything else, nothing is added and the attack is reported as not tested, because Gazua cannot reach that entry.
 
+In agent mode you choose these tools under `agent_entries`, with the message that makes your agent call them. Each turn of an attack is delivered once, to the call that follows its message, and only that delivery makes the attempt count. See [the agent mode guide](agent-mode.md).
+
 ## The call log
 
 Every call made during a run is recorded in order: tool name, arguments, actor, whether it ran for real, how it ended and whether an attack was delivered. Return values are never recorded, only their type, and error messages are never recorded, only the error class. Each argument value is cut to 4096 characters, and values that are not JSON are recorded by their `repr`.
@@ -108,13 +110,14 @@ The session and the call record formats are public JSON Schemas, packaged with G
 
 ## Usage, rate limits and exfiltration
 
-Three optional calls let your test entrypoint tell Gazua what it cannot see. All three come from `import gazua`, use only the standard library and do nothing outside a run:
+These optional calls let your test entrypoint tell Gazua what it cannot see. All of them come from `import gazua`, use only the standard library and do nothing outside a run:
 
 - `gazua.report_usage(cost_usd=...)` reports the cost of a model call, so that `max_cost` can apply.
 - `raise gazua.GazuaRateLimited(retry_after=...)` reports a 429 from your model provider, so that Gazua slows down and retries.
 - `gazua.send_to_receiver(url, ...)` sends an exfiltration attempt to a `.gazua.test` address to the run's local receiver instead of the network.
+- `raise gazua.GazuaAuthenticationError()` reports that your provider rejected the agent's credential, so that agent mode stops instead of trying again. It takes no argument and carries no key or message; Gazua never reads the credential.
 
-Your entrypoint still returns a `str`. [Running attacks safely](execution.md) explains each one and its limits.
+Your entrypoint still returns a `str`. For two-turn attacks, agent mode calls it twice in the same process; keep the conversation history between those calls. [Running attacks safely](execution.md) explains each one and its limits.
 
 ## Limits
 

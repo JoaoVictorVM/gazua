@@ -43,6 +43,15 @@ class SessionTool(_Contract):
     dry_run_return: JsonValue
 
 
+def turn_injection_id(request_key: str, turn: int) -> str:
+    """The injection id of one turn of one planned slot, the same for every retry of it.
+
+    Each attempt runs in its own process with its own call log, so the id never collides
+    across attempts, and the verdict engine derives it again to check delivery.
+    """
+    return f"{request_key}#turn{turn}"
+
+
 class SessionInjection(_Contract):
     """Attack text appended to text results of one tool."""
 

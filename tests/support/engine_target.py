@@ -60,6 +60,11 @@ def entrypoint(message: str) -> str:
             count += 1
     elif command == "429":
         raise gazua.GazuaRateLimited(retry_after=float(argument or 0))
+    elif command == "raise":
+        errors = {"ValueError": ValueError, "KeyError": KeyError}
+        raise errors[argument]("private detail " + argument)
+    elif command == "auth":
+        raise gazua.GazuaAuthenticationError()
     elif command == "dirty429":
         TOOLS["write_record"]("GAZUA-dirty")
         raise gazua.GazuaRateLimited(retry_after=0)

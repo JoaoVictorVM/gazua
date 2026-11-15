@@ -33,7 +33,7 @@
 <pre>{{ command | clean }}</pre>
 {% endfor %}
 {% else %}
-<p>Command unavailable ({{ (f.reproduction.reason or "not_reproducible") | replace("_", " ") }}). Run gazua run --tools --mold {{ f.mold_id | clean }} with the same configuration.</p>
+<p>Command unavailable ({{ (f.reproduction.reason or "not_reproducible") | replace("_", " ") }}). Run gazua run --{{ f.mode }} --mold {{ f.mold_id | clean }} with the same configuration.</p>
 {% endif %}
 <h4>Fix</h4>
 <p>{{ f.fix | clean }} <a href="#{{ fix_anchor(f.fix_ref) }}">Reference {{ f.fix_ref }}</a></p>
@@ -74,6 +74,28 @@
 </ul>
 </header>
 <main>
+{% if stop_text %}
+<p class="warning" role="alert">{{ stop_text | clean }}</p>
+{% endif %}
+{% if legitimate %}
+<section aria-labelledby="legitimate-use">
+<h2 id="legitimate-use">Legitimate use</h2>
+<p class="legitimate">{{ legitimate.text | clean }}</p>
+{% if legitimate.tasks %}
+<div class="table-wrap">
+<table>
+<thead><tr><th>Task</th><th>Expected tool</th><th>State</th><th>Reason</th><th>Evidence</th></tr></thead>
+<tbody>
+{% for index, tool, state, reason, where in legitimate.tasks %}
+<tr><td>{{ index }}</td><td>{{ tool | clean }}</td><td>{{ state }}</td><td>{{ reason }}</td><td>{{ where | clean }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+<p>Legitimate use counts calls of the expected tool, not whether the answer or its arguments were right.</p>
+</section>
+{% endif %}
 <section aria-labelledby="by-damage">
 <h2 id="by-damage">Summary by damage</h2>
 <div class="table-wrap">

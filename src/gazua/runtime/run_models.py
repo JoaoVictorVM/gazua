@@ -33,6 +33,8 @@ RECEIVER_HIT_SCHEMA_FILE = "receiver-hit-v1.schema.json"
 _SCHEMA_BASE = "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/"
 MAX_RETRIES = 2
 COST_WARNING = "Warning: max_cost does not apply without reported usage or cost_per_run."
+IDENTICAL_FAILURE_LIMIT = 5
+RATE_LIMIT_STREAK = 5
 
 NonEmptyText = Annotated[str, Field(min_length=1)]
 GazuaId = Annotated[str, Field(pattern=r"^GAZUA-[A-Za-z0-9-]+$")]
@@ -41,6 +43,7 @@ UtcTimestamp = Annotated[
     str, Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$")
 ]
 LocalReference = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-][A-Za-z0-9._/-]*$")]
+Code = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$")]
 
 ExecutionStatus = Literal[
     "completed",
@@ -83,6 +86,25 @@ class LimitOverrides(_Contract):
     concurrency: PositiveInt | None = None
     max_cost: PositiveNumber | None = None
     cost_per_run: NonNegativeNumber | None = None
+
+
+class StopPolicy(_Contract):
+    """When the supervisor stops admitting attempts because the target keeps failing.
+
+    Consecutive conclusions are counted in the order the engine observes them. A reported
+    authentication failure always stops at once. Consumers that do not pass a policy keep the
+    engine's previous behavior.
+    """
+
+    identical_failures: PositiveInt = IDENTICAL_FAILURE_LIMIT
+    consecutive_rate_limits: PositiveInt = RATE_LIMIT_STREAK
+
+
+class FailureFingerprint(_Contract):
+    """What makes two failures identical: a normalized code and the exception class only."""
+
+    code: Code
+    error_type: Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")] | None = None
 
 
 class ExecutionRequest(_Contract):
@@ -153,7 +175,11 @@ class ReceiverHit(_Contract):
 
 
 class RunSummary(_Contract):
-    """The infrastructure result of a run, also written when it was interrupted."""
+    """The infrastructure result of a run, also written when it was interrupted.
+
+    ``stop_reason`` names the stop policy that closed admission, and ``stop_error`` the shared
+    failure behind it. Both stay null for runs that ended any other way.
+    """
 
     schema_version: Literal[1]
     run_id: GazuaId
@@ -173,6 +199,8 @@ class RunSummary(_Contract):
     cleanup: CleanupOutcome
     operational_errors: list[NonEmptyText]
     records: list[ExecutionRecord]
+    stop_reason: Code | None = None
+    stop_error: FailureFingerprint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,6 +216,7 @@ class RunPlan:
     effective_concurrency: int
     cost_source: CostSource
     max_retries: int = MAX_RETRIES
+    stop_policy: StopPolicy | None = None
 
     @property
     def requested_concurrency(self) -> int:

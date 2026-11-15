@@ -61,6 +61,7 @@ from gazua.runtime.run_models import (
     ExecutionRequest,
     ExecutionStarted,
     ExecutionStatus,
+    FailureFingerprint,
     LimitOverrides,
     Progress,
     ResetOutcome,
@@ -69,6 +70,7 @@ from gazua.runtime.run_models import (
     RunPlan,
     RunPrepared,
     RunSummary,
+    StopPolicy,
 )
 from gazua.runtime.session_models import SessionDocument
 from gazua.runtime.session_writer import SessionExecution, build_session, write_session
@@ -82,6 +84,10 @@ EVENT_KINDS = frozenset(
 EventCallback = Callable[[RunEvent], None]
 EvidenceCallback = Callable[[ExecutionRecord, PrivateEvidence], None]
 STORAGE_UNAVAILABLE = "report_storage_unavailable"
+AUTHENTICATION_FAILED = "agent_authentication_failed"
+REPEATED_FAILURE = "repeated_agent_failure"
+PERSISTENT_RATE_LIMIT = "persistent_rate_limit"
+_CRASH_CODES = frozenset({"entrypoint_error", "executor_error", "blocked"})
 
 
 def _failure(code: str, message: str, field: str | None = None) -> ConfigError:
@@ -122,8 +128,13 @@ def prepare_run(
     *,
     project_root: Path,
     run_id: str | None = None,
+    stop_policy: StopPolicy | None = None,
 ) -> RunPlan:
-    """Validates one target, its references and requests, without importing anything."""
+    """Validates one target, its references and requests, without importing anything.
+
+    ``stop_policy`` closes admission when the target keeps failing; without it, the engine
+    keeps admitting attempts until a limit is reached.
+    """
     if not isinstance(config, GazuaConfig):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise _failure("multiple_targets", "A run tests exactly one target configuration.")
     if config.entrypoint is None and any(request.mode == "agent" for request in requests):
@@ -153,6 +164,7 @@ def prepare_run(
         limits=limits,
         effective_concurrency=1 if config.target.reset is not None else limits.concurrency,
         cost_source=cost_source(limits, items),
+        stop_policy=stop_policy,
     )
 
 
@@ -311,6 +323,10 @@ class _Run:
         self.cleanup: CleanupOutcome = "absent"
         self.operational_errors: list[str] = []
         self.storage_failed = False
+        self.stop_reason: str | None = None
+        self.stop_error: FailureFingerprint | None = None
+        self.failure_streak: tuple[FailureFingerprint | None, int] = (None, 0)
+        self.rate_limit_streak = 0
         self.budget = RunBudget(
             max_runs=self.limits.max_runs,
             max_cost=None if self.limits.max_cost is None else to_decimal(self.limits.max_cost),
@@ -768,6 +784,9 @@ class _Run:
         result = None if forced is not None else self.read_result(active.work)
         raw_lines, records, truncated, log_valid = self.call_log(active)
         outcome, retry = self.outcome(active, forced, result, records, len(raw_lines))
+        stop = self.observe_conclusion(outcome, result)
+        if stop is not None:
+            retry = None
         reset_before = self.reset_before(active, forced)
         request = active.pending.request
         usage_complete = bool(result and result.get("usage_complete") is True and active.usage)
@@ -832,6 +851,8 @@ class _Run:
         self.emit(ExecutionFinished(seq=self.next_seq(), record=record, progress=self.progress()))
         if retry is not None:
             self.schedule_retry(active.pending, retry)
+        if stop is not None:
+            self.policy_stop(*stop)
         if outcome.status == "reset_failed":
             self.error("reset_failed")
             self.cancel_active(_Outcome("cancelled", "reset_failed"))
@@ -890,9 +911,63 @@ class _Run:
             )
             return _Outcome("rate_limited", "rate_limited"), wait
         code = result.get("code")
-        if code in ("entrypoint_error", "executor_error", "blocked"):
+        if code == AUTHENTICATION_FAILED:
+            return _Outcome("crashed", AUTHENTICATION_FAILED), None
+        if code in _CRASH_CODES:
             return _Outcome("crashed", "agent_crashed"), None
         return _Outcome("crashed", "execution_protocol_error"), None
+
+    # Stop policy
+
+    def observe_conclusion(
+        self, outcome: _Outcome, result: dict[str, Any] | None
+    ) -> tuple[str, FailureFingerprint] | None:
+        """The stop this conclusion triggers, in the order the supervisor observes conclusions.
+
+        A normal conclusion resets both streaks. Cancellations, caused by Gazua itself, change
+        nothing. Only the normalized code and a checked class name identify a failure.
+        """
+        policy = self.plan.stop_policy
+        if policy is None or outcome.status == "cancelled":
+            return None
+        if outcome.status in ("completed", "killed_at_ceiling"):
+            self.failure_streak = (None, 0)
+            self.rate_limit_streak = 0
+            return None
+        if outcome.reason == AUTHENTICATION_FAILED:
+            return AUTHENTICATION_FAILED, FailureFingerprint(code=AUTHENTICATION_FAILED)
+        error_type = None
+        if outcome.status == "crashed" and result is not None:
+            from gazua.runtime.hooks import safe_error_type
+
+            raw = result.get("error_type")
+            error_type = None if raw is None else safe_error_type(raw)
+        fingerprint = FailureFingerprint(
+            code=outcome.reason or outcome.status, error_type=error_type
+        )
+        if outcome.status == "rate_limited":
+            self.rate_limit_streak += 1
+            exhausted = outcome.reason == "retries_exhausted"
+            if exhausted or self.rate_limit_streak >= policy.consecutive_rate_limits:
+                return PERSISTENT_RATE_LIMIT, FailureFingerprint(code="rate_limited")
+        else:
+            self.rate_limit_streak = 0
+        previous, count = self.failure_streak
+        count = count + 1 if previous == fingerprint else 1
+        self.failure_streak = (fingerprint, count)
+        if count >= policy.identical_failures:
+            return REPEATED_FAILURE, fingerprint
+        return None
+
+    def policy_stop(self, reason: str, fingerprint: FailureFingerprint) -> None:
+        """Closes admission for the policy. Attempts already running finish under their limits."""
+        if self.stop_reason is not None:
+            return
+        self.stop_reason = reason
+        self.stop_error = fingerprint
+        self.error(reason)
+        if self.admission_open:
+            self.close_admission(_Outcome("not_tested", reason))
 
     def reset_before(self, active: _Active, forced: _Outcome | None) -> ResetOutcome:
         if self.config.target.reset is None:
@@ -996,6 +1071,8 @@ class _Run:
             cleanup=self.cleanup,
             operational_errors=list(self.operational_errors),
             records=list(self.records),
+            stop_reason=self.stop_reason,
+            stop_error=self.stop_error,
         )
 
     def snapshot(self) -> RunSummary:

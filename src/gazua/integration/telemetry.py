@@ -38,6 +38,18 @@ class GazuaRateLimited(Exception):
         super().__init__("The target reported a rate limit (429).")
 
 
+class GazuaAuthenticationError(Exception):
+    """Raise from the test entrypoint when the agent's model provider refused its credential.
+
+    It carries no key, no provider object and no message from the provider. Gazua never reads
+    or manages the agent's credential; this exception is the only way it learns about the
+    failure, and the run stops instead of trying again.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("The agent could not authenticate with its model provider.")
+
+
 def report_usage(*, cost_usd: float) -> bool:
     """Reports the cost in USD of the model calls made since the previous report.
 
