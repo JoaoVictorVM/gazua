@@ -59,7 +59,8 @@ def test_agent_defaults_and_quick_reach_entrypoint(agent_project: Any) -> None:
     (agent_project.root / ".gitignore").write_text(".gazua/\n", encoding="utf-8")
     agent_project.behave("hardened")
 
-    result = agent_project.cli("--agent", "--mold", "secret-04")
+    # One at a time, so the order of the recorded calls is the order of submission.
+    result = agent_project.cli("--agent", "--mold", "secret-04", "--concurrency", "1")
 
     assert result.returncode == 0, result.stderr
     calls = entry_calls(agent_project)
