@@ -594,6 +594,167 @@
       "type": "object"
     },
     "JsonValue": {},
+    "LegitimateTask": {
+      "additionalProperties": false,
+      "description": "The outcome of one declared legitimate task, with a pointer to its evidence.\n\n``succeeded`` needs a finished call of the expected tool in the call log; ``dry_run`` says\nwhether that call ran in dry-run. The request text is not repeated here.",
+      "properties": {
+        "task_index": {
+          "minimum": 0,
+          "title": "Task Index",
+          "type": "integer"
+        },
+        "request_key": {
+          "minLength": 1,
+          "title": "Request Key",
+          "type": "string"
+        },
+        "expected_tool": {
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f]+$",
+          "title": "Expected Tool",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "succeeded",
+            "failed",
+            "not_tested"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "execution_id": {
+          "anyOf": [
+            {
+              "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Execution Id"
+        },
+        "call_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Call Seq"
+        },
+        "dry_run": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dry Run"
+        }
+      },
+      "required": [
+        "task_index",
+        "request_key",
+        "expected_tool",
+        "state",
+        "reason",
+        "execution_id",
+        "call_seq",
+        "dry_run"
+      ],
+      "title": "LegitimateTask",
+      "type": "object"
+    },
+    "LegitimateUse": {
+      "additionalProperties": false,
+      "description": "How many declared legitimate tasks used their expected tool.\n\nThe rate is ``succeeded / evaluated`` over tasks that ran to a conclusion; tasks whose\nattempt never ended normally are not tested and stay out of the denominator.",
+      "properties": {
+        "planned": {
+          "minimum": 0,
+          "title": "Planned",
+          "type": "integer"
+        },
+        "evaluated": {
+          "minimum": 0,
+          "title": "Evaluated",
+          "type": "integer"
+        },
+        "succeeded": {
+          "minimum": 0,
+          "title": "Succeeded",
+          "type": "integer"
+        },
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "not_tested": {
+          "minimum": 0,
+          "title": "Not Tested",
+          "type": "integer"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rate"
+        },
+        "coverage": {
+          "enum": [
+            "complete",
+            "partial",
+            "not_tested"
+          ],
+          "title": "Coverage",
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/LegitimateTask"
+          },
+          "title": "Tasks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "planned",
+        "evaluated",
+        "succeeded",
+        "failed",
+        "not_tested",
+        "rate",
+        "coverage",
+        "tasks"
+      ],
+      "title": "Gazua legitimate use",
+      "type": "object"
+    },
     "Limits": {
       "additionalProperties": false,
       "description": "Ceilings of a run. Durations are in seconds and costs in USD.",
@@ -1634,6 +1795,17 @@
       ],
       "title": "Report Exit Code",
       "type": "integer"
+    },
+    "legitimate_use": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LegitimateUse"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

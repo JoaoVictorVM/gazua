@@ -19,14 +19,15 @@ from gazua.catalog.loader import CatalogEntry
 from gazua.catalog.models import Mold
 from gazua.config.models import GazuaConfig, Limits
 from gazua.diagnostics import ConfigError, Diagnostic
+from gazua.modes.agent_legitimate import LegitimateCollector
 from gazua.modes.agent_models import (
     AgentDiagnostic,
     AgentOptions,
     AgentPreview,
     AgentResult,
-    empty_legitimate_use,
 )
 from gazua.modes.agent_plan import AgentPlan, agent_molds, plan_agent, quick_selection
+from gazua.modes.agent_presentation import AGENT_WARNING, AUTHENTICATION_MESSAGE, stop_message
 from gazua.modes.tools import (
     discover_tools,
     empty_summary,
@@ -36,7 +37,6 @@ from gazua.modes.tools import (
 from gazua.modes.tools_models import ToolsInventory
 from gazua.runtime.evidence import EvidenceRedactor, PrivateEvidence
 from gazua.runtime.run_models import (
-    IDENTICAL_FAILURE_LIMIT,
     MAX_RETRIES,
     ExecutionRecord,
     LimitOverrides,
@@ -46,11 +46,6 @@ from gazua.runtime.run_models import (
 )
 from gazua.verdicts.engine import VerdictCollector
 
-AUTHENTICATION_MESSAGE: Final = "The agent could not authenticate; Gazua does not manage its key"
-AGENT_WARNING: Final = (
-    "Agent mode sends attack text to your model provider through your agent and may cost "
-    "money. It is meant for nightly and pre-release runs, not for every pull request."
-)
 _RESULT_LIMITS: Final = ("max_runs", "timeout", "max_tool_calls", "max_cost")
 
 PreviewCallback = Callable[[AgentPreview], None]
@@ -151,6 +146,16 @@ def build_preview(
     )
 
 
+def attack_records(summary: RunSummary, legitimate: LegitimateCollector) -> RunSummary:
+    """The summary as the verdict collector sees it: attack records only.
+
+    Legitimate tasks share the plan, the budget and the final reset, but they are not attacks
+    and have no attack context.
+    """
+    records = [item for item in summary.records if not legitimate.owns(item.request_key)]
+    return summary.model_copy(update={"records": records})
+
+
 def stop_failures(summary: RunSummary) -> list[str]:
     return [] if summary.stop_reason is None else [summary.stop_reason]
 
@@ -215,7 +220,8 @@ def run_agent(
     )
     contexts = plan.contexts
     diagnostics = list(plan.diagnostics)
-    requests = plan.attack_requests
+    requests = plan.requests
+    legitimate = LegitimateCollector(config)
     unexecuted: str | None = None
     if requests and storage_available:
         run_plan = prepare_run(
@@ -234,7 +240,11 @@ def run_agent(
         collector = VerdictCollector.for_plan(contexts, run_plan)
 
         def collect(record: ExecutionRecord, evidence: PrivateEvidence) -> None:
-            collector(record, evidence)
+            # Legitimate tasks are measured apart and never reach the verdict collector.
+            if legitimate.owns(record.request_key):
+                legitimate(record, evidence)
+            else:
+                collector(record, evidence)
             if on_evidence is not None:
                 with contextlib.suppress(Exception):
                     on_evidence(record, evidence)
@@ -250,7 +260,10 @@ def run_agent(
         except (OSError, EvidencePathError):
             unexecuted = STORAGE_UNAVAILABLE
             summary = empty_summary(run_plan.run_id, config, limits)
-        verdicts = collector.finalize(summary, unexecuted_reason=unexecuted)
+        verdicts = collector.finalize(
+            attack_records(summary, legitimate), unexecuted_reason=unexecuted
+        )
+        measured = legitimate.finalize(summary if unexecuted is None else None)
     else:
         summary = empty_summary(new_run_id(), config, limits)
         if on_preview is not None:
@@ -267,6 +280,7 @@ def run_agent(
         if requests:
             unexecuted = STORAGE_UNAVAILABLE
         verdicts = collector.finalize(summary, unexecuted_reason=unexecuted)
+        measured = legitimate.finalize(None)
     failures = [*operational_failures(summary, verdicts, contexts), *stop_failures(summary)]
     if unexecuted is not None:
         failures.append(unexecuted)
@@ -282,7 +296,7 @@ def run_agent(
         contexts=contexts,
         engine=summary,
         verdicts=verdicts,
-        legitimate_use=empty_legitimate_use(),
+        legitimate_use=measured,
         diagnostics=diagnostics,
         executed=bool(requests) and unexecuted is None,
         reproduction={
@@ -296,29 +310,6 @@ def run_agent(
             for context in contexts
         },
         exit_code=exit_code_for(unique, verdicts),
-    )
-
-
-def stop_message(summary: RunSummary) -> str | None:
-    """The fixed sentence that explains why the run stopped early, without target text."""
-    reason, error = summary.stop_reason, summary.stop_error
-    if reason is None:
-        return None
-    if reason == "agent_authentication_failed":
-        return AUTHENTICATION_MESSAGE
-    if reason == "persistent_rate_limit":
-        return (
-            "The agent kept reporting rate limits (429); the run stopped and the remaining "
-            "executions are not tested."
-        )
-    shared = "unknown error"
-    if error is not None:
-        shared = error.code.replace("_", " ")
-        if error.error_type is not None:
-            shared += f" ({error.error_type})"
-    return (
-        f"The run stopped after {IDENTICAL_FAILURE_LIMIT} consecutive identical failures; the "
-        f"remaining executions are not tested. Shared error: {shared}."
     )
 
 

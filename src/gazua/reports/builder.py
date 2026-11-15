@@ -30,6 +30,7 @@ from gazua.catalog.models import (
     RepeatSensitiveCall,
 )
 from gazua.config.models import GazuaConfig, Severity
+from gazua.modes.agent_models import LegitimateUse
 from gazua.reports.fixes import fix_text, fixes_for
 from gazua.reports.models import (
     PRESENTATION_VERSION,
@@ -316,8 +317,13 @@ def build_run_document(
     target_version: str | None = None,
     model: str | None = None,
     diagnostics: Sequence[ReportDiagnostic] = (),
+    legitimate_use: LegitimateUse | None = None,
 ) -> RunDocument:
-    """The validated document of one run. Each result appears once, in planned order."""
+    """The validated document of one run. Each result appears once, in planned order.
+
+    ``legitimate_use`` is agent mode's measurement of the declared tasks, carried as it is
+    apart from tool names, which pass through the treatment like every other text.
+    """
     by_key = {context.attack_key: context for context in contexts}
     treated = _treated_verdicts(verdicts, treatment)
     scenarios: list[Scenario] = []
@@ -400,7 +406,26 @@ def build_run_document(
         fixes=fixes_for(language),
         diagnostics=all_diagnostics,
         report_exit_code=final_exit,
+        legitimate_use=_treated_legitimate(legitimate_use, treatment),
     )
+
+
+def _treated_legitimate(
+    measured: LegitimateUse | None, treatment: Treatment
+) -> LegitimateUse | None:
+    if measured is None:
+        return None
+    tasks = [
+        task.model_copy(
+            update={
+                "expected_tool": treatment.text(
+                    task.expected_tool, f"legitimate_use.tasks.{task.task_index}.expected_tool"
+                )
+            }
+        )
+        for task in measured.tasks
+    ]
+    return measured.model_copy(update={"tasks": tasks})
 
 
 def _unique_diagnostics(items: Sequence[ReportDiagnostic]) -> list[ReportDiagnostic]:
