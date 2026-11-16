@@ -4,7 +4,8 @@ A command that creates or changes ``.gazua/`` holds an operating system lock on
 ``.gazua/.lifecycle.lock`` for its whole cycle, taken before the target is imported, so clean
 and retention never run beside an active run. The lock file may stay after a crash; only the
 lock itself means activity. Removal never follows links and only touches folders that Gazua's
-manifest or private marker identifies as its own.
+manifest or private marker identifies as its own. Issue exports are not runs: retention never
+counts or removes them, and only ``gazua clean`` removes the managed ones.
 """
 
 from __future__ import annotations
@@ -210,6 +211,7 @@ class CleanResult:
     runs: int = 0
     files: int = 0
     pending: list[str] = field(default_factory=list[str])
+    issue_exports: int = 0
 
     @property
     def removed(self) -> int:
@@ -256,6 +258,11 @@ def clean_runs(root: Path) -> CleanResult:
     if journal.is_file() and not is_link(journal):
         with contextlib.suppress(OSError):
             journal.unlink()
+    from gazua.issues.storage import clean_exports
+
+    exports = clean_exports(root)
+    result.issue_exports = exports.removed
+    result.pending.extend(exports.pending or [])
     return result
 
 

@@ -7,7 +7,8 @@
 - Finding: [{{ f.id }}](#{{ f.id }})
 - Mold: {{ f.mold_id | md }}{% if f.tool_name %}, tool {{ f.tool_name | md }}{% endif %}, mode {{ f.mode }}
 - Conditions of explorability: {{ (f.conditions | join(", ") if f.conditions else "none") | md }}
-- Fix: {{ f.fix | md }} [Reference {{ f.fix_ref }}](#{{ fix_anchor(f.fix_ref) }})
+- Fix: {{ f.fix | md }} [Guide entry {{ f.fix_ref }}](#{{ fix_anchor(f.fix_ref) }})
+- Issue file: {{ item.issue_file | md }}, written by {{ issues_command | md }} in \.gazua/issues/{{ doc.run_id | md }}/
 {% for scenario in item.scenarios %}
 - Scenario {{ scenario.scenario.attack_key | md }}: {{ scenario.rate | md }}\. Coverage: {{ scenario.result.coverage }}
 {% endfor %}
@@ -39,6 +40,14 @@ Reproduction, from the project root, with the same configuration and target code
 Reproduction unavailable \({{ (f.reproduction.reason or "not_reproducible") | replace("_", " ") | md }}\)\. Run gazua run \-\-{{ f.mode }} \-\-mold {{ f.mold_id | md }} with the same configuration\.
 
 {% endif %}
+Confirm the fix, with the current configuration and baseline:
+
+{% for label, command in item.confirm %}
+{{ label | md }}:
+
+{{ command | block("") }}
+
+{% endfor %}
 {% endmacro %}
 # Gazua report
 
@@ -161,13 +170,40 @@ None\.
 
 {% endif %}
 {% endfor %}
-## Fixes
+## Fix guide
 
-{% for damage, text in doc.fixes.items() %}
-<a id="{{ fix_anchor(damage) }}"></a>
-- **{{ damage_labels[damage] | md }}** \({{ damage | md }}\): {{ text | md }}
+{% if guide_notice %}
+> **{{ guide_notice | md }}**
+
+{% endif %}
+Fixed editorial guidance, revision {{ doc.guide.revision }}\. Fixing the cause means applying the control on every relevant path; nothing here measures how well a defense works\. Confirm each finding with {{ verify_template | md }}, replacing the placeholder with the full finding id; a normal run never closes a finding\.
+
+{% for guide in guides %}
+<a id="{{ guide.anchor }}"></a>
+
+### {{ guide.label | md }} \({{ guide.damage | md }}\)
+
+{{ guide.short_fix | md }}
+
+{% for title, items in guide.categories %}
+{{ title }}:
+
+{% for text in items %}
+- {{ text | md }}
 {% endfor %}
 
+{% endfor %}
+Confirmation: {{ guide.entry.confirmation | md }}
+
+{{ verify_template | block("") }}
+
+Acceptance criteria:
+
+{% for text in guide.entry.acceptance_criteria %}
+- {{ text | md }}
+{% endfor %}
+
+{% endfor %}
 ## Report diagnostics ({{ doc.diagnostics | length }})
 
 {% if not doc.diagnostics %}

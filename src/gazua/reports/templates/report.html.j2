@@ -36,7 +36,13 @@
 <p>Command unavailable ({{ (f.reproduction.reason or "not_reproducible") | replace("_", " ") }}). Run gazua run --{{ f.mode }} --mold {{ f.mold_id | clean }} with the same configuration.</p>
 {% endif %}
 <h4>Fix</h4>
-<p>{{ f.fix | clean }} <a href="#{{ fix_anchor(f.fix_ref) }}">Reference {{ f.fix_ref }}</a></p>
+<p>{{ f.fix | clean }} <a href="#{{ fix_anchor(f.fix_ref) }}">Guide entry {{ f.fix_ref }}</a></p>
+<p class="label">Confirm the fix (uses the current configuration and baseline)</p>
+{% for label, command in item.confirm %}
+<p class="label">{{ label }}</p>
+<pre>{{ command | clean }}</pre>
+{% endfor %}
+<p class="issue">Issue file: <code>{{ item.issue_file }}</code>, written by <code>{{ issues_command }}</code> in .gazua/issues/{{ doc.run_id }}/.</p>
 </article>
 {% endmacro %}
 <!doctype html>
@@ -219,13 +225,34 @@
 </section>
 {% endfor %}
 <section aria-labelledby="fixes-title">
-<h2 id="fixes-title">Fixes</h2>
-<dl class="fixes">
-{% for damage, text in doc.fixes.items() %}
-<dt id="{{ fix_anchor(damage) }}">{{ damage_labels[damage] }} <code>{{ damage }}</code></dt>
-<dd>{{ text | clean }}</dd>
+<h2 id="fixes-title">Fix guide</h2>
+{% if guide_notice %}
+<p class="warning" role="note">{{ guide_notice }}</p>
+{% endif %}
+<p>Fixed editorial guidance, revision {{ doc.guide.revision }}. Fixing the cause means applying the control on every relevant path; nothing here measures how well a defense works. Confirm each finding with <code>{{ verify_template }}</code>, replacing &lt;finding&gt; with the full finding id; a normal run never closes a finding.</p>
+{% for guide in guides %}
+<article class="guide" id="{{ guide.anchor }}">
+<h3>{{ guide.label }} <code>{{ guide.damage }}</code></h3>
+<p>{{ guide.short_fix | clean }}</p>
+{% for title, items in guide.categories %}
+<h4>{{ title }}</h4>
+<ul>
+{% for text in items %}
+<li>{{ text | clean }}</li>
 {% endfor %}
-</dl>
+</ul>
+{% endfor %}
+<h4>Confirmation</h4>
+<p>{{ guide.entry.confirmation | clean }}</p>
+<pre>{{ verify_template }}</pre>
+<h4>Acceptance criteria</h4>
+<ul>
+{% for text in guide.entry.acceptance_criteria %}
+<li>{{ text | clean }}</li>
+{% endfor %}
+</ul>
+</article>
+{% endfor %}
 </section>
 <section aria-labelledby="diagnostics-title">
 <h2 id="diagnostics-title">Report diagnostics ({{ doc.diagnostics | length }})</h2>

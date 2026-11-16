@@ -25,7 +25,7 @@ def test_known_passes_new_high_and_critical_fail(tools_project: Any) -> None:
     assert "1 known finding, 0 new" in known.stdout
     assert "known, accepted as open" in known.stdout
     document = latest(tools_project)
-    assert document["schema_version"] == 2
+    assert document["schema_version"] == 3
     assert document["verdicts"]["has_gated_findings"] is True
     assert document["findings"][0]["gated"] is True
     assert document["proofs"]

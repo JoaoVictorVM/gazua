@@ -38,9 +38,10 @@ from gazua.catalog.models import (
 )
 from gazua.config.models import GazuaConfig, Severity
 from gazua.modes.agent_models import LegitimateUse
-from gazua.reports.fixes import fix_text, fixes_for
+from gazua.reports.fixes import fix_text, fixes_for, guide_for
 from gazua.reports.models import (
     PRESENTATION_VERSION,
+    RUN_SCHEMA_VERSION,
     SEVERITY_ORDER,
     ExitCode,
     Finding,
@@ -419,7 +420,7 @@ def build_run_document(
     else:
         report_exit = final_exit
     return RunDocument(
-        schema_version=2,
+        schema_version=RUN_SCHEMA_VERSION,
         run_id=run_id,
         metadata=RunMetadata(
             created_at=created_at,
@@ -445,6 +446,7 @@ def build_run_document(
         legitimate_use=_treated_legitimate(legitimate_use, treatment),
         baseline=comparison,
         verification=decided,
+        guide=guide_for(language),
     )
 
 

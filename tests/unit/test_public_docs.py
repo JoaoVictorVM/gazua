@@ -16,6 +16,8 @@ PUBLIC_DOCUMENTS = (
     "docs/verdicts.md",
     "docs/baseline.md",
     "docs/reports.md",
+    "docs/fix-guide.md",
+    "docs/issues.md",
 )
 PLANNING_REFERENCE = re.compile(r"\b(PRD|F\d{2})\b|\.planning|\.harness|spec\.md|plan\.md")
 
@@ -267,3 +269,37 @@ def test_readme_points_to_the_baseline_guide(project_root: Path) -> None:
 
     assert "docs/baseline.md" in readme
     assert "gazua verify" in readme
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Fixes the cause",
+        "Reduces the risk",
+        "Does not solve",
+        "gazua verify <finding>",
+        "fix-idor_via_agent",
+        "no model writes them",
+        "legacy_fallback",
+        "never opens an issue",
+        "--include-attack",
+        "--overwrite",
+        "never inherited",
+        "run-v3.schema.json",
+        "0/5",
+    ],
+)
+def test_fix_guide_and_issue_docs_state_flow_and_limits(project_root: Path, statement: str) -> None:
+    text = "".join(
+        read(project_root, name)
+        for name in ("docs/fix-guide.md", "docs/issues.md", "docs/reports.md")
+    )
+    assert statement in text
+
+
+def test_readme_points_to_the_fix_guide_and_issue_export(project_root: Path) -> None:
+    readme = read(project_root, "README.md")
+
+    assert "docs/fix-guide.md" in readme
+    assert "docs/issues.md" in readme
+    assert "`gazua issues`" in readme

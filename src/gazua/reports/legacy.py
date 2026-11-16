@@ -2,8 +2,9 @@
 
 A schema 1 document is validated against its own contract first. The adaptation adds only what
 the document already implies: each scenario's reference from its attack key and the run's
-language, and no baseline comparison or verification, since none existed. Files are never
-rewritten; new runs are written in the current format.
+language, and no baseline comparison or verification, since none existed. It then follows the
+schema 2 adaptation, which adds the frozen fallback guide. Files are never rewritten; new runs
+are written in the current format.
 """
 
 from __future__ import annotations
@@ -85,6 +86,8 @@ class RunDocument(_Strict):
 
 def adapt(document: RunDocument) -> CurrentRunDocument:
     """The schema 1 document in the current contract, with no comparison or verification."""
+    from gazua.reports.legacy_v2 import adapt_data
+
     language = document.metadata.language
     data: dict[str, Any] = document.model_dump(mode="json")
     data["schema_version"] = 2
@@ -95,7 +98,7 @@ def adapt(document: RunDocument) -> CurrentRunDocument:
         }
     data["baseline"] = None
     data["verification"] = None
-    return CurrentRunDocument.model_validate_json(json.dumps(data))
+    return adapt_data(data)
 
 
 def build_run_v1_json_schema() -> dict[str, Any]:

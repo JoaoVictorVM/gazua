@@ -116,7 +116,8 @@ def read_run_bytes(path: Path) -> bytes:
 def parse_run_document(content: bytes) -> RunDocument:
     """A validated document from JSON text; references inside it are never opened.
 
-    Schema 1 documents are validated as written and adapted in memory, without snapshots.
+    Schema 1 and 2 documents are validated against their own contracts and adapted in memory,
+    with the frozen fallback guide; the bytes they came from are never rewritten.
     """
     try:
         data = json.loads(content.decode("utf-8"))
@@ -135,6 +136,10 @@ def parse_run_document(content: bytes) -> RunDocument:
     try:
         if version == RUN_SCHEMA_VERSION:
             return RunDocument.model_validate_json(content)
+        if version == 2:
+            from gazua.reports import legacy_v2
+
+            return legacy_v2.adapt(legacy_v2.RunDocument.model_validate_json(content))
         from gazua.reports import legacy
 
         return legacy.adapt(legacy.RunDocument.model_validate_json(content))

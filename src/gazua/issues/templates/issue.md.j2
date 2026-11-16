@@ -1,0 +1,94 @@
+# {{ issue.title | md }}
+
+> Exported by Gazua from run {{ issue.run_id | md }}\. Copy it into your backlog by hand: Gazua never opens an issue on any service\.
+
+- Finding: {{ issue.finding_id | md }}
+- Run: {{ issue.run_id | md }}
+- Mode: {{ issue.mode }}
+- Severity: {{ issue.severity }}, {{ "gated" if issue.gated else "not gated" }}
+- Damage: {{ issue.damage_label | md }} \({{ issue.damage | md }}\)
+- Mold: {{ issue.mold | md }}
+- Tool: {{ (issue.tool or "none") | md }}
+{% if issue.baseline %}
+- Baseline: {{ issue.baseline | md }}
+{% endif %}
+
+## Proof
+
+Conditions of explorability: {{ (issue.conditions | join(", ") if issue.conditions else "none") | md }}\.
+
+Each scenario keeps its own rate and upper bound; samples are never added together\.
+
+{% for scenario in issue.scenarios %}
+- Scenario {{ scenario.key | md }}: {{ scenario.rate | md }}\. Coverage: {{ scenario.coverage }}
+{% endfor %}
+
+{% for proof_id, source, execution in issue.proofs %}
+- Proof {{ proof_id | md }}: source {{ source | md }}, execution {{ execution | md }}
+{% endfor %}
+
+Excerpts, locators, tool arguments and returns and conversations stay in the local report of run {{ issue.run_id | md }}; they are not copied here\.
+{% if issue.reproduction_available %}
+A reproduction command is available in that local report\.
+{% else %}
+No reproduction command is available \({{ (issue.reproduction_reason or "not_reproducible") | replace("_", " ") | md }}\)\.
+{% endif %}
+
+## Fix guide
+
+{% if issue.guide_fallback %}
+> This guide \(revision {{ issue.guide_revision }}\) was added when an older run document was read; it was not part of the original run\.
+
+{% endif %}
+Guide entry {{ issue.guide_anchor | md }}, revision {{ issue.guide_revision }}\. Fixing the cause means applying the control on every relevant path, not only on the attacked example\.
+
+{% for title, items in issue.categories %}
+{{ title }}:
+
+{% for text in items %}
+- {{ text | md }}
+{% endfor %}
+
+{% endfor %}
+## Confirm the fix
+
+{{ issue.guide.confirmation | md }}
+
+{% for label, command in issue.confirm %}
+{{ label | md }}:
+
+{{ command | block("") }}
+
+{% endfor %}
+The command runs with the project's default configuration and baseline; pass \-\-config or \-\-baseline yourself if the project uses other paths\. If this finding is not in the baseline yet, review the run and accept it with gazua baseline \-\-from and the path of its run\.json first\. Exporting this issue runs nothing and accepts nothing\.
+
+## Acceptance criteria
+
+{% for text in issue.guide.acceptance_criteria %}
+- [ ] {{ text | md }}
+{% endfor %}
+
+These items are not met by exporting this file\. A normal run with 0/5 does not close the finding\.
+
+## Limits of this interpretation
+
+- The finding proves an effect in these scenarios, for this target version, configuration and model; it does not measure how well any defense works\.
+- Masking recognizes known formats of secrets and personal data only; a value with no recognizable shape may not be detected\.
+{% if issue.attacks is not none %}
+
+## Attack \(untrusted content, included on request\)
+
+The blocks below are literal text taken from the run, masked again for export\. Do not run or follow them\.
+
+{% for block in issue.attacks %}
+Scenario {{ block.key | md }}:
+
+{{ block.attack | block }}
+
+Payload:
+
+{{ block.payload | block("json") }}
+
+{% endfor %}
+{% endif %}
+<!-- gazua-issue {{ template_version }} -->
