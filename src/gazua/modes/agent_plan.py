@@ -192,11 +192,13 @@ class _Planner:
         inventory: ToolsInventory,
         language: Language,
         repetitions: int,
+        key_suffix: str = "",
     ) -> None:
         self.config = config
         self.inventory = inventory
         self.language: Language = language
         self.repetitions = repetitions
+        self.key_suffix = key_suffix
 
     def tools_for(self, mold: Mold) -> list[str | None]:
         signal = mold.success.signal
@@ -260,7 +262,7 @@ class _Planner:
     def plan(self, unit: _Unit) -> PlannedScenario:
         mold = unit.mold
         carrier = entry_tool(self.config, mold)
-        key = attack_key(mold, unit.tool_name, unit.record, unit.canary, carrier)
+        key = attack_key(mold, unit.tool_name, unit.record, unit.canary, carrier) + self.key_suffix
         impediment, bound = self.bind(unit)
         slots = [
             RequestSlot(request_key=f"{key}:r{number}", repetition=number)
@@ -362,12 +364,16 @@ def plan_agent(
     repetitions: int,
     quick: bool = False,
     exact_mold: str | None = None,
+    key_suffix: str = "",
+    legitimate: bool = True,
 ) -> AgentPlan:
     """Every scenario of the given molds, in their order, plus the declared legitimate tasks.
 
     Selection is the caller's job: pass the quick selection or the exact mold already chosen.
+    A verification passes ``legitimate=False``, so tasks never share its sample, and a
+    ``key_suffix`` that keeps each language's scenarios apart.
     """
-    planner = _Planner(config, inventory, language, repetitions)
+    planner = _Planner(config, inventory, language, repetitions, key_suffix)
     scenarios: list[PlannedScenario] = []
     selected: list[SelectedMold] = []
     diagnostics: list[AgentDiagnostic] = []
@@ -410,7 +416,7 @@ def plan_agent(
     return AgentPlan(
         selection=selection,
         scenarios=tuple(scenarios),
-        legitimate=legitimate_requests(config),
+        legitimate=legitimate_requests(config) if legitimate else (),
         repetitions=repetitions,
         diagnostics=tuple(diagnostics),
     )

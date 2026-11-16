@@ -14,6 +14,8 @@ PUBLIC_DOCUMENTS = (
     "docs/tools-mode.md",
     "docs/agent-mode.md",
     "docs/verdicts.md",
+    "docs/baseline.md",
+    "docs/reports.md",
 )
 PLANNING_REFERENCE = re.compile(r"\b(PRD|F\d{2})\b|\.planning|\.harness|spec\.md|plan\.md")
 
@@ -239,3 +241,29 @@ def test_readme_and_guides_point_to_the_agent_mode_guide(project_root: Path) -> 
     for name in ("docs/configuration.md", "docs/execution.md", "docs/integration.md"):
         assert "agent-mode.md" in read(project_root, name)
     assert not re.search(r"approved|secure", read(project_root, "docs/agent-mode.md"), re.I)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "2 known findings, 0 new",
+        "0/20, up to ~14%: closed",
+        "nothing is closed by absence",
+        "never an empty baseline",
+        "No attack text, payload, conversation",
+        "baseline-v1.schema.json",
+        "run-v2.schema.json",
+        "not a byte-for-byte replay",
+        "An interruption never changes the state",
+    ],
+)
+def test_baseline_guide_states_flow_and_limits(project_root: Path, statement: str) -> None:
+    text = read(project_root, "docs/baseline.md") + read(project_root, "docs/reports.md")
+    assert statement in text
+
+
+def test_readme_points_to_the_baseline_guide(project_root: Path) -> None:
+    readme = read(project_root, "README.md")
+
+    assert "docs/baseline.md" in readme
+    assert "gazua verify" in readme

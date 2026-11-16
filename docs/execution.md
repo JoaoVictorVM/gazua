@@ -113,7 +113,9 @@ Gazua does not intercept HTTP libraries. A request your agent makes without `gaz
 
 ## Ctrl+C
 
-The first Ctrl+C stops new attempts, kills the active ones, records the rest as not tested with the reason `interrupted`, runs the final reset and writes the partial summary. A second Ctrl+C during the final reset aborts it, and the summary records that the reset did not finish.
+The first Ctrl+C stops new attempts, kills the active ones, records the rest as not tested with the reason `interrupted`, runs the final reset and writes the partial summary. A second Ctrl+C during the final reset aborts it, and the summary records that the reset did not finish. An interrupted `gazua verify` never changes the baseline, even after a success; its partial evidence is still saved.
+
+`gazua verify` uses this engine with one plan and one budget for all its repetitions: 20 per scenario and language, each a slot whose retries do not count as repetitions. It never raises a limit; when `--max-runs` or the known cost cannot fit every repetition it runs nothing and exits with 2. See [the baseline guide](baseline.md).
 
 ## What is recorded
 

@@ -17,6 +17,13 @@ from typing import Protocol, cast
 
 from pydantic import JsonValue
 
+from gazua.baseline.comparison import compare, effective_exit
+from gazua.baseline.models import (
+    BaselineDocument,
+    ScenarioReference,
+    VerificationResult,
+    scenario_digest,
+)
 from gazua.catalog.models import (
     DAMAGES,
     CallForbidden,
@@ -319,12 +326,22 @@ def build_run_document(
     diagnostics: Sequence[ReportDiagnostic] = (),
     legitimate_use: LegitimateUse | None = None,
     demo: bool = False,
+    baseline: BaselineDocument | None = None,
+    baseline_digest: str | None = None,
+    verification: VerificationResult | None = None,
+    references: Mapping[str, ScenarioReference] | None = None,
 ) -> RunDocument:
     """The validated document of one run. Each result appears once, in planned order.
 
     ``legitimate_use`` is agent mode's measurement of the declared tasks, carried as it is
     apart from tool names, which pass through the treatment like every other text. ``demo``
     marks a run of the scripted demo model; it changes no verdict, rate or exit code.
+
+    With ``baseline`` the document keeps a snapshot of the comparison and its exit code is the
+    effective one; native results and gates are unchanged. ``verification`` is the decision a
+    verification proposes; an error found while building the document downgrades it, so a
+    report with an error never proposes closure. ``references`` gives each scenario's original
+    digest and language when its key carries an operational suffix.
     """
     by_key = {context.attack_key: context for context in contexts}
     treated = _treated_verdicts(verdicts, treatment)
@@ -353,6 +370,10 @@ def build_run_document(
                     _payload(context, language), f"scenarios.{result.attack_key}.payload"
                 ),
                 reproduction=reproduction_for(reproduction.get(result.attack_key), treatment),
+                baseline_reference=(references or {}).get(result.attack_key)
+                or ScenarioReference(
+                    scenario_digest=scenario_digest(result.attack_key), language=language
+                ),
             )
         )
     items = [
@@ -385,8 +406,20 @@ def build_run_document(
     final_exit: ExitCode = (
         2 if any(item.level == "error" for item in all_diagnostics) else exit_code
     )
+    comparison = None
+    if baseline is not None:
+        comparison = compare(findings, baseline, baseline_digest or "")
+    decided = verification
+    if decided is not None:
+        if final_exit == 2:
+            decided = decided.downgraded("operational_error")
+        report_exit: ExitCode = decided.exit_code
+    elif comparison is not None:
+        report_exit = effective_exit(final_exit, comparison)
+    else:
+        report_exit = final_exit
     return RunDocument(
-        schema_version=1,
+        schema_version=2,
         run_id=run_id,
         metadata=RunMetadata(
             created_at=created_at,
@@ -408,8 +441,10 @@ def build_run_document(
         proofs=snapshots,
         fixes=fixes_for(language),
         diagnostics=all_diagnostics,
-        report_exit_code=final_exit,
+        report_exit_code=report_exit,
         legitimate_use=_treated_legitimate(legitimate_use, treatment),
+        baseline=comparison,
+        verification=decided,
     )
 
 

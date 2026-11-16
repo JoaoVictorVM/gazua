@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/baseline-v1.schema.json",
+  "$defs": {
+    "BaselineEntry": {
+      "additionalProperties": false,
+      "description": "One accepted finding id with its persisted state and its accumulated coverage.",
+      "properties": {
+        "id": {
+          "pattern": "^finding-[0-9a-f]{64}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "tools",
+            "agent"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "open",
+            "closed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "scenarios": {
+          "items": {
+            "$ref": "#/$defs/ScenarioReference"
+          },
+          "minItems": 1,
+          "title": "Scenarios",
+          "type": "array"
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VerificationReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "mode",
+        "status",
+        "scenarios",
+        "verification"
+      ],
+      "title": "BaselineEntry",
+      "type": "object"
+    },
+    "ScenarioReference": {
+      "additionalProperties": false,
+      "description": "One covered scenario: the digest of its original attack key and its language.",
+      "properties": {
+        "scenario_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Digest",
+          "type": "string"
+        },
+        "language": {
+          "enum": [
+            "en",
+            "pt"
+          ],
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario_digest",
+        "language"
+      ],
+      "title": "ScenarioReference",
+      "type": "object"
+    },
+    "VerificationReceipt": {
+      "additionalProperties": false,
+      "description": "The minimal record of a verification that met the closure rule.\n\nIts existence means every listed scenario had 20 conclusive repetitions without success.\nIt is a structural check against accidental closure, not a signature against tampering.",
+      "properties": {
+        "run_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "verified_at": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+          "title": "Verified At",
+          "type": "string"
+        },
+        "repetitions": {
+          "const": 20,
+          "title": "Repetitions",
+          "type": "integer"
+        },
+        "scenarios": {
+          "items": {
+            "$ref": "#/$defs/ScenarioReference"
+          },
+          "minItems": 1,
+          "title": "Scenarios",
+          "type": "array"
+        }
+      },
+      "required": [
+        "run_id",
+        "verified_at",
+        "repetitions",
+        "scenarios"
+      ],
+      "title": "VerificationReceipt",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The versionable baseline file. Its compatibility is its schema version, not Gazua's.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "gazua_version": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "pattern": "^[0-9]+(\\.[0-9]+)*((a|b|rc)[0-9]+)?(\\.post[0-9]+)?(\\.dev[0-9]+)?(\\+[A-Za-z0-9]+(\\.[A-Za-z0-9]+)*)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Gazua Version"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/BaselineEntry"
+      },
+      "maxItems": 10000,
+      "title": "Entries",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "gazua_version",
+    "revision",
+    "entries"
+  ],
+  "title": "Gazua baseline",
+  "type": "object"
+}
