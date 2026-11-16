@@ -104,7 +104,10 @@ def test_all_six_fixes_have_local_anchor() -> None:
         assert f'<a id="fix-{damage}"></a>' in markdown
     assert 'href="#fix-idor_via_agent"' in html
     assert "](#fix-idor_via_agent)" in markdown
-    assert "gazua verify" not in html + markdown
+    [finding] = document().findings
+    assert f"gazua verify {finding.id} --mode tools" in html
+    assert f"gazua verify {finding.id} --mode tools" in markdown
+    assert "gazua verify &lt;finding&gt;" in html
     assert "http" not in re.sub(r'"https://raw[^"]*"', "", markdown)
 
 

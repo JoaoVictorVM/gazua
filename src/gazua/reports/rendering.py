@@ -29,6 +29,7 @@ from gazua.baseline.presentation import (
 )
 from gazua.catalog.models import DAMAGES, Damage
 from gazua.reports.fixes import fix_anchor
+from gazua.reports.guide_models import GUIDE_CATEGORIES, FixGuide, GuideEntry
 from gazua.reports.models import Finding, ProofSnapshot, RunDocument, Scenario
 from gazua.reports.terminal import clean_terminal
 from gazua.verdicts.models import VERDICT_STATES, AttackResult, VerdictState
@@ -42,7 +43,9 @@ from gazua.verdicts.presentation import (
     summary_lines,
 )
 
-TEMPLATE_VERSION: Final = 1
+TEMPLATE_VERSION: Final = 2
+VERIFY_TEMPLATE: Final = "gazua verify <finding>"
+ISSUES_COMMAND: Final = "gazua issues"
 NO_REDACT_WARNING: Final = (
     "Warning: masking was disabled locally with --no-redact. This report may contain secrets "
     "and personal data; do not share or commit it."
@@ -124,10 +127,62 @@ class FindingView:
     scenarios: tuple[ScenarioView, ...]
     proofs: tuple[ProofSnapshot, ...]
     commands: tuple[tuple[str, str], ...]
+    confirm: tuple[tuple[str, str], ...] = ()
 
     @property
     def damage_label(self) -> str:
         return DAMAGE_LABELS[self.finding.damage]
+
+    @property
+    def issue_file(self) -> str:
+        return issue_file_name(self.finding)
+
+
+@dataclass(frozen=True, slots=True)
+class GuideView:
+    """One damage's guide entry as the report shows it, under its stable anchor."""
+
+    damage: Damage
+    short_fix: str
+    entry: GuideEntry
+
+    @property
+    def label(self) -> str:
+        return DAMAGE_LABELS[self.damage]
+
+    @property
+    def anchor(self) -> str:
+        return fix_anchor(self.damage)
+
+    @property
+    def categories(self) -> tuple[tuple[str, tuple[str, ...]], ...]:
+        return tuple((title, tuple(getattr(self.entry, name))) for name, title in GUIDE_CATEGORIES)
+
+
+def verify_argv(finding: Finding) -> list[str]:
+    """The confirmation command, built from fixed tokens and the validated id and mode only."""
+    return ["gazua", "verify", finding.id, "--mode", finding.mode]
+
+
+def issue_file_name(finding: Finding) -> str:
+    return f"{finding.id}.md"
+
+
+def guide_views(document: RunDocument) -> tuple[GuideView, ...]:
+    return tuple(
+        GuideView(damage, document.fixes[damage], document.guide.entry(damage))
+        for damage in DAMAGES
+    )
+
+
+def guide_notice(guide: FixGuide) -> str | None:
+    """Said only when the guide was not captured by the run itself."""
+    if guide.origin == "captured":
+        return None
+    return (
+        f"This guide (revision {guide.revision}) was added when this document was read; it was "
+        "not part of the original run."
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +266,7 @@ def build_view(document: RunDocument) -> ReportView:
             scenarios=tuple(views[key] for key in item.scenarios),
             proofs=tuple(snapshots[key] for key in item.proof_ids),
             commands=commands_for(item.reproduction.argv) if item.reproduction.available else (),
+            confirm=commands_for(verify_argv(item)),
         )
         for item in document.findings
     )
@@ -258,6 +314,11 @@ def _environment(markdown: bool) -> Any:
     return environment
 
 
+def markdown_environment() -> Any:
+    """The Markdown environment with the report's escaping filters, shared with issues."""
+    return _environment(True)
+
+
 def _context(document: RunDocument) -> dict[str, Any]:
     metadata = document.metadata
     return {
@@ -277,6 +338,10 @@ def _context(document: RunDocument) -> dict[str, Any]:
         "demo_notice": demo_notice(document),
         "comparison": comparison_view(document.baseline),
         "verification": verification_view(document.verification, metadata.mode),
+        "guides": guide_views(document),
+        "guide_notice": guide_notice(document.guide),
+        "verify_template": VERIFY_TEMPLATE,
+        "issues_command": ISSUES_COMMAND,
     }
 
 
@@ -414,6 +479,9 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
                 f"{finding.mold_id} with the same configuration."
             )
         lines.append(f"  Fix ({fix_anchor(finding.damage)}): {finding.fix}")
+        confirm = render_command(verify_argv(finding), chosen)  # type: ignore[arg-type]
+        if confirm is not None:
+            lines.append(f"  Confirm the fix: {confirm}")
     for diagnostic in document.diagnostics:
         where = f" ({diagnostic.field})" if diagnostic.field else ""
         lines.append(f"Report {diagnostic.level}: {diagnostic.code.replace('_', ' ')}{where}.")
