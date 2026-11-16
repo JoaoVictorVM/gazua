@@ -17,6 +17,8 @@ report: dict[str, Any] = {
     "credential_reads": [],
     "environment_listed": False,
     "opened_paths": [],
+    "processes": [],
+    "modules": [],
     "exit_code": None,
 }
 
@@ -48,6 +50,8 @@ def audit(event: str, args: tuple[object, ...]) -> None:
         report["opened_paths"].append(args[0])
     if event.startswith(("socket.", "http.", "urllib.", "ftplib.", "smtplib.")):
         report["network"].append(event)
+    if event in ("subprocess.Popen", "os.system", "os.posix_spawn", "os.spawn", "os.exec"):
+        report["processes"].append(event)
 
 
 def attempt_forbidden_actions() -> None:
@@ -138,4 +142,5 @@ if __name__ == "__main__":
     os.environ.__class__ = SpyEnviron
     sys.addaudithook(audit)
     report["exit_code"] = run_target(target_mode, target_arguments)
+    report["modules"] = sorted(sys.modules)
     Path(report_path).write_text(json.dumps(report), encoding="utf-8")

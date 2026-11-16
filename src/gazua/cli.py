@@ -226,7 +226,7 @@ LOAD_MESSAGES = {
     "run_file_invalid_json": "This file is not valid JSON.",
     "run_schema_version_unsupported": (
         "This run.json uses a schema version this Gazua does not know; it reads schema_version "
-        "1 and 2, so it needs a migration."
+        "1, 2 and 3, so it needs a migration."
     ),
     "run_file_invalid": "This run.json does not follow the run schema.",
 }
@@ -1060,9 +1060,109 @@ def verify_command(
     raise typer.Exit(outcome.exit_code)
 
 
+ISSUE_MESSAGES = {
+    "issues_unredacted_source": (
+        "This run.json was captured with --no-redact; issues are only exported from masked "
+        "runs. Run gazua run again without --no-redact."
+    ),
+    "issues_path_refused": (
+        ".gazua/issues/ or the run's folder in it is a link or not a plain directory; it was "
+        "left as it is."
+    ),
+    "issues_conflict": (
+        "This run's issues were already exported with other content or options. Pass "
+        "--overwrite to replace that export; manual edits in its files will be lost."
+    ),
+    "issues_unmanaged_destination": (
+        "The run's folder in .gazua/issues/ was not written by Gazua or holds other files; it "
+        "was left as it is. Move it away to export again."
+    ),
+    "issues_write_failed": (
+        "The issues could not be written to .gazua/issues/; the previous export was kept."
+    ),
+    "issues_recovery_failed": (
+        "An interrupted export in .gazua/issues/ could not be rolled back; check the folder's "
+        "permissions and run gazua issues again."
+    ),
+}
+
+
+@app.command(name="issues")
+def issues_command(
+    source: Annotated[
+        str,
+        typer.Option(
+            "--from",
+            metavar="PATH",
+            help="The local run.json whose findings become issues. Nothing is executed.",
+        ),
+    ] = DEFAULT_RUN_JSON.as_posix(),
+    include_attack: Annotated[
+        bool,
+        typer.Option(
+            "--include-attack",
+            help="Also copy each scenario's attack text and payload, still masked.",
+        ),
+    ] = False,
+    overwrite: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite",
+            help="Replace this run's previous export, even if its files were edited.",
+        ),
+    ] = False,
+) -> None:
+    """Write one Markdown issue per finding to .gazua/issues/<run-id>/, offline.
+
+    Each file has the finding id, the fix guide, the confirmation command and the acceptance
+    criteria, ready to copy into a backlog. Nothing is sent to any service.
+    """
+    from gazua.issues.export import export_issues
+    from gazua.issues.models import IssueExportError, IssueOptions
+    from gazua.reports.lifecycle import LockBusy
+    from gazua.reports.storage import RunLoadError, StorageError
+
+    if "://" in source:
+        raise _usage_error("--from takes a local run.json path, not a URL.")
+    options = IssueOptions(Path(source), include_attack=include_attack, overwrite=overwrite)
+    try:
+        result = export_issues(Path.cwd(), options)
+    except RunLoadError as error:
+        raise _usage_error(LOAD_MESSAGES.get(error.code, "This run.json cannot be read.")) from None
+    except IssueExportError as error:
+        raise _usage_error(
+            ISSUE_MESSAGES.get(error.code, "The issues could not be exported.")
+        ) from None
+    except LockBusy:
+        raise _usage_error(LOCK_BUSY) from None
+    except (StorageError, OSError):
+        raise _usage_error(ISSUE_MESSAGES["issues_write_failed"]) from None
+    except KeyboardInterrupt:
+        _say("Interrupted; no partial export was published.", err=True)
+        raise typer.Exit(130) from None
+    if result.status == "empty":
+        _say_lines([f"Run {result.run_id} has no finding; 0 issue files written."])
+        return
+    noun = "issue file" if result.count == 1 else "issue files"
+    if result.status == "unchanged":
+        _say_lines([f"{result.count} {noun} already up to date in {result.directory}/."])
+    else:
+        _say_lines([f"Wrote {result.count} {noun} to {result.directory}/."])
+    if include_attack:
+        _say(
+            "Warning: these issues include attack text and payloads. Masking only recognizes "
+            "known formats; review them before sharing.",
+            err=True,
+        )
+    _say("Copy them into your backlog by hand; Gazua never opens issues on any service.")
+
+
 @app.command(name="clean")
 def clean_command() -> None:
-    """Remove Gazua's runs, reports and evidence from ./.gazua. Unknown files stay."""
+    """Remove Gazua's runs, reports, evidence and issue exports from ./.gazua.
+
+    Unknown files stay.
+    """
     from gazua.reports.lifecycle import LifecycleLock, LockBusy, clean_runs
 
     root = Path.cwd()
@@ -1077,6 +1177,8 @@ def clean_command() -> None:
     except OSError:
         raise _usage_error("Cannot use .gazua/ in this folder.") from None
     _say(f"Removed {result.runs} runs and {result.files} report files.")
+    if result.issue_exports:
+        _say(f"Removed {result.issue_exports} issue exports.")
     if result.pending:
         _say("Could not remove these, check their permissions:", err=True)
         _say_lines([f"  {item}" for item in result.pending], err=True)
