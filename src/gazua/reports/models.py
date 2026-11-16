@@ -24,16 +24,17 @@ from gazua.baseline.models import (
 from gazua.catalog.models import DAMAGES, Damage, Entry, Language, Mode, Technique
 from gazua.config.models import SCHEMA_DIALECT, Severity
 from gazua.modes.agent_models import LegitimateUse
+from gazua.reports.guide_models import FixGuide
 from gazua.runtime.run_models import GazuaId, NonEmptyText, RunSummary, UtcTimestamp
 from gazua.verdicts.models import AttackKey, ProofCondition, VerdictSummary
 
 if TYPE_CHECKING:
-    from gazua.reports import legacy
+    from gazua.reports import legacy, legacy_v2
 
-RUN_SCHEMA_FILE = "run-v2.schema.json"
-RUN_SCHEMA_VERSION = 2
-SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2)
-PRESENTATION_VERSION = 1
+RUN_SCHEMA_FILE = "run-v3.schema.json"
+RUN_SCHEMA_VERSION = 3
+SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2, 3)
+PRESENTATION_VERSION = 2
 _SCHEMA_BASE = "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/"
 SEVERITY_ORDER: dict[Severity, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
@@ -177,7 +178,7 @@ class RunDocument(_Strict):
 
     model_config = ConfigDict(title="Gazua run document")
 
-    schema_version: Literal[2]
+    schema_version: Literal[3]
     run_id: GazuaId
     metadata: RunMetadata
     redaction: RedactionMode
@@ -193,10 +194,12 @@ class RunDocument(_Strict):
     legitimate_use: LegitimateUse | None = None
     baseline: BaselineComparison | None
     verification: VerificationResult | None
+    # The guide as the run captured it; reports never replace it with the installed catalog.
+    guide: FixGuide
 
     @model_validator(mode="after")
     def _consistent(self) -> RunDocument:
-        problems = [*check_document(self), *snapshot_problems(self)]
+        problems = [*check_document(self), *snapshot_problems(self), *guide_problems(self)]
         if problems:
             raise ValueError("; ".join(problems))
         return self
@@ -213,7 +216,9 @@ def _duplicates(values: list[str]) -> bool:
     return len(set(values)) != len(values)
 
 
-def check_document(document: RunDocument | legacy.RunDocument) -> list[str]:
+def check_document(
+    document: RunDocument | legacy.RunDocument | legacy_v2.RunDocument,
+) -> list[str]:
     """Every cross-reference rule the document must keep; empty when it is consistent."""
     problems: list[str] = []
     if document.engine.run_id != document.run_id or document.verdicts.run_id != document.run_id:
@@ -276,7 +281,9 @@ def check_document(document: RunDocument | legacy.RunDocument) -> list[str]:
     return problems
 
 
-def _legitimate_problems(document: RunDocument | legacy.RunDocument) -> list[str]:
+def _legitimate_problems(
+    document: RunDocument | legacy.RunDocument | legacy_v2.RunDocument,
+) -> list[str]:
     """A legacy document without the field is valid; tools mode never measures tasks."""
     measured = document.legitimate_use
     if measured is None:
@@ -293,7 +300,17 @@ def _legitimate_problems(document: RunDocument | legacy.RunDocument) -> list[str
     return []
 
 
-def snapshot_problems(document: RunDocument) -> list[str]:
+def guide_problems(document: RunDocument) -> list[str]:
+    """The guide speaks the run's language and resolves every finding's fix reference."""
+    problems: list[str] = []
+    if document.guide.language != document.metadata.language:
+        problems.append("The guide's language is the run's.")
+    if any(item.fix_ref not in document.guide.entries for item in document.findings):
+        problems.append("Every finding's fix reference resolves in the guide.")
+    return problems
+
+
+def snapshot_problems(document: RunDocument | legacy_v2.RunDocument) -> list[str]:
     """Rules of the scenario references and of the baseline and verification snapshots."""
     problems: list[str] = []
     verifying = document.verification is not None

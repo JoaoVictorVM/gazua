@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import jsonschema
 import pytest
@@ -14,6 +15,11 @@ from gazua.reports.legacy import (
     packaged_run_v1_json_schema,
     render_run_v1_json_schema,
 )
+from gazua.reports.legacy_v2 import (
+    build_run_v2_json_schema,
+    packaged_run_v2_json_schema,
+    render_run_v2_json_schema,
+)
 from gazua.reports.models import (
     RunDocument,
     build_run_json_schema,
@@ -25,21 +31,45 @@ from gazua.reports.storage import RunLoadError, document_json, parse_run_documen
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "tests" / "support" / "run-example.json"
+EXAMPLE_V2 = ROOT / "tests" / "support" / "run-example-v2.json"
 
 
-def test_generated_schema_matches_packaged_schema() -> None:
+def test_v3_schema_matches_generator() -> None:
     assert packaged_run_json_schema().replace("\r\n", "\n") == render_run_json_schema()
-    published = (ROOT / "src/gazua/schemas/run-v2.schema.json").read_text(encoding="utf-8")
+    published = (ROOT / "src/gazua/schemas/run-v3.schema.json").read_text(encoding="utf-8")
     assert published.replace("\r\n", "\n") == render_run_json_schema()
+    assert "guide" in build_run_json_schema()["required"]
 
 
-def test_v1_schema_remains_available() -> None:
-    assert packaged_run_v1_json_schema().replace("\r\n", "\n") == render_run_v1_json_schema()
-    published = (ROOT / "src/gazua/schemas/run-v1.schema.json").read_text(encoding="utf-8")
-    assert published.replace("\r\n", "\n") == render_run_v1_json_schema()
-    schema = build_run_v1_json_schema()
+@pytest.mark.parametrize(
+    ("packaged", "rendered", "built", "name", "example"),
+    [
+        (
+            packaged_run_v1_json_schema,
+            render_run_v1_json_schema,
+            build_run_v1_json_schema,
+            "run-v1.schema.json",
+            EXAMPLE,
+        ),
+        (
+            packaged_run_v2_json_schema,
+            render_run_v2_json_schema,
+            build_run_v2_json_schema,
+            "run-v2.schema.json",
+            EXAMPLE_V2,
+        ),
+    ],
+)
+def test_legacy_schemas_are_preserved(
+    packaged: Any, rendered: Any, built: Any, name: str, example: Path
+) -> None:
+    assert packaged().replace("\r\n", "\n") == rendered()
+    published = (ROOT / "src/gazua/schemas" / name).read_text(encoding="utf-8")
+    assert published.replace("\r\n", "\n") == rendered()
+    schema = built()
     jsonschema.Draft202012Validator.check_schema(schema)
-    jsonschema.validate(json.loads(EXAMPLE.read_text(encoding="utf-8")), schema)
+    jsonschema.validate(json.loads(example.read_text(encoding="utf-8")), schema)
+    assert "guide" not in schema["properties"]
 
 
 def test_examples_validate_against_schema() -> None:
@@ -56,7 +86,8 @@ def test_v1_adapts_without_baseline() -> None:
     adapted = parse_run_document(content)
 
     assert original["schema_version"] == 1
-    assert adapted.schema_version == 2
+    assert adapted.schema_version == 3
+    assert adapted.guide.origin == "legacy_fallback"
     assert adapted.baseline is None
     assert adapted.verification is None
     assert [item.attack_key for item in adapted.scenarios] == [
@@ -102,7 +133,7 @@ def test_v2_snapshot_invariants() -> None:
 
 def test_unknown_version_has_migration_diagnostic() -> None:
     data = json.loads(document_json(document()))
-    data["schema_version"] = 3
+    data["schema_version"] = 4
 
     with pytest.raises(RunLoadError) as caught:
         parse_run_document(json.dumps(data).encode())
