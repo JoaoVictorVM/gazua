@@ -29,7 +29,10 @@ Only verified results become findings. A finding carries:
 - the proof: the native locator (execution, call sequence, hit, evidence reference and facts) and a treated excerpt of the evidence;
 - the conditions of explorability, such as `fixture_specific` or `dry_run`;
 - the reproduction command for POSIX shells, PowerShell and cmd.exe;
-- a short fix and its reference, the damage name, anchored in the report as `fix-<damage>`.
+- a short fix and a link to its fix guide entry, anchored in the report as `fix-<damage>`;
+- the confirmation command, `gazua verify <finding-id> --mode <mode>`, and the name of its issue file, `<finding-id>.md`.
+
+Every report ends with the fix guide: for each of the six damages, what fixes the cause, what reduces the risk, what does not solve it, how to confirm a fix and its acceptance criteria. The guide is kept in `run.json`, so rebuilt reports show the guidance of the run. See [the fix guide](fix-guide.md) and [the issue export](issues.md).
 
 Scenarios of the same mold and tool, such as two victim records, belong to one finding but keep their own rates; rates are never added. The finding's severity is the highest of its scenarios and its gate is set when any of them is gated. Low findings of the same damage and tool are grouped on screen only; each keeps its id, proofs and counts.
 
@@ -85,7 +88,7 @@ gazua report --from .gazua/run.json
 gazua report --from /path/to/an/old/run.json
 ```
 
-`gazua report` reads a local `run.json` (at most 64 MiB and 64 levels deep), validates it and rewrites `report.html` and `report.md` in `.gazua/` of the current directory, with a copy of the source as `.gazua/run.json`. It does not import the target, read `gazua.yaml`, open the evidence files the document mentions or run any attack, and it does not create a run, change the history or the retention. The same document and the same Gazua version give the same reports. A document captured with `--no-redact` needs `--no-redact` again to be rebuilt, which is refused in CI. Documents with `schema_version` 1 and 2 are read; a document with schema version 1 is adapted in memory and the file is not rewritten. A baseline comparison or verification in the document is shown as it was saved, without reading the baseline file again. An unknown `schema_version` exits with 2 and asks for a migration.
+`gazua report` reads a local `run.json` (at most 64 MiB and 64 levels deep), validates it and rewrites `report.html` and `report.md` in `.gazua/` of the current directory, with a copy of the source as `.gazua/run.json`. It does not import the target, read `gazua.yaml`, open the evidence files the document mentions or run any attack, and it does not create a run, change the history or the retention. The same document and the same Gazua version give the same reports. A document captured with `--no-redact` needs `--no-redact` again to be rebuilt, which is refused in CI. Documents with `schema_version` 1, 2 and 3 are read; documents with schema version 1 or 2 are adapted in memory, with the frozen first revision of the fix guide marked as added on reading, and the file is not rewritten. A baseline comparison or verification in the document is shown as it was saved, without reading the baseline file again. An unknown `schema_version` exits with 2 and asks for a migration.
 
 `gazua run` writes under the folder of the configuration; `gazua report` and `gazua clean` work on the current directory.
 
@@ -99,13 +102,14 @@ Runs of [`gazua demo`](demo.md) carry `"demo": true` in `metadata`. Their termin
 | `.gazua/runs/<run-id>/run.json`, `report.html`, `report.md` | The run's own copies |
 | `.gazua/runs/<run-id>/manifest.json` | Written last; marks the folder as a finished Gazua run |
 | `.gazua/run.json`, `report.html`, `report.md` | The latest set |
+| `.gazua/issues/<run-id>/` | Issues written by `gazua issues`, with their `manifest.json`; never removed by retention |
 | `.gazua/.lifecycle.lock` | Lock held while a command uses `.gazua/` |
 
 The latest set is replaced as a recoverable transaction. If a publication is interrupted, the next command restores the previous set before reading or changing it. When the reports cannot be written, the summary in the terminal is still complete, the previous latest set is kept and the exit code is 2.
 
 After each new run, Gazua keeps the last 20 finished runs, ordered by date, and removes the oldest one with its engine folder. Only folders with a valid manifest count; unknown folders are never removed.
 
-`gazua clean` removes every finished run, the latest set and Gazua's temporary files. The baseline, `gazua-baseline.json`, lives outside `.gazua/` and is never removed by clean or retention. It keeps `.gazua/` itself, the lock file and anything it does not recognize, never follows links and refuses to run while another Gazua command holds the lock. Running it again removes nothing. A run folder from an older Gazua without a manifest is kept unless the engine's private marker identifies it as an interrupted run.
+`gazua clean` removes every finished run, the latest set, the managed issue exports and Gazua's temporary files. The baseline, `gazua-baseline.json`, lives outside `.gazua/` and is never removed by clean or retention. It keeps `.gazua/` itself, the lock file and anything it does not recognize, never follows links and refuses to run while another Gazua command holds the lock. Running it again removes nothing. A run folder from an older Gazua without a manifest is kept unless the engine's private marker identifies it as an interrupted run.
 
 A command that changes `.gazua/` takes the lock before the target is imported; a second command in the same project exits with 2 instead of waiting.
 
@@ -124,4 +128,4 @@ Gazua checks the ignore rule with `git check-ignore` when Git is available. A ru
 
 ## For other tools
 
-New run documents follow `src/gazua/schemas/run-v2.schema.json`, `schema_version` 2. Version 2 keeps every field of version 1 and adds `baseline_reference` to each scenario (the SHA-256 of its attack key and its language), `baseline`, the comparison with the baseline the run read, and `verification`, the decision of `gazua verify`; both are null when they do not apply. `report_exit_code` is the effective decision, while the native gates stay in `verdicts`. `src/gazua/schemas/run-v1.schema.json` describes the documents written before. The `baseline` object is the status projection CI consumers read: finding ids, states and gates, with no attack text. Its findings, scenarios, proof snapshots and fixed fix references are the contract later commands build on; they are available from `gazua.reports` without importing a target.
+New run documents follow `src/gazua/schemas/run-v3.schema.json`, `schema_version` 3. Version 3 keeps every field of version 2 and adds `guide`, the fix guide the run captured: its editorial `revision`, its `language`, its `origin` (`captured`, or `legacy_fallback` when it was added to an older document on reading) and one entry per damage with `fixes_cause`, `reduces_risk`, `does_not_solve`, `confirmation` and `acceptance_criteria`. `src/gazua/schemas/run-v2.schema.json` describes the documents written before it. Version 2 keeps every field of version 1 and adds `baseline_reference` to each scenario (the SHA-256 of its attack key and its language), `baseline`, the comparison with the baseline the run read, and `verification`, the decision of `gazua verify`; both are null when they do not apply. `report_exit_code` is the effective decision, while the native gates stay in `verdicts`. `src/gazua/schemas/run-v1.schema.json` describes the documents written before. The `baseline` object is the status projection CI consumers read: finding ids, states and gates, with no attack text. Its findings, scenarios, proof snapshots and fixed fix references are the contract later commands build on; they are available from `gazua.reports` without importing a target.

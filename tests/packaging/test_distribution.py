@@ -560,7 +560,11 @@ REPORT_FILES = (
     "reports/builder.py",
     "reports/capture.py",
     "reports/fixes.py",
+    "reports/guide_models.py",
+    "reports/guides/fallback-r1.json",
     "reports/legacy.py",
+    "reports/legacy_guides.py",
+    "reports/legacy_v2.py",
     "reports/lifecycle.py",
     "reports/models.py",
     "reports/redaction.py",
@@ -573,7 +577,9 @@ REPORT_FILES = (
     "reports/assets/report.js",
     "schemas/run-v1.schema.json",
     "schemas/run-v2.schema.json",
+    "schemas/run-v3.schema.json",
 )
+RUN_SCHEMAS = ("run-v1.schema.json", "run-v2.schema.json", "run-v3.schema.json")
 
 
 def test_report_assets_schema_and_guide_are_distributed(
@@ -595,7 +601,7 @@ def test_report_assets_schema_and_guide_are_distributed(
     script = copy / ".github/scripts/generate_report_schema.py"
     script.parent.mkdir(parents=True)
     shutil.copy(project_root / ".github/scripts/generate_report_schema.py", script)
-    for generated_name in ("run-v1.schema.json", "run-v2.schema.json"):
+    for generated_name in RUN_SCHEMAS:
         (schemas / generated_name).unlink()
     earlier = {path.name: path.read_bytes() for path in schemas.iterdir()}
     generated = run_isolated(
@@ -604,7 +610,7 @@ def test_report_assets_schema_and_guide_are_distributed(
     assert generated.returncode == 0, generated.stderr
     for name, content in earlier.items():
         assert (schemas / name).read_bytes() == content
-    for generated_name in ("run-v1.schema.json", "run-v2.schema.json"):
+    for generated_name in RUN_SCHEMAS:
         published = (project_root / "src/gazua/schemas" / generated_name).read_bytes()
         assert (schemas / generated_name).read_bytes() == published.replace(b"\r\n", b"\n")
 
@@ -627,6 +633,7 @@ def test_report_assets_schema_and_guide_are_distributed(
     html = (workdir / ".gazua" / "report.html").read_text(encoding="utf-8")
     assert "Content-Security-Policy" in html
     assert 'id="fix-idor_via_agent"' in html
+    assert "added when this document was read" in html
     probe = "\n".join(
         [
             "import sys",
@@ -663,7 +670,7 @@ def test_agent_guide_and_schemas_ship(
     for module in AGENT_MODULES:
         assert f"gazua/modes/{module}.py" in wheel_files
         assert f"src/gazua/modes/{module}.py" in sdist_files
-    for schema in ("config-v1.schema.json", "run-v1.schema.json", "run-v2.schema.json"):
+    for schema in ("config-v1.schema.json", *RUN_SCHEMAS):
         assert wheel_files[f"gazua/schemas/{schema}"].replace(b"\r\n", b"\n") == sdist_files[
             f"src/gazua/schemas/{schema}"
         ].replace(b"\r\n", b"\n")

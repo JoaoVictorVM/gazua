@@ -75,7 +75,7 @@ A missing default file means no baseline. A file that exists but cannot be read 
 
 Errors name the code and the field, never the rejected content.
 
-The report keeps a snapshot of the comparison: the baseline's revision and digest and the state of each finding. `gazua report --from` rebuilds it from that snapshot alone, even if the baseline changed or was removed. `run.json` is now written with `schema_version` 2; documents with schema version 1 are still read and rebuilt, with no comparison. Both schemas are published in `src/gazua/schemas/`.
+The report keeps a snapshot of the comparison: the baseline's revision and digest and the state of each finding. `gazua report --from` rebuilds it from that snapshot alone, even if the baseline changed or was removed. `run.json` is written with `schema_version` 3, which adds the fix guide; documents with schema version 2 keep their comparison and verification when read, and documents with schema version 1 are still read and rebuilt, with no comparison. Every schema is published in `src/gazua/schemas/`.
 
 ## Verifying a fix with `gazua verify`
 
