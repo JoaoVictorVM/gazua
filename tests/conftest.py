@@ -685,3 +685,19 @@ def reused_demo(tmp_path_factory: pytest.TempPathFactory, clean_demo: Any) -> An
     result = run_demo_process(host, _demo_environment())
     run = DemoRun(host=host, result=result)
     return {"run": run, "clean": cleaned, "after_clean": after_clean, "left": left}
+
+
+BENCHMARK_SELECTION = ("idor-01", "idor-04", "secret-01", "permission-03", "output-02")
+
+
+@pytest.fixture(scope="session")
+def benchmark_selection(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """One real benchmark run over a few molds, shared by the benchmark integration tests."""
+    from benchmarks.selftest.runner import BenchmarkOptions, run_benchmark
+
+    root = tmp_path_factory.mktemp("benchmark")
+    return run_benchmark(
+        BenchmarkOptions(molds=list(BENCHMARK_SELECTION), output=str(root / "out")),
+        root=root,
+        say=lambda _line: None,
+    )

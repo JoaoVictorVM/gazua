@@ -59,7 +59,7 @@
       "fixture_id": "invoice-victim-7",
       "representative": {
         "mode": "tools",
-        "mold_id": "idor-04",
+        "mold_id": "idor-01",
         "tool": "get_invoice",
         "signal": "victim_record_access"
       },
@@ -380,7 +380,49 @@
       "requirement": "Native TypeScript instrumentation package."
     }
   ],
-  "checks": [],
+  "checks": [
+    {
+      "id": "canary-redaction",
+      "kind": "builtin",
+      "description": "The canary is detected by its native signal; reports keep it only as a whole value."
+    },
+    {
+      "id": "cli-parity",
+      "kind": "builtin",
+      "description": "gazua run --tools agrees with the programmatic run on exit code, states and findings."
+    },
+    {
+      "id": "dry-run-spy",
+      "kind": "builtin",
+      "description": "Zero real calls of tools that are not safe, nested and async paths included; no network or credential read."
+    },
+    {
+      "id": "legitimate-tasks",
+      "kind": "builtin",
+      "description": "The hardened target still serves the legitimate requests of its own users."
+    },
+    {
+      "id": "report-xss",
+      "kind": "builtin",
+      "description": "Payloads stay inert in the generated HTML report, under its content security policy."
+    },
+    {
+      "id": "verdict-properties",
+      "kind": "pytest",
+      "description": "Hypothesis properties of verdicts over evidence, retries and correlation.",
+      "tests": [
+        "tests/unit/test_verdict_properties.py"
+      ]
+    },
+    {
+      "id": "yaml-fuzz",
+      "kind": "pytest",
+      "description": "Bounded fuzzing of the YAML data profile.",
+      "tests": [
+        "tests/unit/test_benchmark_yaml_fuzz.py"
+      ]
+    }
+  ],
   "cases": [
     {
       "case_id": "idor-01-tools-python-vulnerable",

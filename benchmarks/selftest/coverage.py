@@ -7,6 +7,7 @@ to a missing mold makes the matrix invalid.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 from collections.abc import Iterable, Sequence
@@ -58,7 +59,9 @@ class Catalog:
         return [entry for entry in self.entries if entry.introduced_in == release]
 
 
+@functools.cache
 def load_packaged_catalog() -> Catalog:
+    """The installed catalog, read once per process; it cannot change while one runs."""
     loaded = load_catalog(release=RELEASES[-1])
     if loaded.has_errors:
         raise MatrixError(["the packaged catalog has errors"])

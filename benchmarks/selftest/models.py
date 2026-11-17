@@ -235,7 +235,7 @@ class CellResult(_Strict):
     observed_states: StateMap = Field(default_factory=dict[str, NativeState])
     expected_findings: list[FindingKey] = Field(default_factory=list[FindingKey])
     observed_findings: list[FindingKey] = Field(default_factory=list[FindingKey])
-    finding_ids: list[Annotated[str, Field(pattern=r"^GZ-[0-9a-f]{12}$")]] = Field(
+    finding_ids: list[Annotated[str, Field(pattern=r"^finding-[0-9a-f]{64}$")]] = Field(
         default_factory=list[str]
     )
     run_document: Annotated[str, Field(max_length=300)] | None = None
