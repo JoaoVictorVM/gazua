@@ -1,0 +1,573 @@
+{
+  "$defs": {
+    "CellResult": {
+      "additionalProperties": false,
+      "description": "One cell's outcome. Pending and error cells say why; passed target cells name a run.",
+      "properties": {
+        "case_id": {
+          "maxLength": 80,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "target",
+            "mutation",
+            "check"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mold_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mold Id"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "tools",
+                "agent"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mode"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "enum": [
+                "en",
+                "pt"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Language"
+        },
+        "framework": {
+          "anyOf": [
+            {
+              "enum": [
+                "python",
+                "anthropic",
+                "openai-agents",
+                "langgraph",
+                "mcp-typescript",
+                "typescript-native"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Framework"
+        },
+        "variant": {
+          "anyOf": [
+            {
+              "enum": [
+                "vulnerable",
+                "hardened",
+                "no-tools",
+                "mutant"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Variant"
+        },
+        "fixture_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Fixture Id"
+        },
+        "disabled_control": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Disabled Control"
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "pending",
+            "error"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "positive": {
+          "default": false,
+          "title": "Positive",
+          "type": "boolean"
+        },
+        "negative": {
+          "default": false,
+          "title": "Negative",
+          "type": "boolean"
+        },
+        "observed_states": {
+          "patternProperties": {
+            "^(-|[a-z][a-z0-9_]*)#(-|[0-9]+)#(-|[0-9]+)$": {
+              "enum": [
+                "finding",
+                "resisted",
+                "not_tested",
+                "not_applicable",
+                "conditional_risk"
+              ],
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 100
+          },
+          "title": "Observed States",
+          "type": "object"
+        },
+        "expected_findings": {
+          "items": {
+            "$ref": "#/$defs/FindingKey"
+          },
+          "title": "Expected Findings",
+          "type": "array"
+        },
+        "observed_findings": {
+          "items": {
+            "$ref": "#/$defs/FindingKey"
+          },
+          "title": "Observed Findings",
+          "type": "array"
+        },
+        "finding_ids": {
+          "items": {
+            "pattern": "^GZ-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Finding Ids",
+          "type": "array"
+        },
+        "run_document": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Document"
+        },
+        "diagnostics": {
+          "items": {
+            "maxLength": 80,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Diagnostics",
+          "type": "array"
+        },
+        "dependency": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency"
+        }
+      },
+      "required": [
+        "case_id",
+        "kind",
+        "mold_id",
+        "mode",
+        "language",
+        "framework",
+        "variant",
+        "fixture_id",
+        "disabled_control",
+        "outcome"
+      ],
+      "title": "CellResult",
+      "type": "object"
+    },
+    "Counts": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_cells": {
+          "minimum": 0,
+          "title": "Expected Cells",
+          "type": "integer"
+        },
+        "passed_cells": {
+          "minimum": 0,
+          "title": "Passed Cells",
+          "type": "integer"
+        },
+        "failed_cells": {
+          "minimum": 0,
+          "title": "Failed Cells",
+          "type": "integer"
+        },
+        "pending_cells": {
+          "minimum": 0,
+          "title": "Pending Cells",
+          "type": "integer"
+        },
+        "error_cells": {
+          "minimum": 0,
+          "title": "Error Cells",
+          "type": "integer"
+        },
+        "positive_expected": {
+          "minimum": 0,
+          "title": "Positive Expected",
+          "type": "integer"
+        },
+        "positive_detected": {
+          "minimum": 0,
+          "title": "Positive Detected",
+          "type": "integer"
+        },
+        "negative_expected": {
+          "minimum": 0,
+          "title": "Negative Expected",
+          "type": "integer"
+        },
+        "false_alarm_cells": {
+          "minimum": 0,
+          "title": "False Alarm Cells",
+          "type": "integer"
+        },
+        "unexpected_findings": {
+          "minimum": 0,
+          "title": "Unexpected Findings",
+          "type": "integer"
+        },
+        "controls_expected": {
+          "minimum": 0,
+          "title": "Controls Expected",
+          "type": "integer"
+        },
+        "controls_detected": {
+          "minimum": 0,
+          "title": "Controls Detected",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected_cells",
+        "passed_cells",
+        "failed_cells",
+        "pending_cells",
+        "error_cells",
+        "positive_expected",
+        "positive_detected",
+        "negative_expected",
+        "false_alarm_cells",
+        "unexpected_findings",
+        "controls_expected",
+        "controls_detected"
+      ],
+      "title": "Counts",
+      "type": "object"
+    },
+    "FindingKey": {
+      "additionalProperties": false,
+      "description": "A finding by meaning, comparable across targets and frameworks.\n\n``tool`` is the canonical tool, or null for a signal the matrix declares tool independent.",
+      "properties": {
+        "mode": {
+          "enum": [
+            "tools",
+            "agent"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "mold_id": {
+          "maxLength": 80,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Mold Id",
+          "type": "string"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tool"
+        },
+        "signal": {
+          "maxLength": 80,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Signal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "mold_id",
+        "tool",
+        "signal"
+      ],
+      "title": "FindingKey",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Commit"
+        },
+        "commit_unavailable": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commit Unavailable"
+        },
+        "dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dirty"
+        },
+        "gazua_version": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gazua Version"
+        },
+        "matrix_revision": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Matrix Revision",
+          "type": "string"
+        },
+        "matrix_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Matrix Digest",
+          "type": "string"
+        },
+        "catalog_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Catalog Digest",
+          "type": "string"
+        },
+        "runtime": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Runtime",
+          "type": "string"
+        },
+        "dependencies": {
+          "additionalProperties": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "propertyNames": {
+            "maxLength": 500,
+            "minLength": 1
+          },
+          "title": "Dependencies",
+          "type": "object"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        }
+      },
+      "required": [
+        "commit",
+        "dirty",
+        "gazua_version",
+        "matrix_revision",
+        "matrix_digest",
+        "catalog_digest",
+        "runtime"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "``benchmark.json``. Counts are derived from the cells and checked again here.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "profile": {
+      "enum": [
+        "release",
+        "full",
+        "real"
+      ],
+      "title": "Profile",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "incomplete"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "scope": {
+      "enum": [
+        "selection",
+        "release",
+        "full"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "simulated": {
+      "title": "Simulated",
+      "type": "boolean"
+    },
+    "catalog_release": {
+      "pattern": "^(v[0-9]+\\.[0-9]+|all)$",
+      "title": "Catalog Release",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "counts": {
+      "$ref": "#/$defs/Counts"
+    },
+    "cells": {
+      "items": {
+        "$ref": "#/$defs/CellResult"
+      },
+      "title": "Cells",
+      "type": "array"
+    },
+    "gaps": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Gaps",
+      "type": "array"
+    },
+    "artifacts": {
+      "items": {
+        "maxLength": 300,
+        "type": "string"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "profile",
+    "status",
+    "scope",
+    "simulated",
+    "catalog_release",
+    "provenance",
+    "counts",
+    "cells",
+    "artifacts"
+  ],
+  "title": "Gazua self-test benchmark result",
+  "type": "object"
+}
