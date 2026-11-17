@@ -28,7 +28,7 @@ from gazua.modes.tools_models import (
     ToolsOptions,
     ToolsResult,
 )
-from gazua.modes.tools_plan import ToolsPlan, plan_tools
+from gazua.modes.tools_plan import ToolsPlan, plan_tools, proven_without_tools
 from gazua.runtime.budget import decimal_text
 from gazua.runtime.evidence import EvidenceRedactor, PrivateEvidence
 from gazua.runtime.run_models import (
@@ -240,7 +240,9 @@ def run_tools(
     contexts = plan.contexts
     diagnostics = list(plan.diagnostics)
     blocked: list[str] = []
-    if not found.runnable:
+    # A target proven to have no tool is not a configuration problem: every mold is simply
+    # not applicable. Declared but unregistered or unsafe tools still stop the run.
+    if not found.runnable and not proven_without_tools(config, found):
         blocked.append("no_runnable_tool")
         diagnostics.append(ToolsDiagnostic(code="no_runnable_tool"))
         if config.tools and not any(tool.registered for tool in found.tools):
