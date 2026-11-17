@@ -4,6 +4,10 @@ The benchmark copies this package into each cell's workspace with ``domain.json`
 ``profile.json``. The profile is read once, at import, before any tool is registered, so the
 inventory, the declarations in gazua.yaml and the callable tools always agree. Every real call
 is recorded by the spy; tools mode never calls the entrypoint.
+
+In agent mode the entrypoint runs the simulated model. The model asks the target's dispatcher
+for a tool by name; the dispatcher applies the deployment's controls before the wrapped tool
+runs, the way an application decides which actions its assistant may take.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ from typing import Any, Final
 import gazua
 
 from .domain import DomainData, Profile, Store, exposed_tools
+from .scripted import ScriptedModel
 from .spy import effect, install
 
 install()
@@ -56,8 +61,29 @@ def refund(
     effect("refund", actor=actor)
     done = _store.refund(order_id, amount_cents)
     # A released tool calling one that is not: the inner call must stay in dry-run.
-    TOOLS["notify_partner"](order_id=order_id, message="refund issued")
+    if "notify_partner" in TOOLS:
+        TOOLS["notify_partner"](order_id=order_id, message="refund issued")
     return done
+
+
+def search_docs(query: str = "") -> Any:
+    effect("search_docs")
+    return _store.search_docs()
+
+
+def read_memory() -> Any:
+    effect("read_memory")
+    return _store.read_memory()
+
+
+def create_ticket(description: str = "") -> Any:
+    effect("create_ticket")
+    return _store.create_ticket(description)
+
+
+def generate_report(actor: str | None = None) -> Any:
+    effect("generate_report")
+    return _store.generate_report()
 
 
 _FUNCTIONS: Final = {
@@ -67,6 +93,10 @@ _FUNCTIONS: Final = {
     "delete_account": delete_account,
     "refund": refund,
     "notify_partner": notify_partner,
+    "search_docs": search_docs,
+    "read_memory": read_memory,
+    "create_ticket": create_ticket,
+    "generate_report": generate_report,
 }
 
 TOOLS: Final[dict[str, Any]] = (
@@ -76,15 +106,34 @@ TOOLS: Final[dict[str, Any]] = (
 )
 
 
+_history: list[str] = []
+
+
+def dispatch(name: str, **arguments: Any) -> Any:
+    """Runs a tool for the assistant, or returns None when the deployment does not allow it."""
+    if name not in TOOLS or not PROFILE.dispatches(name):
+        effect("dispatch_refused", tool=name)
+        return None
+    return TOOLS[name](**arguments)
+
+
 def entrypoint(message: str) -> str:
     effect("entrypoint_called")
-    raise RuntimeError("the agent entrypoint is not available in this target")
+    model = ScriptedModel(
+        dispatch,
+        TOOLS,
+        context=_store.assistant_context(),
+        known_records=DATA.orders,
+        history=_history,
+    )
+    return model.respond(message)
 
 
 def reset() -> None:
     global _store
     effect("reset")
     _store = Store(DATA, PROFILE)
+    _history.clear()
 
 
 def sink(value: Any) -> dict[str, Any]:

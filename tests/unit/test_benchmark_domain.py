@@ -2,8 +2,10 @@ from pathlib import Path
 
 import pytest
 from benchmarks.selftest.targets.domain import (
+    AGENT_MODE,
     CONTROLS,
     DECLARATIONS,
+    TOOLS_MODE,
     DomainData,
     Profile,
     Store,
@@ -32,7 +34,8 @@ def test_profiles_disable_exactly_one_control() -> None:
 
 
 def test_surface_removal_changes_registration_and_declaration() -> None:
-    assert exposed_tools(Profile.build("vulnerable")) == tuple(sorted(DECLARATIONS))
+    assert exposed_tools(Profile.build("vulnerable")) == TOOLS_MODE
+    assert set(TOOLS_MODE) | set(AGENT_MODE) == set(DECLARATIONS)
     assert exposed_tools(Profile.build("hardened")) == ("get_invoice", "get_note", "get_order")
     assert exposed_tools(Profile.build("no-tools")) == ()
     assert "delete_account" in exposed_tools(Profile.build("mutant", "forbidden-tool-exposure"))
@@ -84,3 +87,20 @@ def test_store_copies_never_leak_state(data: DomainData) -> None:
     assert store.get_order("order-victim-1", None)["user_id"] == data.victim  # type: ignore[index]
     with pytest.raises(ValueError, match="positive"):
         store.refund("order-attacker-1", 0)
+
+
+def test_agent_dispatcher_keeps_tools_declared_and_refuses_them() -> None:
+    hardened = Profile.build("hardened", mode="agent")
+    vulnerable = Profile.build("vulnerable", mode="agent")
+    assert exposed_tools(hardened) == exposed_tools(vulnerable) == AGENT_MODE
+    assert exposed_tools(Profile.build("no-tools", mode="agent")) == ()
+    for tool in ("delete_account", "refund", "generate_report"):
+        assert vulnerable.dispatches(tool)
+        assert not hardened.dispatches(tool)
+    assert hardened.dispatches("get_order")
+    assert Profile.build("mutant", "sensitive-operation", mode="agent").dispatches("refund")
+
+
+def test_assistant_context_follows_minimization(data: DomainData) -> None:
+    assert Store(data, Profile.build("vulnerable", mode="agent")).assistant_context() == data.canary
+    assert Store(data, Profile.build("hardened", mode="agent")).assistant_context() is None

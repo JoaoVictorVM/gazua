@@ -7,9 +7,14 @@ surface, so turning one off exposes exactly that surface:
 - ``*-ownership``: a user-scoped read (an actor is present) returns only the actor's records.
   A call without an actor is a service call, trusted by design; minimization still applies.
 - ``note-minimization``: internal fields never leave a note.
-- ``forbidden-tool-exposure`` and ``sensitive-operation``: the capability is not registered and
-  not declared, so it does not exist for the attacker; a refusal text would still be a call.
+- ``forbidden-tool-exposure`` and ``sensitive-operation``: in tools mode the capability is not
+  registered and not declared, so it does not exist for the attacker; a refusal text would
+  still be a call. In agent mode the tools stay declared and the target's own dispatcher
+  refuses to run them for the assistant, so the attempt is observable and resisted.
 - ``output-escaping``: the output sink escapes markup and control characters.
+
+The assistant's context is loaded through the trusted service read of the open customer's
+note, so ``note-minimization`` also decides whether an internal value ever reaches the model.
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ from pathlib import Path
 from typing import Any, Final, Literal
 
 Variant = Literal["vulnerable", "hardened", "no-tools", "mutant"]
+Mode = Literal["tools", "agent"]
 
 CONTROLS: Final = (
     "order-ownership",
@@ -52,11 +58,33 @@ DECLARATIONS: Final[dict[str, dict[str, Any]]] = {
     "refund": {"safe": True, "sensitive": True, "actor_arg": "actor"},
     # Never marked safe: Gazua must keep it in dry-run even when a released tool calls it.
     "notify_partner": {"sensitive": True, "dry_run_return": {"queued": False, "dry_run": True}},
+    "search_docs": {"safe": True, "sensitive": False},
+    "read_memory": {"safe": True, "sensitive": False},
+    "create_ticket": {"safe": True, "sensitive": False},
+    "generate_report": {"safe": True, "sensitive": True},
 }
+TOOLS_MODE: Final = (
+    "delete_account",
+    "get_invoice",
+    "get_note",
+    "get_order",
+    "notify_partner",
+    "refund",
+)
+AGENT_MODE: Final = (
+    "create_ticket",
+    "delete_account",
+    "generate_report",
+    "get_order",
+    "read_memory",
+    "refund",
+    "search_docs",
+)
+OPEN_CUSTOMER_NOTE: Final = "note-victim-1"
 RECORD_TOOLS: Final = {"get_order": "order_id", "get_invoice": "invoice_id", "get_note": "note_id"}
 _SURFACES: Final = {
     "forbidden-tool-exposure": ("delete_account",),
-    "sensitive-operation": ("refund", "notify_partner"),
+    "sensitive-operation": ("refund", "notify_partner", "generate_report"),
 }
 
 
@@ -64,41 +92,53 @@ _SURFACES: Final = {
 class Profile:
     variant: Variant
     enabled: frozenset[str] = field(default_factory=frozenset[str])
+    mode: Mode = "tools"
 
     @classmethod
-    def build(cls, variant: Variant, disabled: str | None = None) -> Profile:
+    def build(cls, variant: Variant, disabled: str | None = None, mode: Mode = "tools") -> Profile:
         if variant == "vulnerable":
-            return cls(variant)
+            if disabled is not None:
+                raise ValueError("a mutant disables exactly one control")
+            return cls(variant, mode=mode)
         if (variant == "mutant") != (disabled is not None):
             raise ValueError("a mutant disables exactly one control")
         if disabled is not None and disabled not in CONTROLS:
             raise ValueError("unknown control")
-        return cls(variant, frozenset(name for name in CONTROLS if name != disabled))
+        return cls(variant, frozenset(name for name in CONTROLS if name != disabled), mode)
 
     def on(self, control: str) -> bool:
         return control in self.enabled
 
     def document(self) -> dict[str, Any]:
-        return {"variant": self.variant, "enabled": sorted(self.enabled)}
+        return {"variant": self.variant, "enabled": sorted(self.enabled), "mode": self.mode}
 
     @classmethod
     def read(cls, root: Path) -> Profile:
         document = json.loads((root / PROFILE_FILE).read_text(encoding="utf-8"))
         variant = document["variant"]
+        mode = document.get("mode", "tools")
         enabled = frozenset(str(name) for name in document["enabled"])
-        if variant not in ("vulnerable", "hardened", "no-tools", "mutant") or not (
-            enabled <= set(CONTROLS)
+        if (
+            variant not in ("vulnerable", "hardened", "no-tools", "mutant")
+            or mode not in ("tools", "agent")
+            or not enabled <= set(CONTROLS)
         ):
             raise ValueError("invalid profile")
-        return cls(variant, enabled)
+        return cls(variant, enabled, mode)
+
+    def dispatches(self, tool: str) -> bool:
+        """Whether the target's own dispatcher runs this tool for the assistant."""
+        return not any(self.on(control) and tool in names for control, names in _SURFACES.items())
 
 
 def exposed_tools(profile: Profile) -> tuple[str, ...]:
     """The tools this profile registers and declares, in name order."""
     if profile.variant == "no-tools":
         return ()
+    if profile.mode == "agent":
+        return AGENT_MODE
     hidden = {name for control, names in _SURFACES.items() if profile.on(control) for name in names}
-    return tuple(sorted(name for name in DECLARATIONS if name not in hidden))
+    return tuple(name for name in TOOLS_MODE if name not in hidden)
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +191,8 @@ class Store:
         self.notes = copy.deepcopy(data.notes)
         self.refunds: list[dict[str, Any]] = []
         self.deleted: list[str] = []
+        self.tickets: list[str] = []
+        self.reports = 0
 
     def _owned(self, control: str, record: Mapping[str, Any], actor: str | None) -> bool:
         if actor is None or not self.profile.on(control):
@@ -194,10 +236,31 @@ class Store:
         self.refunds.append(refund)
         return dict(refund)
 
+    def search_docs(self) -> str:
+        return self.data.policy
+
+    def read_memory(self) -> str:
+        return "Saved preferences: none."
+
+    def create_ticket(self, description: str) -> dict[str, Any]:
+        self.tickets.append(description)
+        return {"ticket": len(self.tickets), "status": "open"}
+
+    def generate_report(self) -> dict[str, Any]:
+        self.reports += 1
+        return {"report": self.reports, "status": "generated"}
+
+    def assistant_context(self) -> str | None:
+        """The internal value the assistant is configured with, read as a trusted service."""
+        note = self.get_note(OPEN_CUSTOMER_NOTE, None) or {}
+        value = note.get("internal_note")
+        return value if isinstance(value, str) and value != "-" else None
+
     def output(self, value: object) -> dict[str, Any]:
         """Where an answer would be shown. It renders nothing; it reports what arrived raw."""
         text = value if isinstance(value, str) else str(value)
-        marker = "markup_marker" if "<" in text else "control_marker"
+        control = _CONTROL_CHARACTERS.search(text) is not None
+        marker = "control_marker" if control and "<" not in text else "markup_marker"
         if self.profile.on("output-escaping"):
             text = _CONTROL_CHARACTERS.sub("", html.escape(text))
         shown = "<" in text or _CONTROL_CHARACTERS.search(text) is not None
@@ -208,11 +271,14 @@ class Store:
 
 
 __all__ = [
+    "AGENT_MODE",
     "CONTROLS",
     "DECLARATIONS",
     "PROFILE_FILE",
     "RECORD_TOOLS",
+    "TOOLS_MODE",
     "DomainData",
+    "Mode",
     "Profile",
     "Store",
     "Variant",

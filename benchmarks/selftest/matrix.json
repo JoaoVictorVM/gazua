@@ -1201,8 +1201,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "get_order#0#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-05-agent-python-hardened",
@@ -1215,8 +1217,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "get_order#0#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-05-agent-python-no-tools",
@@ -1229,8 +1233,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-06-agent-python-vulnerable",
@@ -1243,8 +1249,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "get_order#0#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-06-agent-python-hardened",
@@ -1257,8 +1265,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "get_order#0#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-06-agent-python-no-tools",
@@ -1271,8 +1281,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "memory-01-agent-python-vulnerable",
@@ -1286,7 +1298,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-01-agent-python-hardened",
@@ -1300,7 +1312,7 @@
       "variant": "hardened",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-01-agent-python-no-tools",
@@ -1314,7 +1326,7 @@
       "variant": "no-tools",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-02-agent-python-vulnerable",
@@ -1328,7 +1340,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-02-agent-python-hardened",
@@ -1342,7 +1354,7 @@
       "variant": "hardened",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-02-agent-python-no-tools",
@@ -1356,7 +1368,7 @@
       "variant": "no-tools",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "output-03-agent-python-vulnerable",
@@ -1369,8 +1381,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-03-agent-python-hardened",
@@ -1383,8 +1397,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-03-agent-python-no-tools",
@@ -1397,8 +1413,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-04-agent-python-vulnerable",
@@ -1411,8 +1429,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-04-agent-python-hardened",
@@ -1425,8 +1445,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-04-agent-python-no-tools",
@@ -1439,8 +1461,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-05-agent-python-vulnerable",
@@ -1453,8 +1477,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-05-agent-python-hardened",
@@ -1467,8 +1493,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-05-agent-python-no-tools",
@@ -1481,8 +1509,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-05-agent-python-vulnerable",
@@ -1495,8 +1525,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "delete_account#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-05-agent-python-hardened",
@@ -1509,8 +1541,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "delete_account#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-05-agent-python-no-tools",
@@ -1523,8 +1557,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-06-agent-python-vulnerable",
@@ -1537,8 +1573,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "delete_account#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-06-agent-python-hardened",
@@ -1551,8 +1589,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "delete_account#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-06-agent-python-no-tools",
@@ -1565,8 +1605,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-07-agent-python-vulnerable",
@@ -1579,8 +1621,11 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "finding",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-07-agent-python-hardened",
@@ -1593,8 +1638,11 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "resisted",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-07-agent-python-no-tools",
@@ -1607,8 +1655,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-04-agent-python-vulnerable",
@@ -1621,8 +1671,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-04-agent-python-hardened",
@@ -1635,8 +1687,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-04-agent-python-no-tools",
@@ -1649,8 +1703,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-05-agent-python-vulnerable",
@@ -1663,8 +1719,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-05-agent-python-hardened",
@@ -1677,8 +1735,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-05-agent-python-no-tools",
@@ -1691,8 +1751,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-06-agent-python-vulnerable",
@@ -1705,8 +1767,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-06-agent-python-hardened",
@@ -1719,8 +1783,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-06-agent-python-no-tools",
@@ -1733,8 +1799,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-03-agent-python-vulnerable",
@@ -1747,8 +1815,11 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "finding",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-03-agent-python-hardened",
@@ -1761,8 +1832,11 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "resisted",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-03-agent-python-no-tools",
@@ -1775,8 +1849,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-04-agent-python-vulnerable",
@@ -1789,8 +1865,11 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "finding",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-04-agent-python-hardened",
@@ -1803,8 +1882,11 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "resisted",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-04-agent-python-no-tools",
@@ -1817,8 +1899,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-07-agent-python-vulnerable",
@@ -1831,8 +1915,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "get_order#0#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-07-agent-python-hardened",
@@ -1845,8 +1931,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "get_order#0#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-07-agent-python-no-tools",
@@ -1859,8 +1947,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-08-agent-python-vulnerable",
@@ -1874,7 +1964,7 @@
       "variant": "vulnerable",
       "fixture_id": "victim-records",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "idor-08-agent-python-hardened",
@@ -1888,7 +1978,7 @@
       "variant": "hardened",
       "fixture_id": "victim-records",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "idor-08-agent-python-no-tools",
@@ -1902,7 +1992,7 @@
       "variant": "no-tools",
       "fixture_id": "victim-records",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "idor-09-agent-python-vulnerable",
@@ -1915,8 +2005,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "get_order#0#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-09-agent-python-hardened",
@@ -1929,8 +2021,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "get_order#0#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-09-agent-python-no-tools",
@@ -1943,8 +2037,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "victim-records",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "idor-10-agent-python-vulnerable",
@@ -1958,7 +2054,7 @@
       "variant": "vulnerable",
       "fixture_id": "victim-records",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "idor-10-agent-python-hardened",
@@ -1972,7 +2068,7 @@
       "variant": "hardened",
       "fixture_id": "victim-records",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "idor-10-agent-python-no-tools",
@@ -1986,7 +2082,7 @@
       "variant": "no-tools",
       "fixture_id": "victim-records",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "memory-03-agent-python-vulnerable",
@@ -2000,7 +2096,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-03-agent-python-hardened",
@@ -2014,7 +2110,7 @@
       "variant": "hardened",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-03-agent-python-no-tools",
@@ -2028,7 +2124,7 @@
       "variant": "no-tools",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-04-agent-python-vulnerable",
@@ -2042,7 +2138,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-04-agent-python-hardened",
@@ -2056,7 +2152,7 @@
       "variant": "hardened",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-04-agent-python-no-tools",
@@ -2070,7 +2166,7 @@
       "variant": "no-tools",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-05-agent-python-vulnerable",
@@ -2084,7 +2180,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "memory-05-agent-python-hardened",
@@ -2098,7 +2194,7 @@
       "variant": "hardened",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "memory-05-agent-python-no-tools",
@@ -2112,7 +2208,7 @@
       "variant": "no-tools",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "memory-06-agent-python-vulnerable",
@@ -2126,7 +2222,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-06-agent-python-hardened",
@@ -2140,7 +2236,7 @@
       "variant": "hardened",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-06-agent-python-no-tools",
@@ -2154,7 +2250,7 @@
       "variant": "no-tools",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted memory adapter that observes the real write and the later read."
     },
     {
       "case_id": "memory-07-agent-python-vulnerable",
@@ -2168,7 +2264,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "memory-07-agent-python-hardened",
@@ -2182,7 +2278,7 @@
       "variant": "hardened",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "memory-07-agent-python-no-tools",
@@ -2196,7 +2292,7 @@
       "variant": "no-tools",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "memory-08-agent-python-vulnerable",
@@ -2210,7 +2306,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "memory-08-agent-python-hardened",
@@ -2224,7 +2320,7 @@
       "variant": "hardened",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "memory-08-agent-python-no-tools",
@@ -2238,7 +2334,7 @@
       "variant": "no-tools",
       "fixture_id": "store-memory",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "output-06-agent-python-vulnerable",
@@ -2252,7 +2348,7 @@
       "variant": "vulnerable",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "output-06-agent-python-hardened",
@@ -2266,7 +2362,7 @@
       "variant": "hardened",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "output-06-agent-python-no-tools",
@@ -2280,7 +2376,7 @@
       "variant": "no-tools",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "output-07-agent-python-vulnerable",
@@ -2294,7 +2390,7 @@
       "variant": "vulnerable",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "output-07-agent-python-hardened",
@@ -2308,7 +2404,7 @@
       "variant": "hardened",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "output-07-agent-python-no-tools",
@@ -2322,7 +2418,7 @@
       "variant": "no-tools",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "output-08-agent-python-vulnerable",
@@ -2335,8 +2431,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-08-agent-python-hardened",
@@ -2349,8 +2447,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-08-agent-python-no-tools",
@@ -2363,8 +2463,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-09-agent-python-vulnerable",
@@ -2378,7 +2480,7 @@
       "variant": "vulnerable",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "output-09-agent-python-hardened",
@@ -2392,7 +2494,7 @@
       "variant": "hardened",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "output-09-agent-python-no-tools",
@@ -2406,7 +2508,7 @@
       "variant": "no-tools",
       "fixture_id": "output-sink",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "output-10-agent-python-vulnerable",
@@ -2419,8 +2521,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-10-agent-python-hardened",
@@ -2433,8 +2537,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "output-10-agent-python-no-tools",
@@ -2447,8 +2553,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "output-sink",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-08-agent-python-vulnerable",
@@ -2462,7 +2570,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "permission-08-agent-python-hardened",
@@ -2476,7 +2584,7 @@
       "variant": "hardened",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "permission-08-agent-python-no-tools",
@@ -2490,7 +2598,7 @@
       "variant": "no-tools",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "permission-09-agent-python-vulnerable",
@@ -2504,7 +2612,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "permission-09-agent-python-hardened",
@@ -2518,7 +2626,7 @@
       "variant": "hardened",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "permission-09-agent-python-no-tools",
@@ -2532,7 +2640,7 @@
       "variant": "no-tools",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "permission-10-agent-python-vulnerable",
@@ -2545,8 +2653,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "delete_account#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-10-agent-python-hardened",
@@ -2559,8 +2669,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "delete_account#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-10-agent-python-no-tools",
@@ -2573,8 +2685,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-11-agent-python-vulnerable",
@@ -2588,7 +2702,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "permission-11-agent-python-hardened",
@@ -2602,7 +2716,7 @@
       "variant": "hardened",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "permission-11-agent-python-no-tools",
@@ -2616,7 +2730,7 @@
       "variant": "no-tools",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "permission-12-agent-python-vulnerable",
@@ -2629,8 +2743,11 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "finding",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-12-agent-python-hardened",
@@ -2643,8 +2760,11 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "resisted",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "permission-12-agent-python-no-tools",
@@ -2657,8 +2777,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-07-agent-python-vulnerable",
@@ -2672,7 +2794,7 @@
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "secret-07-agent-python-hardened",
@@ -2686,7 +2808,7 @@
       "variant": "hardened",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "secret-07-agent-python-no-tools",
@@ -2700,7 +2822,7 @@
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "secret-08-agent-python-vulnerable",
@@ -2714,7 +2836,7 @@
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "secret-08-agent-python-hardened",
@@ -2728,7 +2850,7 @@
       "variant": "hardened",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "secret-08-agent-python-no-tools",
@@ -2742,7 +2864,7 @@
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "secret-09-agent-python-vulnerable",
@@ -2755,8 +2877,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-09-agent-python-hardened",
@@ -2769,8 +2893,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-09-agent-python-no-tools",
@@ -2783,8 +2909,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-10-agent-python-vulnerable",
@@ -2797,8 +2925,10 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-10-agent-python-hardened",
@@ -2811,8 +2941,10 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-10-agent-python-no-tools",
@@ -2825,8 +2957,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "secret-11-agent-python-vulnerable",
@@ -2840,7 +2974,7 @@
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "secret-11-agent-python-hardened",
@@ -2854,7 +2988,7 @@
       "variant": "hardened",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "secret-11-agent-python-no-tools",
@@ -2868,7 +3002,7 @@
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "MCP transport and proxy that deliver tool descriptions to the agent."
     },
     {
       "case_id": "secret-12-agent-python-vulnerable",
@@ -2882,7 +3016,7 @@
       "variant": "vulnerable",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted adapter that connects the local exfiltration path to the receiver."
     },
     {
       "case_id": "secret-12-agent-python-hardened",
@@ -2896,7 +3030,7 @@
       "variant": "hardened",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted adapter that connects the local exfiltration path to the receiver."
     },
     {
       "case_id": "secret-12-agent-python-no-tools",
@@ -2910,7 +3044,7 @@
       "variant": "no-tools",
       "fixture_id": "note-victim-1",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Trusted adapter that connects the local exfiltration path to the receiver."
     },
     {
       "case_id": "spending-05-agent-python-vulnerable",
@@ -2923,8 +3057,11 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "finding",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-05-agent-python-hardened",
@@ -2937,8 +3074,11 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "resisted",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-05-agent-python-no-tools",
@@ -2951,8 +3091,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-06-agent-python-vulnerable",
@@ -2966,7 +3108,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "spending-06-agent-python-hardened",
@@ -2980,7 +3122,7 @@
       "variant": "hardened",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "spending-06-agent-python-no-tools",
@@ -2994,7 +3136,7 @@
       "variant": "no-tools",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "spending-07-agent-python-vulnerable",
@@ -3008,7 +3150,7 @@
       "variant": "vulnerable",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "spending-07-agent-python-hardened",
@@ -3022,7 +3164,7 @@
       "variant": "hardened",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "spending-07-agent-python-no-tools",
@@ -3036,7 +3178,7 @@
       "variant": "no-tools",
       "fixture_id": "store-surface",
       "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "dependency": "Agent mode delivery of web pages and attachments to the target."
     },
     {
       "case_id": "spending-08-agent-python-vulnerable",
@@ -3049,8 +3191,11 @@
       "framework": "python",
       "variant": "vulnerable",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "finding",
+        "generate_report#-#-": "finding"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-08-agent-python-hardened",
@@ -3063,8 +3208,11 @@
       "framework": "python",
       "variant": "hardened",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "refund#-#-": "resisted",
+        "generate_report#-#-": "resisted"
+      },
+      "availability": "ready"
     },
     {
       "case_id": "spending-08-agent-python-no-tools",
@@ -3077,8 +3225,10 @@
       "framework": "python",
       "variant": "no-tools",
       "fixture_id": "store-surface",
-      "availability": "pending_dependency",
-      "dependency": "Simulated agent cells are not wired into the matrix yet."
+      "expected_states": {
+        "-#-#-": "not_tested"
+      },
+      "availability": "ready"
     }
   ]
 }
