@@ -72,7 +72,19 @@ Gazua is tested against itself: every mold must fire on a deliberately vulnerabl
 The table below is generated from an observed run of the release profile, never edited by hand; rates keep their denominators and a missing implementation shows as pending, not as parity.
 
 <!-- benchmark:start -->
-Not published yet.
+Profile `release`, catalog `v0.1`, status `passed`, commit `a6bc093b634d`, matrix revision `2026-11-17.1`.
+
+- Molds fired where expected: 100.0% (30/30)
+- False alarms on targets that must stay quiet: 0.0% (0/18)
+- Controls detected by one-at-a-time mutation: 100.0% (7/7)
+- Auxiliary checks passed: 100.0% (7/7)
+
+| Implementation | Mode | Language | Detection | False alarms | Unexpected findings | Coverage | Pending | Errors |
+|---|---|---|---|---|---|---|---|---|
+| python | tools | en | 100.0% (15/15) | 0.0% (0/9) | 0 | 100.0% (45/45) | 0 | 0 |
+| python | tools | pt | 100.0% (15/15) | 0.0% (0/9) | 0 | 100.0% (45/45) | 0 | 0 |
+
+Simulated runs measure Gazua's own chain against synthetic targets with a scripted model. They are not a resistance rate of any commercial model.
 <!-- benchmark:end -->
 
 ## Threat model
