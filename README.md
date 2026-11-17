@@ -65,6 +65,16 @@ See [the configuration guide](docs/configuration.md) for the fields, the limits 
 
 Each attack is a mold: damage + entry + technique, with English and Portuguese text, the modes that can use it and the effect that proves it worked. Molds are data, and you can add your own in YAML so that a past incident becomes a permanent test. Third-party catalogs are local folders that you review; they cannot change your target, tools or dry-run settings, and Gazua prints a warning before reading them. See [the mold guide](docs/molds.md).
 
+## Self-test benchmark
+
+Gazua is tested against itself: every mold must fire on a deliberately vulnerable synthetic target and stay quiet on a hardened one, turning off one control at a time must show exactly that control's finding, and no tool that is not `safe: true` may really run. Contributors run it with no key, and CI blocks a mold that does not pass both checks. See [the benchmark guide](docs/benchmark.md).
+
+The table below is generated from an observed run of the release profile, never edited by hand; rates keep their denominators and a missing implementation shows as pending, not as parity.
+
+<!-- benchmark:start -->
+Not published yet.
+<!-- benchmark:end -->
+
 ## Threat model
 
 Gazua is designed around three actors:

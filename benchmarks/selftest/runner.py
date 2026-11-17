@@ -58,6 +58,8 @@ from .targets.domain import DECLARATIONS, DomainData, Profile, exposed_tools
 PACKAGE: Final = Path(__file__).resolve().parent
 ROOT: Final = PACKAGE.parents[1]
 DOMAIN_FILE: Final = PACKAGE / "fixtures" / "domain.json"
+# The target package copied into each workspace; tests point it at a broken copy.
+TARGETS_DIR = PACKAGE / "targets"
 TARGET_PACKAGE: Final = "selftest_target"
 TARGET_FILES: Final = ("__init__.py", "domain.py", "scripted.py", "spy.py", "python_target.py")
 AGENT_REPETITIONS: Final = 1
@@ -199,11 +201,11 @@ def plan_benchmark(options: BenchmarkOptions, matrix: Matrix, catalog: Catalog) 
                 RunSpec(label, case.mode, case.framework, case.variant, language, molds),
             )
             plan.targets.append((case, language, spec))
-    if full:
+    if full and not options.molds:
         for support in matrix.frameworks:
             if support.availability != "ready" and (not frameworks or support.id in frameworks):
                 plan.pending.append(_pending_framework(support.id, support.requirement or ""))
-    else:
+    if not full or options.molds:
         plan.gaps.extend(
             f"{support.id}: {support.requirement}"
             for support in matrix.frameworks
@@ -298,7 +300,7 @@ def prepare_workspace(root: Path, profile: Profile, data: DomainData) -> Path:
     package = root / TARGET_PACKAGE
     package.mkdir(parents=True)
     for name in TARGET_FILES:
-        shutil.copyfile(PACKAGE / "targets" / name, package / name)
+        shutil.copyfile(TARGETS_DIR / name, package / name)
     shutil.copyfile(DOMAIN_FILE, package / "domain.json")
     (root / "profile.json").write_text(json.dumps(profile.document()), encoding="utf-8")
     # JSON is valid YAML, so Gazua's own loader reads this file.
@@ -326,8 +328,13 @@ def execute_run(
     workspace: Path,
     folder: Path,
     cancel: threading.Event | None = None,
+    max_runs: int | None = None,
 ) -> RunObservation:
-    """Runs one native mode with its reports and reopens what it persisted."""
+    """Runs one native mode with its reports and reopens what it persisted.
+
+    ``max_runs`` caps the engine; a cap that cuts the plan leaves scenarios not tested, so
+    the cells fail instead of shrinking their denominator.
+    """
     from gazua.catalog.loader import load_catalog
     from gazua.config.diagnostics import ConfigError
     from gazua.config.loader import load_config
@@ -336,17 +343,21 @@ def execute_run(
     from gazua.reports.execution import ReportOutput, execute_mode
     from gazua.reports.lifecycle import LifecycleLock, LockBusy
     from gazua.reports.storage import RunLoadError, load_run_document
+    from gazua.runtime.run_models import LimitOverrides
 
     quiet = _Quiet()
+    overrides = LimitOverrides(max_runs=max_runs)
     output = ReportOutput(say=quiet.say, lines=quiet.lines, warn=quiet.warn)
     try:
         config = load_config(workspace / "gazua.yaml").config
         loaded = load_catalog(config, config_dir=workspace, release=RELEASES[-1])
         entries = tuple(entry for entry in loaded.entries if entry.id in spec.molds)
         options: ToolsOptions | AgentOptions = (
-            ToolsOptions(language=spec.language)
+            ToolsOptions(language=spec.language, overrides=overrides)
             if spec.mode == "tools"
-            else AgentOptions(language=spec.language, repetitions=AGENT_REPETITIONS)
+            else AgentOptions(
+                language=spec.language, repetitions=AGENT_REPETITIONS, overrides=overrides
+            )
         )
         with LifecycleLock(workspace):
             outcome = execute_mode(
@@ -709,7 +720,9 @@ def run_benchmark(
             break
         say(f"[{index}/{len(plan.runs)}] {spec.label}")
         workspace = prepare_workspace(folder / "runs" / spec.label, spec.profile(), data)
-        observations[spec.label] = execute_run(spec, workspace, folder, cancel)
+        observations[spec.label] = execute_run(
+            spec, workspace, folder, cancel, max_runs=options.max_runs
+        )
         if cancel is not None and cancel.is_set():
             interrupted = True
             break
