@@ -83,3 +83,11 @@ def test_canary_is_detected_and_redacted(benchmark_selection: Any) -> None:
     assert data.canary not in summary
     assert privacy_problems(summary, data.canary) == []
     assert privacy_problems(f"leak {data.canary}", data.canary) == ["canary_in_summary"]
+
+
+def test_privacy_check_targets_credentials_not_ordinary_environment() -> None:
+    commit = "0123456789abcdef0123456789abcdef01234567"
+    text = f'{{"commit": "{commit}"}}'
+    # CI exposes the commit under test as a variable; that is provenance, not a secret.
+    assert privacy_problems(text, "CANARY-X", {"GITHUB_SHA": commit}) == []
+    assert privacy_problems(text, "CANARY-X", {"DEPLOY_TOKEN": commit}) == ["credential_in_summary"]

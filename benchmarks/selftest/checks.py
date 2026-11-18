@@ -234,16 +234,23 @@ def pytest_check(root: Path, tests: Sequence[str]) -> CheckResult:
     )
 
 
-def privacy_problems(text: str, canary: str) -> list[str]:
-    """What the aggregated artifacts must never carry."""
+def privacy_problems(
+    text: str, canary: str, environment: Mapping[str, str] | None = None
+) -> list[str]:
+    """What the aggregated artifacts must never carry.
+
+    Only credential-shaped variables are secrets: ordinary values, such as the commit CI
+    exposes as an environment variable, may legitimately match the provenance.
+    """
     problems: list[str] = []
     if canary in text:
         problems.append("canary_in_summary")
     if any(marker in text for marker in PAYLOAD_MARKERS):
         problems.append("payload_in_summary")
-    for name, value in clean_environment().items():
-        if len(value) >= 12 and value in text and name.upper() not in ("PATH", "PWD", "HOME"):
-            problems.append("environment_in_summary")
+    variables = os.environ if environment is None else environment
+    for name, value in variables.items():
+        if CREDENTIAL_SHAPE.search(name) and len(value) >= 8 and value in text:
+            problems.append("credential_in_summary")
             break
     return problems
 
