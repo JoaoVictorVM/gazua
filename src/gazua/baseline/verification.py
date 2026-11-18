@@ -55,6 +55,35 @@ class VerificationRun:
     diagnostics: list[Any] = field(default_factory=list[Any])
 
 
+MCP_PROVENANCE_CHANGED = "mcp_provenance_changed"
+MCP_PROVENANCE_MISSING = "mcp_provenance_missing"
+
+
+def mcp_provenance_problem(project_root: Path, finding_id: str, inventory: Any) -> str | None:
+    """Why an MCP finding cannot be closed by this replay; None when the snapshot matches.
+
+    The newest kept run that holds the finding gives the inventory it was found against. A
+    different hash means the server's tools changed, so a quiet replay proves nothing about the
+    original finding. Without such a run, or with a Python run, the provenance is unknown.
+    """
+    from gazua.reports.storage import RunLoadError, load_run_document
+
+    current = getattr(getattr(inventory, "mcp", None), "digest", None)
+    folder = project_root / ".gazua" / "runs"
+    paths = sorted(folder.glob("*/run.json"), reverse=True) if folder.is_dir() else []
+    for path in paths:
+        try:
+            document = load_run_document(path)
+        except (RunLoadError, OSError, ValueError):
+            continue
+        if not any(item.id == finding_id for item in document.findings):
+            continue
+        if document.mcp is None or current is None:
+            return MCP_PROVENANCE_MISSING
+        return None if document.mcp.inventory_hash == current else MCP_PROVENANCE_CHANGED
+    return MCP_PROVENANCE_MISSING
+
+
 def reproduction_arguments(
     finding_id: str, config_path: str, mode: str, overrides: LimitOverrides | None
 ) -> list[str]:
@@ -77,8 +106,15 @@ def execute(
     config_path: str,
     common: dict[str, Any],
     on_preview: Callable[[Any], None] | None = None,
+    *,
+    inventory: Any = None,
+    extra_failures: Sequence[str] = (),
 ) -> VerificationRun:
-    """Runs every slot under one plan and one budget, with the verdict collector."""
+    """Runs every slot under one plan and one budget, with the verdict collector.
+
+    ``extra_failures`` are problems found before the run, such as an MCP server whose tools
+    changed since the finding was recorded; each one keeps the finding from closing.
+    """
     from gazua.modes.agent import stop_failures
     from gazua.modes.tools import empty_summary, operational_failures
     from gazua.runtime.engine import (
@@ -132,7 +168,11 @@ def execute(
         collector = VerdictCollector(contexts, config, max_tool_calls=limits.max_tool_calls)
         unexecuted = STORAGE_UNAVAILABLE
         verdicts = collector.finalize(summary, unexecuted_reason=unexecuted)
-    failures = [*operational_failures(summary, verdicts, contexts), *stop_failures(summary)]
+    failures = [
+        *extra_failures,
+        *operational_failures(summary, verdicts, contexts),
+        *stop_failures(summary),
+    ]
     if unexecuted is not None:
         failures.append(unexecuted)
     if summary.cleanup in FAILED_CLEANUP:
@@ -150,6 +190,7 @@ def execute(
         failures=unique,
         reproduction={item.attack_key: command for item in contexts},
         exit_code=exit_code,
+        inventory=inventory,
     )
 
 
@@ -348,13 +389,23 @@ def run_verification(
     cancel: threading.Event | None = None,
     show_preview: Callable[[Any], None] | None = None,
     before_replace: Callable[[], None] | None = None,
+    inventory: Any = None,
+    extra_failures: Sequence[str] = (),
 ) -> VerifyOutcome:
     """Executes the plan, saves the report with the proposed decision, then commits it."""
     from gazua.reports.execution import execute_runner
 
     def runner(common: dict[str, Any]) -> VerificationRun:
         return execute(
-            plan, config, overrides, project_root, config_path, common, on_preview=show_preview
+            plan,
+            config,
+            overrides,
+            project_root,
+            config_path,
+            common,
+            on_preview=show_preview,
+            inventory=inventory,
+            extra_failures=extra_failures,
         )
 
     outcome = execute_runner(

@@ -18,13 +18,16 @@ import tempfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from gazua.diagnostics import REDACTED, SECRET_PATTERNS
 from gazua.runtime.observations import ReturnChannel
 from gazua.runtime.processes import Capture
 from gazua.runtime.receiver import CapturedHit
 from gazua.runtime.session_models import CallRecord
+
+if TYPE_CHECKING:
+    from gazua.mcp.evidence import DeliveryChannel
 
 PRIVATE_FOLDER = "private"
 PRIVATE_MARKER = "GAZUA-PRIVATE"
@@ -93,6 +96,7 @@ class PrivateEvidence:
     stderr: Capture
     complete: bool
     returns: ReturnChannel | None = None
+    deliveries: DeliveryChannel | None = None
 
 
 @dataclass(frozen=True, slots=True)

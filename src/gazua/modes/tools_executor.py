@@ -9,9 +9,16 @@ capture is the evidence, and the verdict engine reads it before it is deleted.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, Final
 
-from gazua.catalog.bindings import OUTPUT_MARKERS, BindingContext, BindingImpediment, bind_mold
+from gazua.catalog.bindings import (
+    OUTPUT_MARKERS,
+    BindingContext,
+    BindingImpediment,
+    BoundMold,
+    bind_mold,
+)
 from gazua.catalog.models import Mold
 from gazua.config.references import resolve_reference
 from gazua.integration.errors import GazuaBlockedError
@@ -65,10 +72,34 @@ def execute(request: Mapping[str, Any], context: ExecutionContext) -> dict[str, 
         marker = OUTPUT_MARKERS[action.variant]
         observed = observe_sink(context, marker, marker_id=action.variant)
         return {"output": output_envelope(marker, [observed] if observed is not None else [])}
+    if context.config.mcp is not None:
+        from gazua.mcp.discovery import approved_digests
+        from gazua.mcp.executor import mcp_runtime
+
+        try:
+            approved = approved_digests(payload.get("mcp_tools"))
+        except ValueError:
+            raise InvocationRefused("request_invalid") from None
+        with mcp_runtime(
+            context.config,
+            Path.cwd(),
+            context.session_path,
+            approved=approved,
+            dependent=[tool_name],
+        ) as runtime:
+            output = _call_tools(context, bound, tool_name, attacker)
+            runtime.raise_if_invalid()
+        return output
     if context.entrypoint is None:
         raise InvocationRefused("entrypoint_missing")
     # Importing the module registers its tools; the entrypoint itself is never called.
     resolve_reference(context.entrypoint, "entrypoint")
+    return _call_tools(context, bound, tool_name, attacker)
+
+
+def _call_tools(
+    context: ExecutionContext, bound: BoundMold, tool_name: str, attacker: bool
+) -> dict[str, Any]:
     tools = ToolInventory.collect(context.config)
     described = ToolsInventory.model_validate(tools.describe()).get(tool_name)
     if described is None or not described.runnable or not described.signature_available:

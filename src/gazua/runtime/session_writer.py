@@ -88,7 +88,9 @@ def build_session(
         actor=SessionActor(id=identity.id, role=actor)
         if identity is not None and actor is not None
         else None,
-        as_user=config.target.as_user,
+        # A local identity hook cannot authenticate a call that another process serves, so an
+        # MCP target relies on actor_arg only.
+        as_user=config.target.as_user if config.mcp is None else None,
         tools={
             name: SessionTool(
                 dry_run=tool.requires_dry_run,

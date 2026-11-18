@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/mcp-delivery-v1.schema.json",
+  "title": "Gazua MCP delivery event",
+  "$defs": {
+    "CallEvent": {
+      "additionalProperties": false,
+      "description": "Where a call of the native call log falls in the broker's order.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "call",
+          "title": "Kind",
+          "type": "string"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "order": {
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        },
+        "call_seq": {
+          "minimum": 1,
+          "title": "Call Seq",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "execution_id",
+        "order",
+        "call_seq"
+      ],
+      "title": "CallEvent",
+      "type": "object"
+    },
+    "DeliveryEvent": {
+      "additionalProperties": false,
+      "description": "One attack text written to the agent's MCP client, or why it could not be.",
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "delivery",
+          "title": "Kind",
+          "type": "string"
+        },
+        "execution_id": {
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "order": {
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        },
+        "injection_id": {
+          "minLength": 1,
+          "title": "Injection Id",
+          "type": "string"
+        },
+        "turn": {
+          "minimum": 1,
+          "title": "Turn",
+          "type": "integer"
+        },
+        "tool": {
+          "minLength": 1,
+          "title": "Tool",
+          "type": "string"
+        },
+        "surface": {
+          "enum": [
+            "description",
+            "result"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "delivered": {
+          "title": "Delivered",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "call_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Seq"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "execution_id",
+        "order",
+        "injection_id",
+        "turn",
+        "tool",
+        "surface",
+        "delivered",
+        "reason"
+      ],
+      "title": "DeliveryEvent",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/DeliveryEvent"
+    },
+    {
+      "$ref": "#/$defs/CallEvent"
+    }
+  ]
+}

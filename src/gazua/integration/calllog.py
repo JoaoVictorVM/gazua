@@ -99,6 +99,14 @@ class CallLog:
             self._next_seq = seq + 1
             return seq
 
+    def last_seq(self) -> int:
+        """The ``seq`` of the last record written, 0 when the log is empty."""
+        with self._lock:
+            try:
+                return self._first_seq() - 1
+            except (OSError, ValueError):
+                return 0
+
     def check_writable(self) -> None:
         """Fails closed before a tool runs when its call could not be recorded."""
         with self._lock:

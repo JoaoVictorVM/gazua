@@ -126,6 +126,9 @@ def _attack(job: Mapping[str, Any]) -> dict[str, Any]:
     except HookError as failure:
         return {"status": "error", "code": failure.code, "error_type": failure.error_type}
     except GazuaBlockedError as blocked:
+        if blocked.reason.startswith("mcp_"):
+            changed = list(getattr(blocked, "changed", ()))
+            return {"status": "error", "code": blocked.reason, "mcp_changed": changed}
         return {"status": "error", "code": "blocked", "reason": blocked.reason}
     # The executor runs the target's code; any failure is recorded by class, never by message.
     except (Exception, SystemExit) as failure:  # noqa: BLE001
@@ -173,6 +176,8 @@ def _describe(job: Mapping[str, Any]) -> dict[str, Any]:
     from gazua.runtime.tools import ToolInventory
 
     config = GazuaConfig.model_validate(job["config"])
+    if config.mcp is not None:
+        return _describe_mcp(job, config)
     entrypoint = job.get("entrypoint")
     if entrypoint is None:
         return {"status": "error", "code": "entrypoint_missing"}
@@ -181,6 +186,18 @@ def _describe(job: Mapping[str, Any]) -> dict[str, Any]:
     except ConfigError as failure:
         return {"status": "error", "code": failure.diagnostics[0].code}
     return {"status": "ok", "inventory": ToolInventory.collect(config).describe()}
+
+
+def _describe_mcp(job: Mapping[str, Any], config: Any) -> dict[str, Any]:
+    """Lists an MCP server's tools without calling any of them."""
+    from gazua.mcp.executor import McpRunBlocked, describe_server
+
+    timeout = float(job.get("timeout") or config.limits.timeout)
+    try:
+        inventory = describe_server(config, Path(job["project_root"]), timeout)
+    except McpRunBlocked as blocked:
+        return {"status": "error", "code": blocked.reason}
+    return {"status": "ok", "inventory": inventory}
 
 
 def run_job(job: Mapping[str, Any]) -> dict[str, Any]:

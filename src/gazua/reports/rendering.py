@@ -335,6 +335,7 @@ def _context(document: RunDocument) -> dict[str, Any]:
         "template_version": TEMPLATE_VERSION,
         "legitimate": legitimate_view(document),
         "stop_text": stop_text(document),
+        "mcp_lines": mcp_lines(document),
         "demo_notice": demo_notice(document),
         "comparison": comparison_view(document.baseline),
         "verification": verification_view(document.verification, metadata.mode),
@@ -411,6 +412,34 @@ def render_report(document: RunDocument) -> tuple[str, str]:
     return render_html(document), render_markdown(document)
 
 
+def mcp_lines(document: RunDocument) -> list[str]:
+    """The MCP provenance in plain sentences: never commands, arguments or server texts."""
+    mcp = document.mcp
+    if mcp is None:
+        return []
+    count = len(mcp.tools)
+    noun = "tool" if count == 1 else "tools"
+    lines = [
+        f"MCP target over stdio: protocol {mcp.protocol_version}, inventory "
+        f"{mcp.inventory_hash[:12]}, {count} {noun} listed."
+    ]
+    if mcp.changed_tools:
+        lines.append(
+            "MCP tools changed during the run: "
+            + ", ".join(mcp.changed_tools)
+            + ". Attacks that depend on them stopped and are not tested."
+        )
+    if mcp.deliveries:
+        expected = sum(item.expected_turns for item in mcp.deliveries)
+        delivered = sum(item.delivered_turns for item in mcp.deliveries)
+        lines.append(
+            f"Poisoned descriptions delivered to the agent's MCP client: {delivered} of "
+            f"{expected} turns. Delivery proves the client received the text, not that a "
+            "model understood it."
+        )
+    return lines
+
+
 def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[str]:
     """The summary by damage and state, then each finding with conditions, command and fix."""
     from gazua.modes.tools_presentation import default_shell, render_command
@@ -428,6 +457,7 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
     lines.extend(
         summary_lines(document.verdicts, version=metadata.gazua_version, model=metadata.model)
     )
+    lines.extend(mcp_lines(document))
     legitimate = legitimate_view(document)
     if legitimate is not None:
         from gazua.modes.agent_presentation import legitimate_task_lines

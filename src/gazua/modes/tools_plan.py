@@ -49,6 +49,17 @@ def proven_without_tools(config: GazuaConfig, inventory: ToolsInventory) -> bool
     return inventory.complete and not inventory.tools and not config.tools
 
 
+def mcp_payload(inventory: ToolsInventory, dependent: Iterable[str | None]) -> dict[str, Any]:
+    """What an attempt on an MCP target carries from planning: the approved tool digests and
+    the tools whose change makes the attempt meaningless. Empty for Python targets."""
+    if inventory.mcp is None:
+        return {}
+    return {
+        "mcp_tools": inventory.mcp.digests(),
+        "mcp_dependent": sorted({name for name in dependent if name is not None}),
+    }
+
+
 def check_arguments(
     tool: DiscoveredTool, bound: BoundMold, config: GazuaConfig
 ) -> tuple[list[str], list[str]]:
@@ -301,20 +312,22 @@ class _Planner:
 
     def request(self, unit: _Unit, context: AttackContext, slot: RequestSlot) -> ExecutionRequest:
         key = context.attack_key
+        payload: dict[str, Any] = {
+            "attack_key": key,
+            "tool_name": unit.tool_name,
+            "record_index": context.record_index,
+            "canary_index": context.canary_index,
+            "language": self.language,
+            "mold": unit.mold.model_dump(mode="json", exclude_unset=True),
+        }
+        payload.update(mcp_payload(self.inventory, [unit.tool_name]))
         return ExecutionRequest(
             key=slot.request_key,
             mold_id=unit.mold.id,
             repetition=slot.repetition,
             mode="tools",
             executor=EXECUTOR,
-            payload={
-                "attack_key": key,
-                "tool_name": unit.tool_name,
-                "record_index": context.record_index,
-                "canary_index": context.canary_index,
-                "language": self.language,
-                "mold": unit.mold.model_dump(mode="json", exclude_unset=True),
-            },
+            payload=payload,
             requires_receiver=False,
             receiver_transport=False,
             usage_reporting=False,

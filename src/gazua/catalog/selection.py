@@ -124,7 +124,8 @@ def inspect_requirements(
     satisfied, missing, candidates = _tool_requirements(required, tools)
     attacker, victim = config.fixtures.attacker, config.fixtures.victim
     declared: dict[Requirement, bool] = {
-        "identity": config.target.as_user is not None
+        # A local identity hook does not reach a tool another process serves.
+        "identity": (config.target.as_user is not None and config.mcp is None)
         or any(tool.actor_arg is not None for tool in candidates),
         "fixtures.attacker": attacker is not None,
         "fixtures.victim": victim is not None,

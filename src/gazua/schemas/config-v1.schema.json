@@ -4,7 +4,7 @@
   "$defs": {
     "AgentEntries": {
       "additionalProperties": false,
-      "description": "Indirect entries agent mode can reach. An absent entry is reported as not tested.",
+      "description": "Indirect entries agent mode can reach. An absent entry is reported as not tested.\n\n``mcp_tool_description`` names the MCP tool whose description carries the text; it only\napplies to a target declared under ``mcp``.",
       "properties": {
         "tool_result": {
           "anyOf": [
@@ -29,6 +29,17 @@
           "default": null
         },
         "poisoned_memory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_tool_description": {
           "anyOf": [
             {
               "$ref": "#/$defs/AgentEntry"
@@ -261,6 +272,43 @@
       "title": "Limits",
       "type": "object"
     },
+    "McpServer": {
+      "additionalProperties": false,
+      "description": "A local MCP server that Gazua starts over stdio for each attempt.\n\n``command`` is one executable and ``args`` its argument vector: no shell reads them, so\nsubstitutions, pipes and variables are not interpreted. ``cwd`` is relative to the\n``gazua.yaml`` folder. Starting the server runs its code with the user's permissions.",
+      "properties": {
+        "transport": {
+          "const": "stdio",
+          "title": "Transport",
+          "type": "string"
+        },
+        "command": {
+          "minLength": 1,
+          "title": "Command",
+          "type": "string"
+        },
+        "args": {
+          "items": {
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Args",
+          "type": "array"
+        },
+        "cwd": {
+          "default": ".",
+          "minLength": 1,
+          "title": "Cwd",
+          "type": "string"
+        }
+      },
+      "required": [
+        "transport",
+        "command"
+      ],
+      "title": "McpServer",
+      "type": "object"
+    },
     "MoldSources": {
       "additionalProperties": false,
       "description": "Local folders with extra attack molds. Paths are relative to the ``gazua.yaml`` folder.\n\nBoth lists are read the same way and both print a warning before loading, because files\noutside the package are third-party content.",
@@ -408,6 +456,17 @@
       ],
       "default": null,
       "title": "Entrypoint"
+    },
+    "mcp": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/McpServer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "target": {
       "$ref": "#/$defs/Target"

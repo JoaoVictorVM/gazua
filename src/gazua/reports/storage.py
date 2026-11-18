@@ -136,6 +136,10 @@ def parse_run_document(content: bytes) -> RunDocument:
     try:
         if version == RUN_SCHEMA_VERSION:
             return RunDocument.model_validate_json(content)
+        if version == 3:
+            from gazua.reports import legacy_v3
+
+            return legacy_v3.adapt(legacy_v3.RunDocument.model_validate_json(content))
         if version == 2:
             from gazua.reports import legacy_v2
 
