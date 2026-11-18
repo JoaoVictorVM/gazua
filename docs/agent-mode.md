@@ -33,7 +33,8 @@ The limits are the ones described in [the execution guide](execution.md): 300 ex
 |---|---|
 | `user_message` | Sent as the message to your entrypoint |
 | `tool_result`, `rag_document`, `poisoned_memory` | Appended to the text result of the tool you declare under `agent_entries`, after the declared trigger message |
-| `web_page`, `attachment`, `mcp_tool_description` | Not available yet; reported as not tested |
+| `mcp_tool_description` | Written into the description of the declared MCP tool while the trigger message runs; MCP targets only, see [the MCP guide](mcp.md) |
+| `web_page`, `attachment` | Not available yet; reported as not tested |
 
 Indirect entries need a declaration. Gazua sends your `request` to the entrypoint as written, and the attack text reaches the agent only through the declared tool's result:
 

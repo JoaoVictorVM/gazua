@@ -70,6 +70,7 @@ Only `schema_version` is required. A file without `entrypoint` or without tools 
 |---|---|---|---|
 | `schema_version` | the integer `1` | Error | Other versions need an explicit migration |
 | `entrypoint` | reference or `null` | `null` | `module:attribute` |
+| `mcp` | object or absent | absent | A local MCP stdio server: `transport: stdio`, `command` (one executable, no shell), `args` (up to 128, each at most 8,192 characters) and `cwd` (relative to this file, default `.`). With it, tools mode needs no `entrypoint` and `target.as_user` is not used; see [the MCP guide](mcp.md) |
 | `target.reset` | reference or `null` | `null` | Hook without arguments |
 | `target.as_user` | reference or `null` | `null` | `as_user(identity_id: str)` returning a context manager, entered around real tool calls |
 | `tools` | map of name to tool | Empty | One declaration per name |
@@ -79,7 +80,7 @@ Only `schema_version` is required. A file without `entrypoint` or without tools 
 | `output_sink` | reference or `null` | `null` | Test function `sink(value)` returning `{effect, proof}`; see [the verdict guide](verdicts.md) |
 | `gate.fail_on` | unique list of `low`, `medium`, `high`, `critical` | `[high, critical]` | Exact severities of findings that fail the gate. An empty list turns the severity gate off |
 | `legit_tasks` | list of `request` and `expected_tool` | Empty | Run once each in agent mode and shown as a rate |
-| `agent_entries` | `tool_result`, `rag_document`, `poisoned_memory`, each with `tool` and `request` | Empty | Indirect entries of agent mode; see [the agent mode guide](agent-mode.md) |
+| `agent_entries` | `tool_result`, `rag_document`, `poisoned_memory` and, for MCP targets, `mcp_tool_description`, each with `tool` and `request` | Empty | Indirect entries of agent mode; see [the agent mode guide](agent-mode.md) |
 | `allowed_targets` | list of exact hosts | `localhost`, `127.0.0.1`, `::1` | No scheme, path, port or wildcard. An empty list authorizes no host |
 | `molds.directories` | unique list of local folders | Empty | Your own attack molds |
 | `molds.external_catalogs` | unique list of local folders | Empty | Molds written by someone else |
