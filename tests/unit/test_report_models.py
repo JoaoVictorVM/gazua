@@ -70,7 +70,7 @@ def _mutated(change: Any) -> dict[str, Any]:
         lambda data: data["fixes"].pop("unchecked_spending"),
         lambda data: data.update(run_id="GAZUA-run-other"),
         lambda data: data.update(schema_version=2),
-        lambda data: data.update(schema_version=4),
+        lambda data: data.update(schema_version=5),
         lambda data: data.pop("guide"),
         lambda data: data["guide"]["entries"].pop("idor_via_agent"),
         lambda data: data["guide"].update(language="pt"),
