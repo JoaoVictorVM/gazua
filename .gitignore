@@ -24,3 +24,6 @@ htmlcov/
 
 # Local run data
 .gazua/
+
+# MCP test fixture build output
+tests/support/mcp_server/node_modules/

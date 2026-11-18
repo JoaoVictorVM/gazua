@@ -45,6 +45,6 @@ Every entry ends with criteria a fix must meet, for example for records of anoth
 
 ## The guide is kept with the run
 
-`run.json` (schema version 3) keeps a copy of the guide in `guide`, with its editorial `revision`, its `language`, which is the run's, and its `origin`. Reports rebuilt with `gazua report --from` use that copy, even after a newer Gazua changes the texts, so an old report keeps the guidance it was produced with.
+`run.json` (schema version 3 and later) keeps a copy of the guide in `guide`, with its editorial `revision`, its `language`, which is the run's, and its `origin`. Reports rebuilt with `gazua report --from` use that copy, even after a newer Gazua changes the texts, so an old report keeps the guidance it was produced with.
 
 Documents written before the guide existed (schema versions 1 and 2) are still read. Gazua adds a frozen copy of the first revision of the guide when it reads them and marks it `legacy_fallback`; the reports then say that the guide was added when the document was read and was not part of the original run. The original file is never rewritten.

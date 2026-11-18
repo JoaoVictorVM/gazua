@@ -45,6 +45,7 @@ from gazua.reports.models import (
     SEVERITY_ORDER,
     ExitCode,
     Finding,
+    McpProvenance,
     ProofSnapshot,
     RedactionMode,
     ReportDiagnostic,
@@ -331,6 +332,7 @@ def build_run_document(
     baseline_digest: str | None = None,
     verification: VerificationResult | None = None,
     references: Mapping[str, ScenarioReference] | None = None,
+    mcp: McpProvenance | None = None,
 ) -> RunDocument:
     """The validated document of one run. Each result appears once, in planned order.
 
@@ -447,6 +449,8 @@ def build_run_document(
         baseline=comparison,
         verification=decided,
         guide=guide_for(language),
+        target_adapter="mcp_stdio" if mcp is not None else "python",
+        mcp=mcp,
     )
 
 

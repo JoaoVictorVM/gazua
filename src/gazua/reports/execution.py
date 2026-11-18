@@ -16,6 +16,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Literal
 
+from gazua.baseline.selection import target_ref
 from gazua.config.models import GazuaConfig
 from gazua.reports.models import RunDocument
 
@@ -132,6 +133,67 @@ def execute_mode(
     )
 
 
+class DeliveryCounter:
+    """Counts the description deliveries each MCP attempt's private channel recorded."""
+
+    def __init__(self) -> None:
+        self.seen: dict[str, tuple[str, int, bool, str | None]] = {}
+
+    def __call__(self, record: Any, evidence: Any) -> None:
+        channel = getattr(evidence, "deliveries", None)
+        if channel is None:
+            return
+        delivered = sum(1 for item in channel.deliveries if item.delivered)
+        reasons = [item.reason for item in channel.deliveries if item.reason is not None]
+        reason = None if channel.complete else "mcp_evidence_invalid"
+        if reason is None and reasons:
+            reason = "injection_not_delivered"
+        self.seen[record.request_key] = (record.execution_id, delivered, channel.complete, reason)
+
+
+def mcp_provenance(result: Any, deliveries: DeliveryCounter) -> Any:
+    """The MCP part of a run document: the snapshot's hash and names, what changed, coverage.
+
+    A tool counts as changed when an attempt that depends on it stopped because its
+    definition differed from the approved snapshot.
+    """
+    from gazua.reports.models import McpDeliveryCoverage, McpProvenance
+
+    snapshot = getattr(getattr(result, "inventory", None), "mcp", None)
+    if snapshot is None:
+        return None
+    by_request = {
+        slot.request_key: context for context in result.contexts for slot in context.requests
+    }
+    changed: set[str] = set()
+    for record in result.engine.records:
+        context = by_request.get(record.request_key)
+        if record.reason == "mcp_tool_changed" and context is not None and context.tool_name:
+            changed.add(context.tool_name)
+    coverage: list[McpDeliveryCoverage] = []
+    for key, (execution_id, delivered, complete, reason) in deliveries.seen.items():
+        context = by_request.get(key)
+        if context is None or context.mold.entry != "mcp_tool_description":
+            continue
+        coverage.append(
+            McpDeliveryCoverage(
+                attack_key=context.attack_key,
+                execution_id=execution_id,
+                expected_turns=len(context.mold.text.en),
+                delivered_turns=min(delivered, len(context.mold.text.en)),
+                complete=complete,
+                reason=reason,
+            )
+        )
+    return McpProvenance(
+        protocol_version=snapshot.protocol_version,
+        inventory_hash=snapshot.digest,
+        tools=[tool.name for tool in snapshot.tools],
+        changed_tools=sorted(changed),
+        deliveries=coverage,
+    )
+
+
 def execute_runner(
     mode: Mode,
     runner: Runner,
@@ -173,10 +235,16 @@ def execute_runner(
         output.warn(STORAGE_UNAVAILABLE)
     redactor = ReportRedactor(ReportRedactionPolicy.from_config(config, no_redact=no_redact))
     capture = ReportEvidenceCollector(redactor)
+    deliveries = DeliveryCounter()
+
+    def collect(record: Any, evidence: Any) -> None:
+        capture(record, evidence)
+        deliveries(record, evidence)
+
     created_at = _timestamp()
     common: dict[str, Any] = {
         "on_event": show_progress,
-        "on_evidence": capture,
+        "on_evidence": collect if config.mcp is not None else capture,
         "evidence_redactor": EngineRedaction(redactor),
         "storage_available": ready,
         "cancel": cancel,
@@ -189,7 +257,7 @@ def execute_runner(
     document = build_run_document(
         run_id=result.run_id,
         created_at=created_at,
-        target_ref=config.entrypoint or "",
+        target_ref=target_ref(config),
         mode=mode,
         language=language,
         engine=result.engine,
@@ -210,6 +278,7 @@ def execute_runner(
         baseline_digest=None if baseline is None else baseline.digest,
         verification=None if decide is None else decide(result),
         references=references,
+        mcp=mcp_provenance(result, deliveries) if config.mcp is not None else None,
     )
     output.lines(terminal_lines(document))
     if mode == "tools":

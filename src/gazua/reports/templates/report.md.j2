@@ -63,6 +63,9 @@ Confirm the fix, with the current configuration and baseline:
 - Date (UTC): {{ meta.created_at | md }}
 - Mode: {{ meta.mode }}
 - Target: {{ meta.target_ref | md }}
+{% for line in mcp_lines %}
+- {{ line | md }}
+{% endfor %}
 - Gazua version: {{ (meta.gazua_version or not_reported) | md }}
 - Target version: {{ (meta.target_version or not_reported) | md }}
 - Model: {{ (meta.model or not_reported) | md }}

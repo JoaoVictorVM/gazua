@@ -53,6 +53,10 @@ def entrypoint(message: str) -> str:
 
 If tools are wrapped only inside the entrypoint, nothing is registered, and Gazua says so. Keep `gazua.wrap` in the test module so production code imports nothing from Gazua. Importing the module is not a sandbox: it must not call a provider or do real work outside the wrapped tools.
 
+## MCP servers
+
+A target declared under `mcp` is called over MCP stdio, in any language, with no Python entrypoint. Tools are discovered with `tools/list` and the same rules apply: only declared, classified, `safe: true` tools are called. See [the MCP guide](mcp.md).
+
 ## HTTP targets
 
 Tools mode needs direct access to the tools. An `entrypoint` that is a URL is refused before any request with `--tools needs direct tool access; use --agent for HTTP targets.` and exit code 2.

@@ -29,6 +29,7 @@ from gazua.modes.agent_models import (
     legitimate_request_key,
 )
 from gazua.modes.tools_models import ToolsInventory
+from gazua.modes.tools_plan import mcp_payload
 from gazua.runtime.run_models import ExecutionRequest
 from gazua.runtime.session_models import SessionInjection, turn_injection_id
 from gazua.verdicts.engine import impediment_of
@@ -111,8 +112,17 @@ def attack_key(
     return f"agent:{mold.id}:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
 
 
+MCP_DESCRIPTION: Final = "mcp_tool_description"
+
+
 def entry_tool(config: GazuaConfig, mold: Mold) -> str | None:
-    """The declared tool that carries this mold's text, for indirect entries only."""
+    """The declared tool that carries this mold's text, for indirect entries only.
+
+    A tool description is an entry only for an MCP target, where the broker serves it.
+    """
+    if mold.entry == MCP_DESCRIPTION:
+        declared = config.agent_entries.mcp_tool_description
+        return None if config.mcp is None or declared is None else declared.tool
     if mold.entry not in INDIRECT_ENTRIES:
         return None
     declared = config.agent_entries.get(mold.entry)
@@ -122,6 +132,8 @@ def entry_tool(config: GazuaConfig, mold: Mold) -> str | None:
 def entry_reachable(config: GazuaConfig, mold: Mold) -> bool:
     if mold.entry == "user_message":
         return True
+    if mold.entry == MCP_DESCRIPTION:
+        return entry_tool(config, mold) is not None
     if mold.entry in ADAPTER_PENDING_ENTRIES:
         return False
     return entry_tool(config, mold) is not None
@@ -305,25 +317,27 @@ class _Planner:
                 )
                 for turn, text in enumerate(bound.turns, start=1)
             ]
-            if carrier is not None
+            if carrier is not None and mold.entry in INDIRECT_ENTRIES
             else []
         )
+        payload: dict[str, Any] = {
+            "kind": "attack",
+            "attack_key": context.attack_key,
+            "tool_name": context.tool_name,
+            "record_index": context.record_index,
+            "canary_index": context.canary_index,
+            "language": self.language,
+            "turns": len(bound.turns),
+            "mold": mold.model_dump(mode="json", exclude_unset=True),
+        }
+        payload.update(mcp_payload(self.inventory, [context.tool_name, carrier]))
         return ExecutionRequest(
             key=slot.request_key,
             mold_id=mold.id,
             repetition=slot.repetition,
             mode="agent",
             executor=EXECUTOR,
-            payload={
-                "kind": "attack",
-                "attack_key": context.attack_key,
-                "tool_name": context.tool_name,
-                "record_index": context.record_index,
-                "canary_index": context.canary_index,
-                "language": self.language,
-                "turns": len(bound.turns),
-                "mold": mold.model_dump(mode="json", exclude_unset=True),
-            },
+            payload=payload,
             requires_receiver=mold.success.signal == "receiver_hit",
             receiver_transport=False,
             usage_reporting=True,
@@ -332,7 +346,9 @@ class _Planner:
         )
 
 
-def legitimate_requests(config: GazuaConfig) -> tuple[ExecutionRequest, ...]:
+def legitimate_requests(
+    config: GazuaConfig, inventory: ToolsInventory | None = None
+) -> tuple[ExecutionRequest, ...]:
     """One request per declared task, in order, with no injection and no imposed actor."""
     return tuple(
         ExecutionRequest(
@@ -346,6 +362,7 @@ def legitimate_requests(config: GazuaConfig) -> tuple[ExecutionRequest, ...]:
                 "task_index": index,
                 "request": task.request,
                 "expected_tool": task.expected_tool,
+                **(mcp_payload(inventory, [task.expected_tool]) if inventory is not None else {}),
             },
             requires_receiver=False,
             receiver_transport=False,
@@ -416,7 +433,7 @@ def plan_agent(
     return AgentPlan(
         selection=selection,
         scenarios=tuple(scenarios),
-        legitimate=legitimate_requests(config) if legitimate else (),
+        legitimate=legitimate_requests(config, inventory) if legitimate else (),
         repetitions=repetitions,
         diagnostics=tuple(diagnostics),
     )

@@ -208,7 +208,7 @@ class ToolInventory:
                 "diagnostics": [item.code for item in self.diagnostics if item.field == name],
             }
             if entry is not None and entry.registered.originals:
-                described.update(_signature_description(entry.registered.originals[0]))
+                described.update(signature_description(entry.registered.originals[0]))
             tools.append(described)
         return {"complete": True, "tools": tools}
 
@@ -283,7 +283,7 @@ _PARAMETER_KINDS: dict[object, str] = {
 _VARIADIC = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
 
 
-def _signature_description(original: Callable[..., Any]) -> dict[str, Any]:
+def signature_description(original: Callable[..., Any]) -> dict[str, Any]:
     """Names, kinds and default presence only: defaults and annotations are the target's data."""
     try:
         signature = inspect.signature(original)

@@ -1,0 +1,21 @@
+{
+  "name": "gazua-mcp-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synthetic MCP stdio server for Gazua's MCP tests. Test data only.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  }
+}

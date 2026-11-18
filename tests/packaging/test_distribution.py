@@ -145,12 +145,20 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
         assert metadata["Requires-Python"] == ">=3.11"
         assert metadata["License-Expression"] == "Apache-2.0"
         assert metadata["License-File"] == "LICENSE"
-        assert metadata.get_all("Provides-Extra") is None
+        assert metadata.get_all("Provides-Extra") == ["mcp"]
+        requirements = metadata.get_all("Requires-Dist") or []
         required = {
             re.split(r"[<>=!~ ;\[]", requirement, maxsplit=1)[0].lower()
-            for requirement in metadata.get_all("Requires-Dist") or []
+            for requirement in requirements
+            if "extra ==" not in requirement
         }
         assert required == {"jinja2", "pydantic", "pyyaml", "typer"}
+        optional = {
+            re.split(r"[<>=!~ ;\[]", requirement, maxsplit=1)[0].lower()
+            for requirement in requirements
+            if "extra ==" in requirement
+        }
+        assert optional == {"jsonschema", "mcp"}
 
     entry_points = wheel_files[f"{dist_info}/entry_points.txt"].decode("utf-8")
     assert "gazua = gazua._bootstrap:main" in entry_points
@@ -565,6 +573,7 @@ REPORT_FILES = (
     "reports/legacy.py",
     "reports/legacy_guides.py",
     "reports/legacy_v2.py",
+    "reports/legacy_v3.py",
     "reports/lifecycle.py",
     "reports/models.py",
     "reports/redaction.py",
@@ -578,8 +587,14 @@ REPORT_FILES = (
     "schemas/run-v1.schema.json",
     "schemas/run-v2.schema.json",
     "schemas/run-v3.schema.json",
+    "schemas/run-v4.schema.json",
 )
-RUN_SCHEMAS = ("run-v1.schema.json", "run-v2.schema.json", "run-v3.schema.json")
+RUN_SCHEMAS = (
+    "run-v1.schema.json",
+    "run-v2.schema.json",
+    "run-v3.schema.json",
+    "run-v4.schema.json",
+)
 
 
 def test_report_assets_schema_and_guide_are_distributed(

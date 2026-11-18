@@ -43,6 +43,8 @@ def test_issue_command_resolves_full_finding_id(tools_project: Any) -> None:
     data = latest_run(root)
     assert data["verification"] is not None
     data.pop("guide")
+    data.pop("target_adapter")
+    data.pop("mcp")
     data["schema_version"] = 2
     adapted = parse_run_document(json.dumps(data).encode())
     assert adapted.guide.origin == "legacy_fallback"

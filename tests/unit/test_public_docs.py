@@ -19,6 +19,7 @@ PUBLIC_DOCUMENTS = (
     "docs/fix-guide.md",
     "docs/issues.md",
     "docs/benchmark.md",
+    "docs/mcp.md",
 )
 PLANNING_REFERENCE = re.compile(r"\b(PRD|F\d{2})\b|\.planning|\.harness|spec\.md|plan\.md")
 

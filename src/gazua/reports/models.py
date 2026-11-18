@@ -29,11 +29,11 @@ from gazua.runtime.run_models import GazuaId, NonEmptyText, RunSummary, UtcTimes
 from gazua.verdicts.models import AttackKey, ProofCondition, VerdictSummary
 
 if TYPE_CHECKING:
-    from gazua.reports import legacy, legacy_v2
+    from gazua.reports import legacy, legacy_v2, legacy_v3
 
-RUN_SCHEMA_FILE = "run-v3.schema.json"
-RUN_SCHEMA_VERSION = 3
-SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2, 3)
+RUN_SCHEMA_FILE = "run-v4.schema.json"
+RUN_SCHEMA_VERSION = 4
+SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2, 3, 4)
 PRESENTATION_VERSION = 2
 _SCHEMA_BASE = "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/"
 SEVERITY_ORDER: dict[Severity, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -173,12 +173,44 @@ class ProofSnapshot(_Strict):
     omission_reason: Code | None
 
 
+TargetAdapter: TypeAlias = Literal["python", "mcp_stdio"]
+Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+class McpDeliveryCoverage(_Strict):
+    """Whether each turn of one MCP description attempt reached the agent's client.
+
+    It counts deliveries only. The attack text, descriptions and server content are never here.
+    """
+
+    attack_key: AttackKey
+    execution_id: GazuaId
+    expected_turns: Annotated[int, Field(ge=0)]
+    delivered_turns: Annotated[int, Field(ge=0)]
+    complete: bool
+    reason: Code | None = None
+
+
+class McpProvenance(_Strict):
+    """What an MCP run was measured against, enough to compare a later replay.
+
+    The inventory hash covers every tool definition; the command, its arguments, the broker
+    token and the server's own texts are left out.
+    """
+
+    protocol_version: NonEmptyText
+    inventory_hash: Sha256
+    tools: list[NonEmptyText] = Field(default_factory=list[str])
+    changed_tools: list[NonEmptyText] = Field(default_factory=list[str])
+    deliveries: list[McpDeliveryCoverage] = Field(default_factory=list[McpDeliveryCoverage])
+
+
 class RunDocument(_Strict):
     """Everything the reports need, checked against the native verdicts."""
 
     model_config = ConfigDict(title="Gazua run document")
 
-    schema_version: Literal[3]
+    schema_version: Literal[4]
     run_id: GazuaId
     metadata: RunMetadata
     redaction: RedactionMode
@@ -196,10 +228,18 @@ class RunDocument(_Strict):
     verification: VerificationResult | None
     # The guide as the run captured it; reports never replace it with the installed catalog.
     guide: FixGuide
+    # How the target was reached. Documents read from older formats were Python targets.
+    target_adapter: TargetAdapter
+    mcp: McpProvenance | None
 
     @model_validator(mode="after")
     def _consistent(self) -> RunDocument:
-        problems = [*check_document(self), *snapshot_problems(self), *guide_problems(self)]
+        problems = [
+            *check_document(self),
+            *snapshot_problems(self),
+            *guide_problems(self),
+            *adapter_problems(self),
+        ]
         if problems:
             raise ValueError("; ".join(problems))
         return self
@@ -217,7 +257,7 @@ def _duplicates(values: list[str]) -> bool:
 
 
 def check_document(
-    document: RunDocument | legacy.RunDocument | legacy_v2.RunDocument,
+    document: RunDocument | legacy.RunDocument | legacy_v2.RunDocument | legacy_v3.RunDocument,
 ) -> list[str]:
     """Every cross-reference rule the document must keep; empty when it is consistent."""
     problems: list[str] = []
@@ -282,7 +322,7 @@ def check_document(
 
 
 def _legitimate_problems(
-    document: RunDocument | legacy.RunDocument | legacy_v2.RunDocument,
+    document: RunDocument | legacy.RunDocument | legacy_v2.RunDocument | legacy_v3.RunDocument,
 ) -> list[str]:
     """A legacy document without the field is valid; tools mode never measures tasks."""
     measured = document.legitimate_use
@@ -300,7 +340,21 @@ def _legitimate_problems(
     return []
 
 
-def guide_problems(document: RunDocument) -> list[str]:
+def adapter_problems(document: RunDocument) -> list[str]:
+    """MCP provenance belongs to MCP runs only, and covers scenarios of this run."""
+    mcp = document.mcp
+    if (document.target_adapter == "mcp_stdio") != (mcp is not None):
+        return ["Only an MCP run has MCP provenance, and every MCP run has it."]
+    if mcp is not None:
+        keys = {item.attack_key for item in document.scenarios}
+        if any(item.attack_key not in keys for item in mcp.deliveries):
+            return ["A delivery summary points to a scenario of this run."]
+        if any(item.delivered_turns > item.expected_turns for item in mcp.deliveries):
+            return ["A delivery summary cannot count more turns than it expected."]
+    return []
+
+
+def guide_problems(document: RunDocument | legacy_v3.RunDocument) -> list[str]:
     """The guide speaks the run's language and resolves every finding's fix reference."""
     problems: list[str] = []
     if document.guide.language != document.metadata.language:
@@ -310,7 +364,9 @@ def guide_problems(document: RunDocument) -> list[str]:
     return problems
 
 
-def snapshot_problems(document: RunDocument | legacy_v2.RunDocument) -> list[str]:
+def snapshot_problems(
+    document: RunDocument | legacy_v2.RunDocument | legacy_v3.RunDocument,
+) -> list[str]:
     """Rules of the scenario references and of the baseline and verification snapshots."""
     problems: list[str] = []
     verifying = document.verification is not None

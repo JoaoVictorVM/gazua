@@ -242,16 +242,53 @@ class AgentEntry(_Declaration):
 
 
 class AgentEntries(_Declaration):
-    """Indirect entries agent mode can reach. An absent entry is reported as not tested."""
+    """Indirect entries agent mode can reach. An absent entry is reported as not tested.
+
+    ``mcp_tool_description`` names the MCP tool whose description carries the text; it only
+    applies to a target declared under ``mcp``.
+    """
 
     tool_result: AgentEntry | None = None
     rag_document: AgentEntry | None = None
     poisoned_memory: AgentEntry | None = None
+    mcp_tool_description: AgentEntry | None = None
 
     def get(self, entry: str) -> AgentEntry | None:
         if entry not in AgentEntries.model_fields:
             return None
         return getattr(self, entry)
+
+
+MAX_MCP_ARGUMENTS: Final = 128
+MAX_MCP_ARGUMENT_CHARACTERS: Final = 8192
+
+
+def _check_no_nul(value: str) -> str:
+    if "\x00" in value:
+        raise _invalid("invalid_text", "Text cannot contain NUL characters.")
+    return value
+
+
+McpText = Annotated[str, Field(min_length=1), AfterValidator(_check_no_nul)]
+McpArgument = Annotated[
+    str, Field(max_length=MAX_MCP_ARGUMENT_CHARACTERS), AfterValidator(_check_no_nul)
+]
+
+
+class McpServer(_Declaration):
+    """A local MCP server that Gazua starts over stdio for each attempt.
+
+    ``command`` is one executable and ``args`` its argument vector: no shell reads them, so
+    substitutions, pipes and variables are not interpreted. ``cwd`` is relative to the
+    ``gazua.yaml`` folder. Starting the server runs its code with the user's permissions.
+    """
+
+    transport: Literal["stdio"]
+    command: McpText
+    args: Annotated[list[McpArgument], Field(max_length=MAX_MCP_ARGUMENTS)] = Field(
+        default_factory=list[str]
+    )
+    cwd: McpText = "."
 
 
 class MoldSources(_Declaration):
@@ -276,6 +313,7 @@ class GazuaConfig(_Declaration):
 
     schema_version: Literal[1]
     entrypoint: Reference | None = None
+    mcp: McpServer | None = None
     target: Target = Field(default_factory=Target)
     tools: dict[ToolName, Tool] = Field(
         default_factory=dict[str, Tool],

@@ -88,6 +88,19 @@ AUTHENTICATION_FAILED = "agent_authentication_failed"
 REPEATED_FAILURE = "repeated_agent_failure"
 PERSISTENT_RATE_LIMIT = "persistent_rate_limit"
 _CRASH_CODES = frozenset({"entrypoint_error", "executor_error", "blocked"})
+MCP_FAILURES = frozenset(
+    {
+        "mcp_extra_missing",
+        "mcp_start_failed",
+        "mcp_start_timeout",
+        "mcp_protocol_unsupported",
+        "mcp_inventory_invalid",
+        "mcp_inventory_limit",
+        "mcp_tool_changed",
+        "mcp_transport_lost",
+        "mcp_evidence_invalid",
+    }
+)
 
 
 def _failure(code: str, message: str, field: str | None = None) -> ConfigError:
@@ -185,6 +198,30 @@ def dry_run_session(
 
 
 DISCOVERY_RUN_ID = "GAZUA-discovery"
+_MCP_MESSAGES = {
+    "mcp_extra_missing": "This target needs MCP support. Install gazua[mcp].",
+    "mcp_start_failed": "The MCP server did not start",
+    "mcp_start_timeout": "The MCP server did not answer in time",
+    "timeout": "The MCP server did not answer in time",
+    "mcp_protocol_unsupported": "The MCP server does not speak a supported protocol revision",
+    "mcp_inventory_invalid": "The MCP server returned an invalid tool list",
+    "mcp_inventory_limit": "The MCP server's tool list is larger than Gazua's limits",
+    "mcp_transport_lost": "The MCP server stopped answering",
+}
+
+
+def mcp_failure(reason: str, config: GazuaConfig) -> ConfigError:
+    """The diagnostic of an MCP server that could not be listed: command name, never its args."""
+    from gazua.mcp.discovery import launch_for
+
+    code = reason if reason.startswith("mcp_") else "mcp_start_failed"
+    if reason == "mcp_extra_missing":
+        return _failure(code, _MCP_MESSAGES[reason], "mcp")
+    text = _MCP_MESSAGES.get(reason, "The MCP server could not be listed")
+    if config.mcp is None:
+        return _failure(code, f"{text}.", "mcp")
+    display = launch_for(config.mcp, Path()).display
+    return _failure(code, f"{text}: {display} ({reason}).", "mcp")
 
 
 def describe_tools(
@@ -199,7 +236,12 @@ def describe_tools(
     root = project_root.resolve()
     if not root.is_dir():
         raise _failure("project_root", "The project folder does not exist.")
-    if config.entrypoint is None:
+    if config.mcp is not None:
+        from gazua.mcp import EXTRA_MISSING_CODE, EXTRA_MISSING_MESSAGE, extra_available
+
+        if not extra_available():
+            raise _failure(EXTRA_MISSING_CODE, EXTRA_MISSING_MESSAGE, "mcp")
+    elif config.entrypoint is None:
         raise _failure(
             "entrypoint_missing",
             "Tools mode imports the entrypoint's module to find the tools; declare entrypoint.",
@@ -218,6 +260,7 @@ def describe_tools(
             "entrypoint": config.entrypoint,
             "config": config.to_document(),
             "run_id": DISCOVERY_RUN_ID,
+            "timeout": limit,
         }
         job_path = folder / "job.json"
         write_atomic(job_path, json.dumps(job, ensure_ascii=True))
@@ -250,6 +293,8 @@ def describe_tools(
         reason = "timeout" if code is None else "crashed"
         if result is not None:
             reason = str(result.get("code", reason))
+        if config.mcp is not None:
+            raise mcp_failure(reason, config)
         raise _failure(
             "discovery_failed",
             f"The test module could not be imported to find its tools ({reason}).",
@@ -419,7 +464,7 @@ class _Run:
 
     def preflight(self) -> ToolSummary | None:
         """The tool inventory, read in an isolated worker with every tool in dry-run."""
-        if self.config.entrypoint is None:
+        if self.config.entrypoint is None or self.config.mcp is not None:
             return None
         folder = self.store.working_directory("GAZUA-preflight")
         written = write_session(dry_run_session(self.config, self.plan.run_id, "agent"), folder)
@@ -541,6 +586,26 @@ class _Run:
         while self.pending:
             self.not_started(self.pending.popleft(), outcome)
         self.snapshot()
+
+    def close_dependents(self, changed: set[str]) -> None:
+        """Pending attempts that use an MCP tool whose definition changed never start.
+
+        Attempts that do not depend on it keep running; a new tool never gets a slot mid-run.
+        """
+        kept: deque[_Pending] = deque()
+        while self.pending:
+            item = self.pending.popleft()
+            dependent = item.request.payload.get("mcp_dependent")
+            names = (
+                {str(name) for name in cast("list[object]", dependent)}
+                if isinstance(dependent, list)
+                else set[str]()
+            )
+            if names & changed or not changed:
+                self.not_started(item, _Outcome("not_tested", "mcp_tool_changed"))
+            else:
+                kept.append(item)
+        self.pending = kept
 
     def cost_warning(self) -> None:
         if not self.cost_warned and self.limits.max_cost is not None:
@@ -805,6 +870,12 @@ class _Run:
         returns = read_return_channel(
             active.work / RETURNS_FILE, active.execution_id, records, log_valid=log_valid
         )
+        deliveries = None
+        if self.config.mcp is not None:
+            from gazua.mcp.evidence import read_delivery_channel
+            from gazua.mcp.models import DELIVERY_FILE
+
+            deliveries = read_delivery_channel(active.work / DELIVERY_FILE, active.execution_id)
         evidence = PrivateEvidence(
             execution_id=active.execution_id,
             calls=records,
@@ -815,6 +886,7 @@ class _Run:
             stderr=stderr,
             complete=complete,
             returns=returns,
+            deliveries=deliveries,
         )
         try:
             references = self.store.persist(evidence, raw_lines if log_valid else [])
@@ -853,6 +925,10 @@ class _Run:
             self.schedule_retry(active.pending, retry)
         if stop is not None:
             self.policy_stop(*stop)
+        if outcome.reason == "mcp_tool_changed" and result is not None:
+            changed = result.get("mcp_changed")
+            if isinstance(changed, list):
+                self.close_dependents({str(name) for name in cast("list[object]", changed)})
         if outcome.status == "reset_failed":
             self.error("reset_failed")
             self.cancel_active(_Outcome("cancelled", "reset_failed"))
@@ -913,6 +989,8 @@ class _Run:
         code = result.get("code")
         if code == AUTHENTICATION_FAILED:
             return _Outcome("crashed", AUTHENTICATION_FAILED), None
+        if isinstance(code, str) and code in MCP_FAILURES:
+            return _Outcome("crashed", code), None
         if code in _CRASH_CODES:
             return _Outcome("crashed", "agent_crashed"), None
         return _Outcome("crashed", "execution_protocol_error"), None

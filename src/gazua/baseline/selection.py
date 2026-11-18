@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final, Literal
 
 from gazua.baseline.models import BaselineDocument, BaselineEntry
@@ -63,7 +64,14 @@ class Selection:
 
 
 def target_ref(config: GazuaConfig) -> str:
-    """The target reference the reports use in finding ids."""
+    """The target reference the reports use in finding ids.
+
+    An MCP target is named by its transport and executable, never by its arguments, which can
+    hold private paths; the entrypoint of its test agent does not change the target.
+    """
+    if config.mcp is not None:
+        name = Path(config.mcp.command).name or config.mcp.command
+        return f"mcp:stdio:{name}"
     return config.entrypoint or ""
 
 

@@ -11,8 +11,10 @@ The entrypoint uses the project's own model and credential; nothing here reads e
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+from collections.abc import Generator, Mapping
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, cast
 
 from pydantic import JsonValue
 
@@ -28,6 +30,8 @@ from gazua.runtime.tools import InvocationRefused
 from gazua.runtime.worker import ExecutionContext
 
 SINK_MARKER = "markup_marker"
+MCP_DESCRIPTION = "mcp_tool_description"
+_broker: list[Any] = []
 
 
 def _index(value: object) -> int | None:
@@ -95,6 +99,16 @@ def _attack(
         if request.get("injections"):
             raise InvocationRefused("request_invalid")
         responses.extend(call_entrypoint(context.entrypoint, turn) for turn in bound.turns)
+    elif mold.entry == MCP_DESCRIPTION:
+        declared = config.agent_entries.mcp_tool_description
+        if declared is None or not _broker:
+            raise InvocationRefused("entry_unavailable")
+        broker = _broker[-1]
+        for turn, text in enumerate(bound.turns, start=1):
+            # The broker writes this turn's text only into the declared tool's description, and
+            # only while the trigger message runs.
+            with broker.arm(turn_injection_id(request["key"], turn), declared.tool, text, turn):
+                responses.append(call_entrypoint(context.entrypoint, declared.request))
     elif mold.entry in INDIRECT_ENTRIES:
         declared = config.agent_entries.get(mold.entry)
         if declared is None:
@@ -114,8 +128,55 @@ def _attack(
     return {"output": output_envelope(response, observations)}
 
 
+@contextmanager
+def _mcp_session(request: Mapping[str, Any], context: ExecutionContext) -> Generator[None]:
+    """The attempt's MCP runtime and broker, started before the entrypoint is imported."""
+    from gazua.mcp.broker import Broker
+    from gazua.mcp.discovery import approved_digests
+    from gazua.mcp.executor import McpRunBlocked, mcp_runtime
+
+    payload: Mapping[str, Any] = request["payload"]
+    try:
+        approved = approved_digests(payload.get("mcp_tools"))
+    except ValueError:
+        raise InvocationRefused("request_invalid") from None
+    dependent: object = payload.get("mcp_dependent") or []
+    if not isinstance(dependent, list):
+        raise InvocationRefused("request_invalid")
+    names = [str(name) for name in cast("list[object]", dependent)]
+    with (
+        mcp_runtime(
+            context.config,
+            Path.cwd(),
+            context.session_path,
+            approved=approved,
+            dependent=names,
+        ) as runtime,
+        Broker(runtime, context.directory, context.execution_id) as broker,
+    ):
+        _broker.append(broker)
+        try:
+            yield
+        except Exception:
+            # A failing agent after a changed or lost server is that failure, not the agent's.
+            runtime.raise_if_invalid()
+            raise
+        finally:
+            _broker.remove(broker)
+        runtime.raise_if_invalid()
+        if broker.evidence_failed:
+            raise McpRunBlocked("mcp_evidence_invalid")
+
+
 def execute(request: Mapping[str, Any], context: ExecutionContext) -> dict[str, Any]:
     """Runs one agent attack or legitimate task and returns the observation envelope."""
+    if context.config.mcp is not None:
+        with _mcp_session(request, context):
+            return _dispatch(request, context)
+    return _dispatch(request, context)
+
+
+def _dispatch(request: Mapping[str, Any], context: ExecutionContext) -> dict[str, Any]:
     payload: Mapping[str, Any] = request["payload"]
     kind = payload.get("kind")
     if kind == "legitimate":

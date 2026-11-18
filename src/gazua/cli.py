@@ -105,11 +105,41 @@ def init(
             help="Test entrypoint to record. It is checked for syntax, never imported.",
         ),
     ] = None,
+    mcp: Annotated[
+        str | None,
+        typer.Option(
+            "--mcp",
+            metavar="EXECUTABLE",
+            help="Start this MCP stdio server and list its tools with tools/list. It runs the "
+            "server's code; no tool is called.",
+        ),
+    ] = None,
+    mcp_arg: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--mcp-arg",
+            metavar="ARGUMENT",
+            help="One argument of the MCP server, repeatable and kept in order. No shell reads it.",
+        ),
+    ] = None,
+    mcp_cwd: Annotated[
+        str | None,
+        typer.Option(
+            "--mcp-cwd",
+            metavar="FOLDER",
+            help="Folder the MCP server starts in, relative to the project. Defaults to it.",
+        ),
+    ] = None,
 ) -> None:
     """Create gazua.yaml from the tools found in a project, for human review."""
     from gazua.config.diagnostics import sanitize
     from gazua.project_init import check_target, initialize_project, suggests_sensitive
 
+    if mcp is None and (mcp_arg or mcp_cwd is not None):
+        raise _usage_error("--mcp-arg and --mcp-cwd describe the server given with --mcp.")
+    if mcp is not None:
+        _init_mcp(directory, mcp, mcp_arg or [], mcp_cwd or ".", entrypoint)
+        return
     with exit_on_config_error():
         check_target(directory)
         _say(
@@ -153,6 +183,69 @@ def init(
     _say("Review every REVIEW REQUIRED comment before relying on this file.")
 
 
+def _init_mcp(
+    directory: Path, command: str, arguments: list[str], cwd: str, entrypoint: str | None
+) -> None:
+    from pydantic import ValidationError
+
+    from gazua.config.diagnostics import sanitize
+    from gazua.config.models import McpServer
+    from gazua.mcp import EXTRA_MISSING_MESSAGE, extra_available
+    from gazua.mcp.models import McpLaunch
+    from gazua.project_init import check_target, initialize_mcp_project, suggests_sensitive
+
+    try:
+        server = McpServer(transport="stdio", command=command, args=arguments, cwd=cwd)
+    except ValidationError:
+        raise _usage_error(
+            "The MCP command, its arguments and folder must be non-empty text without NUL."
+        ) from None
+    if not extra_available():
+        raise _usage_error(EXTRA_MISSING_MESSAGE)
+    display = McpLaunch(command, tuple(arguments), directory).display
+    with exit_on_config_error():
+        check_target(directory)
+        _say(
+            f"Warning: listing MCP tools starts {sanitize(display)} on this machine with your "
+            "permissions. Only point --mcp at a test server you trust.",
+            err=True,
+        )
+        result = initialize_mcp_project(directory, server, entrypoint)
+    tools = result.inventory.tools
+    if tools:
+        _say("Discovered MCP tools (suggestions, review required):")
+        for tool in tools:
+            suggestion = "sensitive" if suggests_sensitive(tool.name) else "not classified"
+            _say(f"  {sanitize(tool.name)}: {suggestion}, dry-run until reviewed")
+    else:
+        _say("The MCP server listed no tools.")
+    for warning in result.warnings:
+        _say(f"Warning: {warning.render()}", err=True)
+    _say(f"Created {sanitize(str(result.config_path))}")
+    if result.gitignore_changed:
+        _say(f"Added .gazua/ to {sanitize(str(result.gitignore_path))}")
+    else:
+        _say(f"{sanitize(str(result.gitignore_path))} already ignores .gazua/")
+    _say("Tools were listed with tools/list; none was called. Annotations grant nothing.")
+    _say(
+        "Every tool stays in dry-run until you mark it safe: true for test data and give it a "
+        "class. Then run gazua run --tools."
+    )
+    _say("Review every REVIEW REQUIRED comment before relying on this file.")
+
+
+MCP_PROVENANCE_WARNING = (
+    "The MCP server's tools differ from the run that recorded this finding, or that run is no "
+    "longer kept. This verification cannot close it; run gazua run again and review the "
+    "baseline."
+)
+
+
+def agent_release(config: Any) -> Literal["v0.2", "v0.4"]:
+    """The catalog release agent mode reads: MCP targets also get the description molds."""
+    return "v0.4" if config is not None and config.mcp is not None else "v0.2"
+
+
 class ModeChoice(StrEnum):
     tools = "tools"
     agent = "agent"
@@ -189,8 +282,9 @@ def _list_catalog(
         config,
         config_dir=path.parent,
         on_warning=lambda warning: _say(warning.message, err=True),
-        # Agent molds arrive with v0.2; the tools listing keeps its own release.
-        release="v0.2" if mode == "agent" else None,
+        # Agent molds arrive with v0.2, and MCP description molds with v0.4; the tools
+        # listing keeps its own release.
+        release=agent_release(config) if mode == "agent" else None,
     )
     if mold is not None:
         entries = tuple(entry for entry in result.entries if entry.id == mold)
@@ -328,7 +422,7 @@ def _run_tools(
         raise typer.Exit(EXIT_USAGE)
     with exit_on_config_error():
         tools_molds(catalog.entries, mold)
-    if config.entrypoint is None:
+    if config.entrypoint is None and config.mcp is None:
         raise _usage_error(
             "Tools mode imports the entrypoint's module to find the tools; declare entrypoint."
         )
@@ -423,7 +517,7 @@ def _run_agent(
         config,
         config_dir=config_path.parent,
         on_warning=lambda warning: _say(warning.message, err=True),
-        release="v0.2",
+        release=agent_release(config),
     )
     if catalog.has_errors:
         for diagnostic in catalog.diagnostics:
@@ -680,6 +774,18 @@ def run_command(
     if not tools:
         raise _usage_error(RUN_CHOICE_MESSAGE)
     _run_tools(path, mold, language.value, limits, no_redact, choice)
+
+
+@app.command(name="mcp-proxy")
+def mcp_proxy_command() -> None:
+    """Stdio MCP server for a test agent's client, during a Gazua agent run only.
+
+    It connects to the run's broker, which applies dry-run and delivers the attack texts. It
+    takes no server command or policy: outside a run it exits with code 2.
+    """
+    from gazua.mcp.proxy import run_proxy
+
+    raise typer.Exit(run_proxy())
 
 
 @app.command(name="demo")
@@ -974,7 +1080,7 @@ def verify_command(
     except ValidationError:
         raise _usage_error("Limit options must be positive numbers.") from None
     config = _load_tools_config(config_path, AGENT_HTTP_REFUSAL)
-    if config.entrypoint is None:
+    if config.entrypoint is None and config.mcp is None:
         raise _usage_error("Verification runs the target; declare entrypoint.")
     root = config_path.parent.resolve()
     try:
@@ -985,7 +1091,7 @@ def verify_command(
         config,
         config_dir=config_path.parent,
         on_warning=lambda warning: _say(warning.message, err=True),
-        release="v0.2",
+        release=agent_release(config),
     )
     if catalog.has_errors:
         for diagnostic in catalog.diagnostics:
@@ -1020,6 +1126,14 @@ def verify_command(
                     check_entries(config, inventory)
             plan = build_plan(selection, config, inventory)
             check_budget(plan, chosen)
+            extra: list[str] = []
+            if config.mcp is not None:
+                from gazua.baseline.verification import mcp_provenance_problem
+
+                problem = mcp_provenance_problem(root, selection.entry.id, inventory)
+                if problem is not None:
+                    extra.append(problem)
+                    _say(MCP_PROVENANCE_WARNING, err=True)
         except VerifyError as error:
             raise _verify_error(error) from None
         except ConfigError:
@@ -1044,6 +1158,8 @@ def verify_command(
                 config_path=config_path.name,
                 gazua_version=installed_version(),
                 show_preview=show_preview,
+                inventory=inventory,
+                extra_failures=extra,
             )
     finally:
         if lock is not None:
