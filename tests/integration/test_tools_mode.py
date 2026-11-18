@@ -183,3 +183,38 @@ def test_listing_remains_read_only(tools_project: Any, workdir: Path) -> None:
     assert not (tools_project.root / "effects").exists()
     assert not (tools_project.root / ".gazua").exists()
     assert list(workdir.iterdir()) == []
+
+
+def test_target_without_tools_is_proven_not_applicable(tools_project: Any) -> None:
+    (tools_project.root / "empty_target.py").write_text(
+        "def entrypoint(message: str) -> str:\n    raise RuntimeError('never called')\n",
+        encoding="utf-8",
+    )
+    tools_project.write(
+        entrypoint="empty_target:entrypoint",
+        tools={},
+        fixtures={"attacker": {"id": "attacker-1"}, "victim": {"id": "victim-1"}},
+        output_sink=None,
+    )
+
+    result = tools_project.run()
+    command = tools_project.cli("--tools")
+
+    assert result.exit_code == 0
+    assert {item.state for item in result.verdicts.results} == {"not_applicable"}
+    assert all(
+        context.impediment is not None and context.impediment.reason == "no_applicable_tool"
+        for context in result.contexts
+    )
+    assert result.engine.started == 0
+    assert command.returncode == 0, command.stdout
+    assert NO_TOOL_CAN_RUN not in command.stdout
+    assert not (tools_project.root / "effects").exists()
+
+    # A declared tool that is not registered is still a configuration problem, not absence.
+    tools_project.write(
+        entrypoint="empty_target:entrypoint",
+        tools={"get_order": {"safe": True, "sensitive": False}},
+        output_sink=None,
+    )
+    assert tools_project.run().exit_code == 2

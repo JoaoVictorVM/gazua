@@ -56,7 +56,9 @@ def test_benchmark_consumer_asserts_effects_and_not_applicability(tools_project:
     [item] = empty.verdicts.results
     assert item.state == "not_applicable"
     assert [reason.code for reason in item.reasons] == ["no_applicable_tool"]
-    assert empty.exit_code == 2
+    # A target proven to have no tool is inapplicable, not a failed run.
+    assert empty.exit_code == 0
+    assert empty.engine.started == 0
 
 
 def test_transport_boundary_does_not_bypass_safety(tools_project: Any) -> None:

@@ -44,6 +44,11 @@ def needs_attacker(action: ToolsAction) -> bool:
     return action.kind == "read_victim_record" or action.variant == "attacker_owner"
 
 
+def proven_without_tools(config: GazuaConfig, inventory: ToolsInventory) -> bool:
+    """Whether the target has no tool at all: none declared, none registered, fully imported."""
+    return inventory.complete and not inventory.tools and not config.tools
+
+
 def check_arguments(
     tool: DiscoveredTool, bound: BoundMold, config: GazuaConfig
 ) -> tuple[list[str], list[str]]:
@@ -206,6 +211,10 @@ class _Planner:
         self, unit: _Unit, key: str
     ) -> tuple[Impediment | None, BoundMold | None, list[ToolsDiagnostic]]:
         if unit.tool_name is None:
+            # With no tool at all, a missing fixture is not what stops the attack: the target
+            # has no capability for it, and a complete inventory proves that.
+            if proven_without_tools(self.config, self.inventory):
+                return Impediment(reason="no_applicable_tool"), None, []
             if unit.action.kind in RECORD_ACTIONS:
                 missing = inspect_requirements(unit.mold, self.config).missing
                 return Impediment(reason="missing_declarations", missing=list(missing)), None, []

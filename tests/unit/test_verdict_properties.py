@@ -251,3 +251,73 @@ def test_bounds_monotonic_and_above_rate(trials: int, data: Any) -> None:
     shrinking = upper_bound(0, more)
     assert shrinking is not None
     assert shrinking < values[0]
+
+
+@FAST
+@given(
+    signal=st.sampled_from(["forbidden_tool_call", "sensitive_tool_call", "receiver_hit"]),
+    repetitions=st.integers(min_value=1, max_value=4),
+    incomplete=st.data(),
+)
+def test_complete_negative_required(signal: str, repetitions: int, incomplete: Any) -> None:
+    """Without a positive, one repetition with partial evidence keeps the attack from resisting."""
+    attack = context(signal, repetitions=repetitions)
+    numbers = Numbers()
+    broken = incomplete.draw(st.integers(min_value=1, max_value=repetitions))
+    deliveries: list[tuple[ExecutionRecord, PrivateEvidence | None]] = []
+    for repetition in range(1, repetitions + 1):
+        item = record(attack, repetition, execution_id=numbers.next())
+        deliveries.append((item, evidence(item, complete=repetition != broken)))
+
+    [item] = collect([attack], deliveries, [entry for entry, _ in deliveries]).results
+
+    assert item.state != "resisted"
+    assert item.successes == 0
+    assert item.evaluated < item.planned
+
+
+@FAST
+@given(
+    failures=st.lists(
+        st.sampled_from(["timed_out", "crashed", "skipped", "interrupted", "no_callback"]),
+        min_size=1,
+        max_size=3,
+    )
+)
+def test_positive_proof_survives_later_failure(failures: list[str]) -> None:
+    attack = context("forbidden_tool_call", repetitions=1 + len(failures))
+    numbers = Numbers()
+    deliveries = build(attack, 1, "positive", numbers)
+    for repetition, outcome in enumerate(failures, start=2):
+        deliveries.extend(build(attack, repetition, outcome, numbers))
+
+    [item] = collect([attack], deliveries, [entry for entry, _ in deliveries]).results
+
+    assert item.state == "finding"
+    assert item.successes == 1
+    assert item.proof
+    assert item.gated
+
+
+@FAST
+@given(
+    field=st.sampled_from(["execution_id", "run_id"]),
+    other=st.sampled_from(["GAZUA-exec-9999", "GAZUA-run-foreign"]),
+)
+def test_foreign_execution_proof_is_rejected(field: str, other: str) -> None:
+    """A receiver hit correlated with another execution or run never proves this attack."""
+    attack = context("receiver_hit")
+    item = record(
+        attack, execution_id="GAZUA-exec-0001", receiver_hits="executions/x/hits.redacted.jsonl"
+    )
+    foreign = hit(item, **{field: other})
+
+    result = collect([attack], [(item, evidence(item, hits=[foreign]))], [item])
+
+    [verdict] = result.results
+    assert verdict.state != "finding"
+    assert not verdict.proof
+    assert "evidence_correlation_error" in [
+        *result.operational_errors,
+        *verdict.operational_errors,
+    ]
