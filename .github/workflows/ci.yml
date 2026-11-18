@@ -21,7 +21,8 @@ jobs:
           version: "0.13.6"
           enable-cache: false
       - run: uv lock --check
-      - run: uv sync --frozen
+      # The MCP adapter is type-checked against its optional SDK.
+      - run: uv sync --frozen --extra mcp
       - run: uv run --frozen ruff check .
       - run: uv run --frozen ruff format --check .
       - run: uv run --frozen pyright

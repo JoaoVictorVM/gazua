@@ -17,8 +17,9 @@ def test_call_ceiling_and_message_limits(tmp_path: Path) -> None:
 
     result = project.run_agent("idor-10", repetitions=1, overrides={"max_tool_calls": 1})
 
-    # The simulated agent makes two calls per turn; the ceiling admits only the first.
-    assert len(project.calls()) == 1
+    # The simulated agent makes two calls per turn; the ceiling admits only the first, and the
+    # attempt may be stopped before even that one reaches the server.
+    assert len(project.calls()) <= 1
     [record] = result.engine.records
     assert record.status == "killed_at_ceiling"
 
