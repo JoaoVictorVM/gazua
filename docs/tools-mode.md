@@ -59,7 +59,7 @@ A target declared under `mcp` is called over MCP stdio, in any language, with no
 
 ## HTTP targets
 
-Tools mode needs direct access to the tools. An `entrypoint` that is a URL is refused before any request with `--tools needs direct tool access; use --agent for HTTP targets.` and exit code 2.
+Tools mode needs direct access to the tools. A configuration with an `http` block, or an `entrypoint` that is a URL, is refused before any request with `--tools needs direct tool access; use --agent for HTTP targets.` and exit code 2. Agent mode reaches HTTP targets; see [the HTTP guide](http.md).
 
 ## Output
 

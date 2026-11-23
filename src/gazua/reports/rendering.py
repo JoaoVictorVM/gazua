@@ -336,6 +336,7 @@ def _context(document: RunDocument) -> dict[str, Any]:
         "legitimate": legitimate_view(document),
         "stop_text": stop_text(document),
         "mcp_lines": mcp_lines(document),
+        "http_lines": http_lines(document),
         "demo_notice": demo_notice(document),
         "comparison": comparison_view(document.baseline),
         "verification": verification_view(document.verification, metadata.mode),
@@ -412,6 +413,24 @@ def render_report(document: RunDocument) -> tuple[str, str]:
     return render_html(document), render_markdown(document)
 
 
+def http_lines(document: RunDocument) -> list[str]:
+    """The HTTP origin and trace coverage in plain sentences: never paths, headers or spans."""
+    http = document.http
+    if http is None:
+        return []
+    lines = [f"HTTP target: POST to {http.origin}, with no dry-run."]
+    traces = http.traces
+    if not traces.enabled:
+        lines.append("Traces: off. Attacks that need to see tool calls are not tested.")
+        return lines
+    noun = "span" if traces.accepted_tool_spans == 1 else "spans"
+    text = f"Traces: coverage {traces.coverage}, {traces.accepted_tool_spans} tool {noun} accepted."
+    if traces.reason is not None:
+        text += f" Reason: {traces.reason.replace('_', ' ')}."
+    lines.append(text)
+    return lines
+
+
 def mcp_lines(document: RunDocument) -> list[str]:
     """The MCP provenance in plain sentences: never commands, arguments or server texts."""
     mcp = document.mcp
@@ -458,6 +477,7 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
         summary_lines(document.verdicts, version=metadata.gazua_version, model=metadata.model)
     )
     lines.extend(mcp_lines(document))
+    lines.extend(http_lines(document))
     legitimate = legitimate_view(document)
     if legitimate is not None:
         from gazua.modes.agent_presentation import legitimate_task_lines

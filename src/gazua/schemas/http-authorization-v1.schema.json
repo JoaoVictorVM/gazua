@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/http-authorization-v1.schema.json",
+  "additionalProperties": false,
+  "description": "The local record that an operator confirmed real effects against one origin and config.\n\nIt holds no typed phrase, header, token, response or personal identity. It proves that the\nlocal gate was passed for this configuration, never a legal authorization.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "origin": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Origin",
+      "type": "string"
+    },
+    "config_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Config Hash",
+      "type": "string"
+    },
+    "confirmed_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "title": "Confirmed At",
+      "type": "string"
+    },
+    "authorized": {
+      "const": true,
+      "title": "Authorized",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "origin",
+    "config_hash",
+    "confirmed_at",
+    "authorized"
+  ],
+  "title": "Gazua HTTP authorization receipt",
+  "type": "object"
+}

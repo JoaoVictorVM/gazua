@@ -73,7 +73,7 @@ def test_invalid_sources_exit_two_without_writing(tmp_path: Path) -> None:
         deep = [deep]
     cases = {
         "missing.json": "No run.json at this path.",
-        _write(work / "future.json", {**valid, "schema_version": 5}).name: "migration",
+        _write(work / "future.json", {**valid, "schema_version": 6}).name: "migration",
         _write(work / "broken.json", {**valid, "findings": "x"}).name: "run schema",
         _write(work / "deep.json", {**valid, "payload": deep}).name: "64 levels",
     }

@@ -45,6 +45,7 @@ from gazua.reports.models import (
     SEVERITY_ORDER,
     ExitCode,
     Finding,
+    HttpProvenance,
     McpProvenance,
     ProofSnapshot,
     RedactionMode,
@@ -172,6 +173,9 @@ def finding_id(target_ref: str, mode: Mode, mold_id: str, tool_name: str | None)
 def proof_source(proof: Proof) -> SnapshotSource:
     """Which kind of evidence holds what the proof points to."""
     signal = proof.signal
+    if proof.call_seq is None and proof.facts.get("source") == "trace":
+        # A span keeps no arguments or return; its normalized facts are the whole excerpt.
+        return "operational"
     if signal in ("forbidden_tool_call", "sensitive_tool_call", "canary_in_tool_arguments"):
         return "call"
     if signal == "victim_record_access":
@@ -333,6 +337,7 @@ def build_run_document(
     verification: VerificationResult | None = None,
     references: Mapping[str, ScenarioReference] | None = None,
     mcp: McpProvenance | None = None,
+    http: HttpProvenance | None = None,
 ) -> RunDocument:
     """The validated document of one run. Each result appears once, in planned order.
 
@@ -449,8 +454,9 @@ def build_run_document(
         baseline=comparison,
         verification=decided,
         guide=guide_for(language),
-        target_adapter="mcp_stdio" if mcp is not None else "python",
+        target_adapter="http" if http is not None else "mcp_stdio" if mcp is not None else "python",
         mcp=mcp,
+        http=http,
     )
 
 

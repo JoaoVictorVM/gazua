@@ -20,6 +20,10 @@ from gazua.reports.legacy_v2 import (
     packaged_run_v2_json_schema,
     render_run_v2_json_schema,
 )
+from gazua.reports.legacy_v4 import (
+    packaged_run_v4_json_schema,
+    render_run_v4_json_schema,
+)
 from gazua.reports.models import (
     RunDocument,
     build_run_json_schema,
@@ -34,11 +38,18 @@ EXAMPLE = ROOT / "tests" / "support" / "run-example.json"
 EXAMPLE_V2 = ROOT / "tests" / "support" / "run-example-v2.json"
 
 
-def test_v4_schema_matches_generator() -> None:
+def test_v5_schema_matches_generator() -> None:
     assert packaged_run_json_schema().replace("\r\n", "\n") == render_run_json_schema()
-    published = (ROOT / "src/gazua/schemas/run-v4.schema.json").read_text(encoding="utf-8")
+    published = (ROOT / "src/gazua/schemas/run-v5.schema.json").read_text(encoding="utf-8")
     assert published.replace("\r\n", "\n") == render_run_json_schema()
     assert "guide" in build_run_json_schema()["required"]
+    assert "http" in build_run_json_schema()["required"]
+
+
+def test_v4_schema_is_frozen() -> None:
+    published = (ROOT / "src/gazua/schemas/run-v4.schema.json").read_text(encoding="utf-8")
+    assert packaged_run_v4_json_schema().replace("\r\n", "\n") == render_run_v4_json_schema()
+    assert published.replace("\r\n", "\n") == render_run_v4_json_schema()
 
 
 @pytest.mark.parametrize(
@@ -86,8 +97,9 @@ def test_v1_adapts_without_baseline() -> None:
     adapted = parse_run_document(content)
 
     assert original["schema_version"] == 1
-    assert adapted.schema_version == 4
+    assert adapted.schema_version == 5
     assert adapted.target_adapter == "python"
+    assert adapted.http is None
     assert adapted.guide.origin == "legacy_fallback"
     assert adapted.baseline is None
     assert adapted.verification is None
@@ -134,7 +146,7 @@ def test_v2_snapshot_invariants() -> None:
 
 def test_unknown_version_has_migration_diagnostic() -> None:
     data = json.loads(document_json(document()))
-    data["schema_version"] = 5
+    data["schema_version"] = 6
 
     with pytest.raises(RunLoadError) as caught:
         parse_run_document(json.dumps(data).encode())

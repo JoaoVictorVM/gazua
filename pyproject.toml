@@ -43,6 +43,9 @@ mcp = [
     "jsonschema>=4.23,<5",
     "mcp>=1.12,<2",
 ]
+otel = [
+    "opentelemetry-proto>=1.45,<2",
+]
 
 [tool.hatch.build]
 exclude = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]
@@ -51,7 +54,7 @@ exclude = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]
 packages = ["src/gazua"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src/gazua", "docs/configuration.md", "docs/execution.md", "docs/integration.md", "docs/molds.md", "docs/releasing.md", "docs/reports.md", "docs/tools-mode.md", "docs/agent-mode.md", "docs/demo.md", "docs/verdicts.md", "docs/baseline.md", "docs/fix-guide.md", "docs/issues.md", "docs/mcp.md", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml"]
+only-include = ["src/gazua", "docs/configuration.md", "docs/execution.md", "docs/integration.md", "docs/molds.md", "docs/releasing.md", "docs/reports.md", "docs/tools-mode.md", "docs/agent-mode.md", "docs/demo.md", "docs/verdicts.md", "docs/baseline.md", "docs/fix-guide.md", "docs/issues.md", "docs/mcp.md", "docs/http.md", "docs/traces.md", "README.md", "SECURITY.md", "LICENSE", "pyproject.toml"]
 
 [tool.ruff]
 target-version = "py311"

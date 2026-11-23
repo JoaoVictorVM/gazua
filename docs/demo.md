@@ -93,7 +93,7 @@ uv export --frozen --no-dev --no-emit-project --format requirements.txt -o dist/
 docker build --tag gazua-demo .
 ```
 
-The image is also a base for CI jobs: override its entrypoint to run other `gazua` commands. HTTP and MCP adapters are not part of Gazua yet.
+The image is also a base for CI jobs: override its entrypoint to run other `gazua` commands. The image does not include the optional `gazua[mcp]` and `gazua[otel]` extras.
 
 ## Reusing the store
 
