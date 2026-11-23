@@ -21,8 +21,8 @@ jobs:
           version: "0.13.6"
           enable-cache: false
       - run: uv lock --check
-      # The MCP adapter is type-checked against its optional SDK.
-      - run: uv sync --frozen --extra mcp
+      # The MCP and trace adapters are type-checked against their optional extras.
+      - run: uv sync --frozen --extra mcp --extra otel
       - run: uv run --frozen ruff check .
       - run: uv run --frozen ruff format --check .
       - run: uv run --frozen pyright
