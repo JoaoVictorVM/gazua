@@ -291,6 +291,61 @@ class McpServer(_Declaration):
     cwd: McpText = "."
 
 
+def _check_endpoint(value: str) -> str:
+    from gazua.http.models import EndpointError, parse_endpoint
+
+    try:
+        parse_endpoint(value)
+    except EndpointError as error:
+        raise PydanticCustomError("http_endpoint", "{reason}", {"reason": str(error)}) from None
+    return value
+
+
+def _check_headers(value: dict[str, str]) -> dict[str, str]:
+    from gazua.http.models import MAX_HEADERS, header_problem
+
+    if len(value) > MAX_HEADERS:
+        raise _invalid("http_header", "At most 32 static headers can be declared.")
+    lowered = [name.lower() for name in value]
+    if len(set(lowered)) != len(lowered):
+        raise _invalid("http_header", "Header names must be unique, ignoring case.")
+    for name, text in value.items():
+        problem = header_problem(name, text)
+        if problem is not None:
+            raise PydanticCustomError("http_header", "{reason}", {"reason": problem})
+    return value
+
+
+HttpEndpoint = Annotated[
+    str,
+    AfterValidator(_check_endpoint),
+    WithJsonSchema({"type": "string", "pattern": r"^[Hh][Tt][Tt][Pp][Ss]?://[^\s#@]+$"}),
+]
+
+
+class HttpTarget(_Declaration):
+    """An authorized HTTP endpoint agent mode sends each turn to, as ``POST`` JSON.
+
+    There is no dry-run over HTTP: every request can have real effects on the endpoint, so
+    ``real_side_effects: i_understand`` and a local authorization receipt are required before
+    a run. Headers are static, non-secret values; credentials are out of scope.
+    """
+
+    endpoint: HttpEndpoint
+    headers: Annotated[dict[str, str], AfterValidator(_check_headers)] = Field(
+        default_factory=dict[str, str],
+        json_schema_extra={"maxProperties": 32},
+    )
+    real_side_effects: Literal["i_understand"] | None = None
+
+
+class TraceConfig(_Declaration):
+    """A local OTLP/HTTP receiver that collects the target's tool spans for each attempt."""
+
+    transport: Literal["otlp_http"]
+    wait_seconds: Annotated[float, Field(gt=0, le=10, allow_inf_nan=False)] = 5
+
+
 class MoldSources(_Declaration):
     """Local folders with extra attack molds. Paths are relative to the ``gazua.yaml`` folder.
 
@@ -314,6 +369,8 @@ class GazuaConfig(_Declaration):
     schema_version: Literal[1]
     entrypoint: Reference | None = None
     mcp: McpServer | None = None
+    http: HttpTarget | None = None
+    traces: TraceConfig | None = None
     target: Target = Field(default_factory=Target)
     tools: dict[ToolName, Tool] = Field(
         default_factory=dict[str, Tool],

@@ -168,6 +168,43 @@
       "title": "Gate",
       "type": "object"
     },
+    "HttpTarget": {
+      "additionalProperties": false,
+      "description": "An authorized HTTP endpoint agent mode sends each turn to, as ``POST`` JSON.\n\nThere is no dry-run over HTTP: every request can have real effects on the endpoint, so\n``real_side_effects: i_understand`` and a local authorization receipt are required before\na run. Headers are static, non-secret values; credentials are out of scope.",
+      "properties": {
+        "endpoint": {
+          "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^\\s#@]+$",
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "maxProperties": 32,
+          "title": "Headers",
+          "type": "object"
+        },
+        "real_side_effects": {
+          "anyOf": [
+            {
+              "const": "i_understand",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Real Side Effects"
+        }
+      },
+      "required": [
+        "endpoint"
+      ],
+      "title": "HttpTarget",
+      "type": "object"
+    },
     "Identity": {
       "additionalProperties": false,
       "description": "A synthetic identity used by attacks between users.",
@@ -434,6 +471,29 @@
       },
       "title": "Tool",
       "type": "object"
+    },
+    "TraceConfig": {
+      "additionalProperties": false,
+      "description": "A local OTLP/HTTP receiver that collects the target's tool spans for each attempt.",
+      "properties": {
+        "transport": {
+          "const": "otlp_http",
+          "title": "Transport",
+          "type": "string"
+        },
+        "wait_seconds": {
+          "default": 5,
+          "exclusiveMinimum": 0,
+          "maximum": 10,
+          "title": "Wait Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "transport"
+      ],
+      "title": "TraceConfig",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -461,6 +521,28 @@
       "anyOf": [
         {
           "$ref": "#/$defs/McpServer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "http": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HttpTarget"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "traces": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TraceConfig"
         },
         {
           "type": "null"

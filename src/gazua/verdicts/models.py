@@ -102,6 +102,9 @@ class Capabilities(_Strict):
     tool_visibility: bool = True
     receiver_transport: bool = False
     observation_envelope: bool = False
+    # Where tool calls are seen. Spans name the tool and its outcome only: never arguments,
+    # returns or the call ceiling, so signals that need those are not tested over traces.
+    tool_source: Literal["call_log", "traces"] = "call_log"
 
 
 class ResultPaths(_Strict):

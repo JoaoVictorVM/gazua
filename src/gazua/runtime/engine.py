@@ -101,6 +101,25 @@ MCP_FAILURES = frozenset(
         "mcp_evidence_invalid",
     }
 )
+# Codes the HTTP executor reports. A lost response is final: the remote effect may have happened.
+HTTP_FAILURES = frozenset(
+    {
+        "http_target_missing",
+        "http_endpoint_invalid",
+        "http_target_not_allowed",
+        "http_tls_required",
+        "http_tls_failed",
+        "http_real_side_effects_missing",
+        "http_request_limit",
+        "http_redirect_refused",
+        "http_client_error",
+        "http_server_error",
+        "http_response_invalid",
+        "http_response_limit",
+        "http_transport_lost",
+        "otel_extra_missing",
+    }
+)
 
 
 def _failure(code: str, message: str, field: str | None = None) -> ConfigError:
@@ -150,7 +169,11 @@ def prepare_run(
     """
     if not isinstance(config, GazuaConfig):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise _failure("multiple_targets", "A run tests exactly one target configuration.")
-    if config.entrypoint is None and any(request.mode == "agent" for request in requests):
+    if (
+        config.entrypoint is None
+        and config.http is None
+        and any(request.mode == "agent" for request in requests)
+    ):
         raise _failure("entrypoint_missing", "Agent executions need an entrypoint.", "entrypoint")
     items = tuple(requests)
     if not items:
@@ -442,6 +465,7 @@ class _Run:
             "entrypoint": self.config.entrypoint,
             "config": self.config.to_document(),
             "run_id": self.plan.run_id,
+            "timeout": self.limits.timeout,
         }
 
     def wait(self, process: SupervisedProcess, timeout: float) -> int | None:
@@ -876,6 +900,12 @@ class _Run:
             from gazua.mcp.models import DELIVERY_FILE
 
             deliveries = read_delivery_channel(active.work / DELIVERY_FILE, active.execution_id)
+        traces = None
+        if self.config.traces is not None:
+            from gazua.otel import TRACE_FILE
+            from gazua.otel.evidence import read_trace_evidence
+
+            traces = read_trace_evidence(active.work / TRACE_FILE, active.execution_id)
         evidence = PrivateEvidence(
             execution_id=active.execution_id,
             calls=records,
@@ -887,6 +917,7 @@ class _Run:
             complete=complete,
             returns=returns,
             deliveries=deliveries,
+            traces=traces,
         )
         try:
             references = self.store.persist(evidence, raw_lines if log_valid else [])
@@ -990,6 +1021,8 @@ class _Run:
         if code == AUTHENTICATION_FAILED:
             return _Outcome("crashed", AUTHENTICATION_FAILED), None
         if isinstance(code, str) and code in MCP_FAILURES:
+            return _Outcome("crashed", code), None
+        if isinstance(code, str) and code in HTTP_FAILURES:
             return _Outcome("crashed", code), None
         if code in _CRASH_CODES:
             return _Outcome("crashed", "agent_crashed"), None

@@ -10,7 +10,7 @@ only codes and pointers, never the request or the response.
 from __future__ import annotations
 
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from gazua.config.models import GazuaConfig
@@ -34,9 +34,18 @@ class _Declared:
 
 
 def evaluate_task(
-    task: _Declared, record: ExecutionRecord, evidence: PrivateEvidence | None
+    task: _Declared,
+    record: ExecutionRecord,
+    evidence: PrivateEvidence | None,
+    *,
+    traced: bool = False,
+    remote: bool = False,
 ) -> LegitimateTask:
-    """The state of one task from its terminal attempt."""
+    """The state of one task from its terminal attempt.
+
+    ``remote`` is an HTTP target, whose tools run outside Gazua: only a correlated span of the
+    expected tool, read when ``traced``, shows it was used.
+    """
     execution_id = record.execution_id if record.started_at is not None else None
 
     def outcome(
@@ -65,9 +74,37 @@ def evaluate_task(
     envelope = parse_envelope(evidence.output)
     if envelope is None or not isinstance(envelope.response, str):
         return outcome("not_tested", "output_unreadable")
+    if remote:
+        return (
+            _traced_task(task, evidence, outcome)
+            if traced
+            else outcome("not_tested", "tool_calls_unobservable")
+        )
     for call in evidence.calls:
         if call.tool == task.expected_tool and call.outcome == "returned":
             return outcome("succeeded", None, call.seq, call.dry_run)
+    return outcome("failed", "expected_tool_not_called")
+
+
+def _traced_task(
+    task: _Declared, evidence: PrivateEvidence, outcome: Callable[..., LegitimateTask]
+) -> LegitimateTask:
+    """A task over HTTP: a ``succeeded`` span of the expected tool, never the answer's words.
+
+    A negative needs a complete channel that carried the tool contract; otherwise the task is
+    not tested, because an absent span may only mean missing instrumentation.
+    """
+    traces = evidence.traces
+    if traces is None:
+        return outcome("not_tested", "otel_evidence_missing")
+    for position, span in enumerate(traces.tool_spans, start=1):
+        if span.tool == task.expected_tool and span.outcome == "succeeded":
+            # The pointer is the span's order in the attempt; the remote call never dry-runs.
+            return outcome("succeeded", None, position, False)
+    if not traces.complete:
+        return outcome("not_tested", traces.reason or "otel_evidence_incomplete")
+    if not traces.has_tool_contract():
+        return outcome("not_tested", "otel_tool_contract_missing")
     return outcome("failed", "expected_tool_not_called")
 
 
@@ -83,6 +120,8 @@ class LegitimateCollector:
             for index, task in enumerate(config.legit_tasks)
         )
         self._by_key = {task.request_key: task for task in self.tasks}
+        self._remote = config.http is not None
+        self._traced = config.traces is not None
         self._lock = threading.Lock()
         self._latest: dict[str, tuple[int, LegitimateTask]] = {}
 
@@ -93,7 +132,7 @@ class LegitimateCollector:
         task = self._by_key.get(record.request_key)
         if task is None:
             return
-        evaluated = evaluate_task(task, record, evidence)
+        evaluated = evaluate_task(task, record, evidence, traced=self._traced, remote=self._remote)
         with self._lock:
             self._keep(record.request_key, record.attempt, evaluated)
 

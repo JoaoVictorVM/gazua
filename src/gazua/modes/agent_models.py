@@ -115,6 +115,9 @@ class AgentPreview(_Strict):
     cost_source: CostSource
     max_cost: float | None = None
     cost_per_run: float | None = None
+    # An HTTP target: its origin and whether tool spans are read. None for Python and MCP.
+    http_origin: str | None = None
+    traces: bool | None = None
 
     @property
     def molds(self) -> int:

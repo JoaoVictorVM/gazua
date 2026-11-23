@@ -28,6 +28,7 @@ from gazua.runtime.session_models import CallRecord
 
 if TYPE_CHECKING:
     from gazua.mcp.evidence import DeliveryChannel
+    from gazua.otel.models import TraceEvidence
 
 PRIVATE_FOLDER = "private"
 PRIVATE_MARKER = "GAZUA-PRIVATE"
@@ -97,6 +98,8 @@ class PrivateEvidence:
     complete: bool
     returns: ReturnChannel | None = None
     deliveries: DeliveryChannel | None = None
+    # Tool spans of an HTTP target; None when traces were not declared or the sidecar is lost.
+    traces: TraceEvidence | None = None
 
 
 @dataclass(frozen=True, slots=True)

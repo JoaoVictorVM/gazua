@@ -84,6 +84,33 @@ def mcp_provenance_problem(project_root: Path, finding_id: str, inventory: Any) 
     return MCP_PROVENANCE_MISSING
 
 
+HTTP_PROVENANCE_CHANGED = "http_provenance_changed"
+HTTP_PROVENANCE_MISSING = "http_provenance_missing"
+
+
+def http_provenance_problem(project_root: Path, finding_id: str, origin: str) -> str | None:
+    """Why an HTTP finding cannot be closed by this replay; None when adapter and origin match.
+
+    The newest kept run that holds the finding must have reached the same origin over HTTP. A
+    finding recorded through another adapter, or a run no longer kept, never closes here.
+    """
+    from gazua.reports.storage import RunLoadError, load_run_document
+
+    folder = project_root / ".gazua" / "runs"
+    paths = sorted(folder.glob("*/run.json"), reverse=True) if folder.is_dir() else []
+    for path in paths:
+        try:
+            document = load_run_document(path)
+        except (RunLoadError, OSError, ValueError):
+            continue
+        if not any(item.id == finding_id for item in document.findings):
+            continue
+        if document.target_adapter != "http" or document.http is None:
+            return HTTP_PROVENANCE_CHANGED
+        return None if document.http.origin == origin else HTTP_PROVENANCE_CHANGED
+    return HTTP_PROVENANCE_MISSING
+
+
 def reproduction_arguments(
     finding_id: str, config_path: str, mode: str, overrides: LimitOverrides | None
 ) -> list[str]:

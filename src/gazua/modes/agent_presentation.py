@@ -121,12 +121,31 @@ def preview_lines(preview: AgentPreview) -> list[str]:
                 f"  {sanitize(item.mold_id)}: {item.executable} of "
                 f"{_plural(item.scenarios, 'scenario')} can run; not tested: {reasons}."
             )
-    registered = [tool for tool in preview.inventory.tools if tool.registered]
-    real = [sanitize(tool.name) for tool in registered if tool.runnable]
-    dry = [sanitize(tool.name) for tool in registered if not tool.runnable]
-    lines.append(
-        f"Tools: real {', '.join(real) if real else 'none'}; "
-        f"dry-run {', '.join(dry) if dry else 'none'}."
-    )
+    if preview.http_origin is not None:
+        lines.extend(http_lines(preview.http_origin, traces=bool(preview.traces)))
+    else:
+        registered = [tool for tool in preview.inventory.tools if tool.registered]
+        real = [sanitize(tool.name) for tool in registered if tool.runnable]
+        dry = [sanitize(tool.name) for tool in registered if not tool.runnable]
+        lines.append(
+            f"Tools: real {', '.join(real) if real else 'none'}; "
+            f"dry-run {', '.join(dry) if dry else 'none'}."
+        )
     lines.append(f"Warning: {AGENT_WARNING}")
     return lines
+
+
+HTTP_WARNING: Final = (
+    "HTTP has no dry-run: every request goes to the authorized endpoint and its tools run for "
+    "real there."
+)
+
+
+def http_lines(origin: str, *, traces: bool) -> list[str]:
+    """The HTTP target and its tool visibility, in fixed sentences."""
+    visibility = (
+        "Traces: tool calls are proven only by OpenTelemetry spans received on the loopback."
+        if traces
+        else "Traces: off; attacks that need to see tool calls are not tested."
+    )
+    return [f"Target: POST to {sanitize(origin)}. {HTTP_WARNING}", visibility]

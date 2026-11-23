@@ -72,6 +72,14 @@ def target_ref(config: GazuaConfig) -> str:
     if config.mcp is not None:
         name = Path(config.mcp.command).name or config.mcp.command
         return f"mcp:stdio:{name}"
+    if config.http is not None:
+        from gazua.http.models import EndpointError, parse_endpoint
+
+        # The origin only: a path or query can carry data and never names another target.
+        try:
+            return f"http:{parse_endpoint(config.http.endpoint).origin}"
+        except EndpointError:
+            return "http:invalid"
     return config.entrypoint or ""
 
 

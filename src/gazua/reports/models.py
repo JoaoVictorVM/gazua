@@ -29,11 +29,11 @@ from gazua.runtime.run_models import GazuaId, NonEmptyText, RunSummary, UtcTimes
 from gazua.verdicts.models import AttackKey, ProofCondition, VerdictSummary
 
 if TYPE_CHECKING:
-    from gazua.reports import legacy, legacy_v2, legacy_v3
+    from gazua.reports import legacy, legacy_v2, legacy_v3, legacy_v4
 
-RUN_SCHEMA_FILE = "run-v4.schema.json"
-RUN_SCHEMA_VERSION = 4
-SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2, 3, 4)
+RUN_SCHEMA_FILE = "run-v5.schema.json"
+RUN_SCHEMA_VERSION = 5
+SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2, 3, 4, 5)
 PRESENTATION_VERSION = 2
 _SCHEMA_BASE = "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/"
 SEVERITY_ORDER: dict[Severity, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -173,8 +173,9 @@ class ProofSnapshot(_Strict):
     omission_reason: Code | None
 
 
-TargetAdapter: TypeAlias = Literal["python", "mcp_stdio"]
+TargetAdapter: TypeAlias = Literal["python", "mcp_stdio", "http"]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+TraceCoverage: TypeAlias = Literal["complete", "partial", "none", "not_applicable"]
 
 
 class McpDeliveryCoverage(_Strict):
@@ -205,12 +206,28 @@ class McpProvenance(_Strict):
     deliveries: list[McpDeliveryCoverage] = Field(default_factory=list[McpDeliveryCoverage])
 
 
+class HttpTraceSummary(_Strict):
+    """How much of the run's tool activity the target's spans covered. Counts and codes only."""
+
+    enabled: bool
+    coverage: TraceCoverage
+    accepted_tool_spans: Annotated[int, Field(ge=0)]
+    reason: Code | None = None
+
+
+class HttpProvenance(_Strict):
+    """What an HTTP run reached: the origin only, never the path, query, headers or token."""
+
+    origin: Annotated[str, Field(pattern=r"^https?://[^\s/?#@]+$")]
+    traces: HttpTraceSummary
+
+
 class RunDocument(_Strict):
     """Everything the reports need, checked against the native verdicts."""
 
     model_config = ConfigDict(title="Gazua run document")
 
-    schema_version: Literal[4]
+    schema_version: Literal[5]
     run_id: GazuaId
     metadata: RunMetadata
     redaction: RedactionMode
@@ -231,6 +248,7 @@ class RunDocument(_Strict):
     # How the target was reached. Documents read from older formats were Python targets.
     target_adapter: TargetAdapter
     mcp: McpProvenance | None
+    http: HttpProvenance | None
 
     @model_validator(mode="after")
     def _consistent(self) -> RunDocument:
@@ -238,7 +256,8 @@ class RunDocument(_Strict):
             *check_document(self),
             *snapshot_problems(self),
             *guide_problems(self),
-            *adapter_problems(self),
+            *mcp_problems(self),
+            *http_problems(self),
         ]
         if problems:
             raise ValueError("; ".join(problems))
@@ -257,7 +276,11 @@ def _duplicates(values: list[str]) -> bool:
 
 
 def check_document(
-    document: RunDocument | legacy.RunDocument | legacy_v2.RunDocument | legacy_v3.RunDocument,
+    document: RunDocument
+    | legacy.RunDocument
+    | legacy_v2.RunDocument
+    | legacy_v3.RunDocument
+    | legacy_v4.RunDocument,
 ) -> list[str]:
     """Every cross-reference rule the document must keep; empty when it is consistent."""
     problems: list[str] = []
@@ -322,7 +345,11 @@ def check_document(
 
 
 def _legitimate_problems(
-    document: RunDocument | legacy.RunDocument | legacy_v2.RunDocument | legacy_v3.RunDocument,
+    document: RunDocument
+    | legacy.RunDocument
+    | legacy_v2.RunDocument
+    | legacy_v3.RunDocument
+    | legacy_v4.RunDocument,
 ) -> list[str]:
     """A legacy document without the field is valid; tools mode never measures tasks."""
     measured = document.legitimate_use
@@ -340,7 +367,19 @@ def _legitimate_problems(
     return []
 
 
-def adapter_problems(document: RunDocument) -> list[str]:
+def http_problems(document: RunDocument) -> list[str]:
+    """HTTP provenance belongs to HTTP runs only, and only agent mode reaches an HTTP target."""
+    if (document.target_adapter == "http") != (document.http is not None):
+        return ["Only an HTTP run has HTTP provenance, and every HTTP run has it."]
+    if document.http is not None and document.metadata.mode != "agent":
+        return ["Only agent mode reaches an HTTP target."]
+    traces = document.http.traces if document.http is not None else None
+    if traces is not None and not traces.enabled and traces.coverage != "not_applicable":
+        return ["Trace coverage applies only when traces are enabled."]
+    return []
+
+
+def mcp_problems(document: RunDocument | legacy_v4.RunDocument) -> list[str]:
     """MCP provenance belongs to MCP runs only, and covers scenarios of this run."""
     mcp = document.mcp
     if (document.target_adapter == "mcp_stdio") != (mcp is not None):
@@ -354,7 +393,9 @@ def adapter_problems(document: RunDocument) -> list[str]:
     return []
 
 
-def guide_problems(document: RunDocument | legacy_v3.RunDocument) -> list[str]:
+def guide_problems(
+    document: RunDocument | legacy_v3.RunDocument | legacy_v4.RunDocument,
+) -> list[str]:
     """The guide speaks the run's language and resolves every finding's fix reference."""
     problems: list[str] = []
     if document.guide.language != document.metadata.language:
@@ -365,7 +406,7 @@ def guide_problems(document: RunDocument | legacy_v3.RunDocument) -> list[str]:
 
 
 def snapshot_problems(
-    document: RunDocument | legacy_v2.RunDocument | legacy_v3.RunDocument,
+    document: RunDocument | legacy_v2.RunDocument | legacy_v3.RunDocument | legacy_v4.RunDocument,
 ) -> list[str]:
     """Rules of the scenario references and of the baseline and verification snapshots."""
     problems: list[str] = []

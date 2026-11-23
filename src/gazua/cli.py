@@ -18,7 +18,8 @@ RUN_CHOICE_MESSAGE = (
     "the attacks to your agent; to read the catalog, use gazua run --list."
 )
 AGENT_HTTP_REFUSAL = (
-    "--agent over HTTP is not available yet; point entrypoint to a Python test function."
+    "entrypoint must be a Python test function; declare an HTTP target under http.endpoint "
+    "and confirm it with gazua init --http URL (docs/http.md)."
 )
 
 # Plain rendering keeps help and errors free of Rich panels, whose box drawing depends on
@@ -130,6 +131,15 @@ def init(
             help="Folder the MCP server starts in, relative to the project. Defaults to it.",
         ),
     ] = None,
+    http: Annotated[
+        str | None,
+        typer.Option(
+            "--http",
+            metavar="URL",
+            help="Record an HTTP test endpoint for agent mode and confirm, by typing a phrase, "
+            "that you are authorized to send it real requests. No request is sent.",
+        ),
+    ] = None,
 ) -> None:
     """Create gazua.yaml from the tools found in a project, for human review."""
     from gazua.config.diagnostics import sanitize
@@ -137,6 +147,11 @@ def init(
 
     if mcp is None and (mcp_arg or mcp_cwd is not None):
         raise _usage_error("--mcp-arg and --mcp-cwd describe the server given with --mcp.")
+    if http is not None:
+        if mcp is not None or entrypoint is not None:
+            raise _usage_error("--http declares the target alone; drop --mcp and --entrypoint.")
+        _init_http(directory, http)
+        return
     if mcp is not None:
         _init_mcp(directory, mcp, mcp_arg or [], mcp_cwd or ".", entrypoint)
         return
@@ -234,6 +249,60 @@ def _init_mcp(
     _say("Review every REVIEW REQUIRED comment before relying on this file.")
 
 
+def _interactive() -> bool:
+    """A confirmation needs a person at a terminal; piped or redirected input never confirms."""
+    return sys.stdin.isatty()
+
+
+def _init_http(directory: Path, endpoint: str) -> None:
+    from gazua.config.diagnostics import sanitize
+    from gazua.http.models import parse_endpoint
+    from gazua.project_init import authorization_phrase, initialize_http_project, prepare_http_init
+
+    with exit_on_config_error():
+        prepare_http_init(directory, endpoint)
+    parsed = parse_endpoint(endpoint)
+    phrase = authorization_phrase(parsed.origin)
+    _say(f"Origin: {sanitize(parsed.origin)}")
+    _say(f"Path: {sanitize(parsed.target)}")
+    _say(
+        "Warning: HTTP has no dry-run. Every attack is a real POST to this endpoint, and the "
+        "tools behind it run for real. Use a test environment with synthetic data only.",
+        err=True,
+    )
+    if not _interactive():
+        raise _usage_error(
+            "The authorization must be typed at an interactive terminal; nothing was written."
+        )
+    _say(f"Type exactly: {sanitize(phrase)}")
+    try:
+        typed = input("> ")
+    except (EOFError, KeyboardInterrupt):
+        typed = ""
+    if typed.strip() != phrase:
+        raise _usage_error("The phrase did not match; nothing was written.")
+    with exit_on_config_error():
+        result = initialize_http_project(directory, endpoint, confirmed=True)
+    for warning in result.warnings:
+        _say(f"Warning: {warning.render()}", err=True)
+    if result.created_config:
+        _say(f"Created {sanitize(str(result.config_path))}")
+    else:
+        _say(f"Kept {sanitize(str(result.config_path))}")
+    if result.gitignore_path is not None:
+        if result.gitignore_changed:
+            _say(f"Added .gazua/ to {sanitize(str(result.gitignore_path))}")
+        else:
+            _say(f"{sanitize(str(result.gitignore_path))} already ignores .gazua/")
+    _say(f"Recorded the authorization in {sanitize(str(result.receipt_path))}")
+    _say("No request was sent. Declare the target's tools, then run gazua run --agent.")
+
+
+HTTP_PROVENANCE_WARNING = (
+    "This finding was not recorded over HTTP against this origin, or that run is no longer "
+    "kept. This verification cannot close it; run gazua run --agent again and review the "
+    "baseline."
+)
 MCP_PROVENANCE_WARNING = (
     "The MCP server's tools differ from the run that recorded this finding, or that run is no "
     "longer kept. This verification cannot close it; run gazua run again and review the "
@@ -320,7 +389,7 @@ LOAD_MESSAGES = {
     "run_file_invalid_json": "This file is not valid JSON.",
     "run_schema_version_unsupported": (
         "This run.json uses a schema version this Gazua does not know; it reads schema_version "
-        "1, 2 and 3, so it needs a migration."
+        "1 to 5, so it needs a migration."
     ),
     "run_file_invalid": "This run.json does not follow the run schema.",
 }
@@ -422,6 +491,10 @@ def _run_tools(
         raise typer.Exit(EXIT_USAGE)
     with exit_on_config_error():
         tools_molds(catalog.entries, mold)
+    if config.http is not None:
+        from gazua.modes.tools import HTTP_REFUSAL
+
+        raise _usage_error(HTTP_REFUSAL)
     if config.entrypoint is None and config.mcp is None:
         raise _usage_error(
             "Tools mode imports the entrypoint's module to find the tools; declare entrypoint."
@@ -525,7 +598,7 @@ def _run_agent(
         raise typer.Exit(EXIT_USAGE)
     with exit_on_config_error():
         select_agent_molds(catalog.entries, AgentOptions(mold=mold, quick=quick))
-    if config.entrypoint is None:
+    if config.entrypoint is None and config.http is None:
         raise _usage_error("Agent mode sends messages to the entrypoint; declare entrypoint.")
     try:
         overrides = LimitOverrides.model_validate(limits)
@@ -1080,7 +1153,7 @@ def verify_command(
     except ValidationError:
         raise _usage_error("Limit options must be positive numbers.") from None
     config = _load_tools_config(config_path, AGENT_HTTP_REFUSAL)
-    if config.entrypoint is None and config.mcp is None:
+    if config.entrypoint is None and config.mcp is None and config.http is None:
         raise _usage_error("Verification runs the target; declare entrypoint.")
     root = config_path.parent.resolve()
     try:
@@ -1118,15 +1191,28 @@ def verify_command(
             raise _verify_error(error) from None
         chosen = effective_limits(config, overrides)
         try:
+            extra: list[str] = []
             with exit_on_config_error():
-                inventory = discover_tools(config, root, timeout=chosen.timeout)
-                if selection.mode == "agent":
-                    from gazua.modes.agent import check_entries
+                if config.http is not None:
+                    from gazua.baseline.verification import http_provenance_problem
+                    from gazua.http.policy import check_run
+                    from gazua.modes.agent import http_inventory
 
-                    check_entries(config, inventory)
+                    # A replay sends real requests, so it needs the current authorization.
+                    origin = check_run(config, root).origin
+                    inventory = http_inventory(config)
+                    problem = http_provenance_problem(root, selection.entry.id, origin)
+                    if problem is not None:
+                        extra.append(problem)
+                        _say(HTTP_PROVENANCE_WARNING, err=True)
+                else:
+                    inventory = discover_tools(config, root, timeout=chosen.timeout)
+                    if selection.mode == "agent":
+                        from gazua.modes.agent import check_entries
+
+                        check_entries(config, inventory)
             plan = build_plan(selection, config, inventory)
             check_budget(plan, chosen)
-            extra: list[str] = []
             if config.mcp is not None:
                 from gazua.baseline.verification import mcp_provenance_problem
 

@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,8 @@ class ExecutionContext:
     directory: Path
     session_path: Path
     call_log: Path
+    # Monotonic time by which the attempt must be over; the supervisor kills it right after.
+    deadline: float | None = None
 
 
 Executor = Callable[[Mapping[str, Any], ExecutionContext], object]
@@ -108,6 +111,7 @@ def _attack(job: Mapping[str, Any]) -> dict[str, Any]:
         executor = cast("Executor", resolve_reference(job["executor"], "executor"))
     except ConfigError:
         return {"status": "error", "code": "executor_unavailable"}
+    timeout = job.get("timeout")
     context = ExecutionContext(
         run_id=job["run_id"],
         execution_id=job["execution_id"],
@@ -116,6 +120,7 @@ def _attack(job: Mapping[str, Any]) -> dict[str, Any]:
         directory=Path(job["directory"]),
         session_path=Path(job["session"]),
         call_log=Path(job["call_log"]),
+        deadline=time.monotonic() + float(timeout) if isinstance(timeout, int | float) else None,
     )
     try:
         value = executor(dict(job["request"]), context)
@@ -129,6 +134,8 @@ def _attack(job: Mapping[str, Any]) -> dict[str, Any]:
         if blocked.reason.startswith("mcp_"):
             changed = list(getattr(blocked, "changed", ()))
             return {"status": "error", "code": blocked.reason, "mcp_changed": changed}
+        if blocked.reason.startswith(("http_", "otel_")):
+            return {"status": "error", "code": blocked.reason}
         return {"status": "error", "code": "blocked", "reason": blocked.reason}
     # The executor runs the target's code; any failure is recorded by class, never by message.
     except (Exception, SystemExit) as failure:  # noqa: BLE001

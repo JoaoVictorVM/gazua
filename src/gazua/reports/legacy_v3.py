@@ -19,7 +19,6 @@ from gazua.config.models import SCHEMA_DIALECT
 from gazua.modes.agent_models import LegitimateUse
 from gazua.reports.guide_models import FixGuide
 from gazua.reports.models import (
-    RUN_SCHEMA_VERSION,
     ExitCode,
     Finding,
     ProofSnapshot,
@@ -78,11 +77,13 @@ class RunDocument(_Strict):
 
 def adapt_data(data: dict[str, Any]) -> CurrentRunDocument:
     """A schema 3 document's JSON data in the current contract, as a Python target's run."""
+    from gazua.reports import legacy_v4
+
     current = dict(data)
-    current["schema_version"] = RUN_SCHEMA_VERSION
+    current["schema_version"] = 4
     current["target_adapter"] = "python"
     current["mcp"] = None
-    return CurrentRunDocument.model_validate_json(json.dumps(current))
+    return legacy_v4.adapt_data(current)
 
 
 def adapt(document: RunDocument) -> CurrentRunDocument:

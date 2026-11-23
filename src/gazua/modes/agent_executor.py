@@ -11,7 +11,7 @@ The entrypoint uses the project's own model and credential; nothing here reads e
 
 from __future__ import annotations
 
-from collections.abc import Generator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
@@ -33,6 +33,20 @@ SINK_MARKER = "markup_marker"
 MCP_DESCRIPTION = "mcp_tool_description"
 _broker: list[Any] = []
 
+Send = Callable[[str], str]
+"""Delivers one message to the agent and returns its text response."""
+
+
+def entrypoint_sender(context: ExecutionContext) -> Send:
+    entrypoint = context.entrypoint
+
+    def send(message: str) -> str:
+        if entrypoint is None:
+            raise InvocationRefused("entrypoint_missing")
+        return call_entrypoint(entrypoint, message)
+
+    return send
+
 
 def _index(value: object) -> int | None:
     if value is None:
@@ -43,7 +57,7 @@ def _index(value: object) -> int | None:
 
 
 def _legitimate(
-    request: Mapping[str, Any], payload: Mapping[str, Any], context: ExecutionContext
+    request: Mapping[str, Any], payload: Mapping[str, Any], context: ExecutionContext, send: Send
 ) -> dict[str, Any]:
     config: GazuaConfig = context.config
     index = _index(payload.get("task_index"))
@@ -52,9 +66,9 @@ def _legitimate(
     task = config.legit_tasks[index]
     if payload.get("request") != task.request or payload.get("expected_tool") != task.expected_tool:
         raise InvocationRefused("binding_changed")
-    if request.get("actor") is not None or context.entrypoint is None:
+    if request.get("actor") is not None:
         raise InvocationRefused("request_invalid")
-    response = call_entrypoint(context.entrypoint, task.request)
+    response = send(task.request)
     return {"output": output_envelope(response)}
 
 
@@ -71,7 +85,7 @@ def _turn_ids(context: ExecutionContext, request_key: str, tool: str, turns: int
 
 
 def _attack(
-    request: Mapping[str, Any], payload: Mapping[str, Any], context: ExecutionContext
+    request: Mapping[str, Any], payload: Mapping[str, Any], context: ExecutionContext, send: Send
 ) -> dict[str, Any]:
     config: GazuaConfig = context.config
     mold = Mold.model_validate(payload["mold"])
@@ -92,13 +106,14 @@ def _attack(
     bound = bind_mold(mold, binding, mode="agent", language=language)
     if isinstance(bound, BindingImpediment) or len(bound.turns) != payload.get("turns"):
         raise InvocationRefused("binding_changed")
-    if context.entrypoint is None:
-        raise InvocationRefused("entrypoint_missing")
     responses: list[str] = []
     if mold.entry == "user_message":
         if request.get("injections"):
             raise InvocationRefused("request_invalid")
-        responses.extend(call_entrypoint(context.entrypoint, turn) for turn in bound.turns)
+        responses.extend(send(turn) for turn in bound.turns)
+    elif config.http is not None:
+        # Indirect entries arm Python tools in this process; an HTTP target has none here.
+        raise InvocationRefused("entry_unavailable")
     elif mold.entry == MCP_DESCRIPTION:
         declared = config.agent_entries.mcp_tool_description
         if declared is None or not _broker:
@@ -108,7 +123,7 @@ def _attack(
             # The broker writes this turn's text only into the declared tool's description, and
             # only while the trigger message runs.
             with broker.arm(turn_injection_id(request["key"], turn), declared.tool, text, turn):
-                responses.append(call_entrypoint(context.entrypoint, declared.request))
+                responses.append(send(declared.request))
     elif mold.entry in INDIRECT_ENTRIES:
         declared = config.agent_entries.get(mold.entry)
         if declared is None:
@@ -116,12 +131,13 @@ def _attack(
         for injection_id in _turn_ids(context, request["key"], declared.tool, len(bound.turns)):
             # Only this turn can be delivered while the trigger message runs.
             with armed_turn(injection_id):
-                responses.append(call_entrypoint(context.entrypoint, declared.request))
+                responses.append(send(declared.request))
     else:
         raise InvocationRefused("entry_unavailable")
     response: JsonValue = responses[0] if len(responses) == 1 else list(responses)
     observations: list[dict[str, Any]] = []
-    if mold.success.signal == "output_sink_effect":
+    # Over HTTP the sink lives in the remote target, so no local observation could prove it.
+    if mold.success.signal == "output_sink_effect" and config.http is None:
         observed = observe_sink(context, response, marker_id=SINK_MARKER)
         if observed is not None:
             observations.append(observed)
@@ -172,15 +188,16 @@ def execute(request: Mapping[str, Any], context: ExecutionContext) -> dict[str, 
     """Runs one agent attack or legitimate task and returns the observation envelope."""
     if context.config.mcp is not None:
         with _mcp_session(request, context):
-            return _dispatch(request, context)
-    return _dispatch(request, context)
+            return dispatch(request, context, entrypoint_sender(context))
+    return dispatch(request, context, entrypoint_sender(context))
 
 
-def _dispatch(request: Mapping[str, Any], context: ExecutionContext) -> dict[str, Any]:
+def dispatch(request: Mapping[str, Any], context: ExecutionContext, send: Send) -> dict[str, Any]:
+    """Runs the attack or legitimate task in ``request``, delivering each message with ``send``."""
     payload: Mapping[str, Any] = request["payload"]
     kind = payload.get("kind")
     if kind == "legitimate":
-        return _legitimate(request, payload, context)
+        return _legitimate(request, payload, context, send)
     if kind == "attack":
-        return _attack(request, payload, context)
+        return _attack(request, payload, context, send)
     raise InvocationRefused("request_invalid")

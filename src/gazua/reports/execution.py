@@ -194,6 +194,55 @@ def mcp_provenance(result: Any, deliveries: DeliveryCounter) -> Any:
     )
 
 
+class TraceCounter:
+    """Counts each attempt's trace channel; spans themselves are never kept here."""
+
+    def __init__(self) -> None:
+        self.seen: dict[str, tuple[bool, int, str | None]] = {}
+        self._lock = threading.Lock()
+
+    def __call__(self, record: Any, evidence: Any) -> None:
+        traces = getattr(evidence, "traces", None)
+        with self._lock:
+            if traces is None:
+                self.seen[record.execution_id] = (False, 0, "otel_evidence_missing")
+            else:
+                self.seen[record.execution_id] = (traces.complete, traces.accepted, traces.reason)
+
+
+def http_provenance(config: GazuaConfig, counter: TraceCounter) -> Any:
+    """The HTTP part of a run document: the origin and how far the spans covered the run."""
+    from gazua.http.models import parse_endpoint
+    from gazua.reports.models import HttpProvenance, HttpTraceSummary
+
+    if config.http is None:
+        return None
+    origin = parse_endpoint(config.http.endpoint).origin
+    if config.traces is None:
+        summary = HttpTraceSummary(
+            enabled=False, coverage="not_applicable", accepted_tool_spans=0, reason="traces_off"
+        )
+        return HttpProvenance(origin=origin, traces=summary)
+    seen = list(counter.seen.values())
+    complete = sum(1 for item in seen if item[0])
+    reasons = [item[2] for item in seen if item[2] is not None]
+    if seen and complete == len(seen):
+        coverage = "complete"
+    elif complete:
+        coverage = "partial"
+    else:
+        coverage = "none"
+    if not seen:
+        reasons.append("no_attempt_executed")
+    summary = HttpTraceSummary(
+        enabled=True,
+        coverage=coverage,
+        accepted_tool_spans=sum(item[1] for item in seen),
+        reason=reasons[0] if reasons else None,
+    )
+    return HttpProvenance(origin=origin, traces=summary)
+
+
 def execute_runner(
     mode: Mode,
     runner: Runner,
@@ -236,15 +285,19 @@ def execute_runner(
     redactor = ReportRedactor(ReportRedactionPolicy.from_config(config, no_redact=no_redact))
     capture = ReportEvidenceCollector(redactor)
     deliveries = DeliveryCounter()
+    traces = TraceCounter()
 
     def collect(record: Any, evidence: Any) -> None:
         capture(record, evidence)
-        deliveries(record, evidence)
+        if config.mcp is not None:
+            deliveries(record, evidence)
+        if config.traces is not None:
+            traces(record, evidence)
 
     created_at = _timestamp()
     common: dict[str, Any] = {
         "on_event": show_progress,
-        "on_evidence": collect if config.mcp is not None else capture,
+        "on_evidence": collect,
         "evidence_redactor": EngineRedaction(redactor),
         "storage_available": ready,
         "cancel": cancel,
@@ -279,6 +332,7 @@ def execute_runner(
         verification=None if decide is None else decide(result),
         references=references,
         mcp=mcp_provenance(result, deliveries) if config.mcp is not None else None,
+        http=http_provenance(config, traces),
     )
     output.lines(terminal_lines(document))
     if mode == "tools":

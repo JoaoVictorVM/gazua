@@ -78,6 +78,28 @@ def check_entries(config: GazuaConfig, inventory: ToolsInventory) -> None:
         raise ConfigError(problems)
 
 
+def http_inventory(config: GazuaConfig) -> ToolsInventory:
+    """The declared tools of an HTTP target. Gazua never sees them, so it is never complete."""
+    from gazua.modes.tools_models import DiscoveredTool
+
+    return ToolsInventory(
+        complete=False,
+        tools=[
+            DiscoveredTool(
+                name=name,
+                registered=False,
+                safe=tool.safe,
+                classified=tool.classification.value != "unclassified",
+                signature_available=False,
+                supports_sync=False,
+                supports_async=False,
+                diagnostics=["remote_tool"],
+            )
+            for name, tool in sorted(config.tools.items())
+        ],
+    )
+
+
 def select_agent_molds(entries: Iterable[CatalogEntry], options: AgentOptions) -> list[Mold]:
     """The exact mold when one is named, the quick selection with ``quick``, else every one."""
     molds = agent_molds(entries, options.mold)
@@ -123,10 +145,14 @@ def build_preview(
     *,
     effective_concurrency: int,
     cost_source: str,
+    http_origin: str | None = None,
+    traces: bool | None = None,
 ) -> AgentPreview:
     attack_slots = len(plan.attack_requests)
     return AgentPreview.model_validate(
         {
+            "http_origin": http_origin,
+            "traces": traces,
             "selection": plan.selection.model_dump(),
             "inventory": inventory.model_dump(),
             "scenarios": len(plan.scenarios),
@@ -193,22 +219,31 @@ def run_agent(
 
     molds = select_agent_molds(catalog, options)
     limits = effective_limits(config, options.overrides)
-    if config.entrypoint is None:
-        raise ConfigError(
-            [
-                Diagnostic(
-                    code="entrypoint_missing",
-                    field="entrypoint",
-                    message="Agent mode sends messages to the entrypoint; declare entrypoint.",
-                )
-            ]
+    origin: str | None = None
+    if config.http is not None:
+        from gazua.http.policy import check_run
+
+        # Every gate is checked again here, before any socket opens.
+        origin = check_run(config, project_root).origin
+        found = inventory if inventory is not None else http_inventory(config)
+    else:
+        if config.entrypoint is None:
+            raise ConfigError(
+                [
+                    Diagnostic(
+                        code="entrypoint_missing",
+                        field="entrypoint",
+                        message="Agent mode sends messages to the entrypoint; declare entrypoint.",
+                    )
+                ]
+            )
+        found = (
+            inventory
+            if inventory is not None
+            else discover_tools(config, project_root, timeout=limits.timeout)
         )
-    found = (
-        inventory
-        if inventory is not None
-        else discover_tools(config, project_root, timeout=limits.timeout)
-    )
-    check_entries(config, found)
+        check_entries(config, found)
+    traced = None if origin is None else config.traces is not None
     plan = plan_agent(
         molds,
         config,
@@ -235,6 +270,8 @@ def run_agent(
                     run_plan.limits,
                     effective_concurrency=run_plan.effective_concurrency,
                     cost_source=run_plan.cost_source,
+                    http_origin=origin,
+                    traces=traced,
                 )
             )
         collector = VerdictCollector.for_plan(contexts, run_plan)
@@ -274,6 +311,8 @@ def run_agent(
                     limits,
                     effective_concurrency=summary.effective_concurrency,
                     cost_source=summary.cost_source,
+                    http_origin=origin,
+                    traces=traced,
                 )
             )
         collector = VerdictCollector(contexts, config, max_tool_calls=limits.max_tool_calls)

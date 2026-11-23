@@ -129,9 +129,31 @@ def entry_tool(config: GazuaConfig, mold: Mold) -> str | None:
     return None if declared is None else declared.tool
 
 
+def executor_for(config: GazuaConfig) -> str:
+    from gazua.http import EXECUTOR as HTTP_EXECUTOR
+
+    return HTTP_EXECUTOR if config.http is not None else EXECUTOR
+
+
+def capabilities_for(config: GazuaConfig, mold: Mold, inventory: ToolsInventory) -> Capabilities:
+    """What this target lets the verdicts see. An HTTP target shows tool calls only by spans."""
+    remote = config.http is not None
+    return Capabilities(
+        entry_supported=entry_reachable(config, mold),
+        inventory_complete=inventory.complete,
+        tool_visibility=config.traces is not None if remote else True,
+        receiver_transport=False,
+        observation_envelope=True,
+        tool_source="traces" if remote else "call_log",
+    )
+
+
 def entry_reachable(config: GazuaConfig, mold: Mold) -> bool:
     if mold.entry == "user_message":
         return True
+    if config.http is not None:
+        # Indirect entries are armed in a local Python tool; the HTTP target's tools are remote.
+        return False
     if mold.entry == MCP_DESCRIPTION:
         return entry_tool(config, mold) is not None
     if mold.entry in ADAPTER_PENDING_ENTRIES:
@@ -289,13 +311,7 @@ class _Planner:
             canary_index=unit.canary[0] if unit.canary else None,
             marker_id=SINK_MARKER if mold.success.signal == "output_sink_effect" else None,
             requests=slots,
-            capabilities=Capabilities(
-                entry_supported=entry_reachable(self.config, mold),
-                inventory_complete=self.inventory.complete,
-                tool_visibility=True,
-                receiver_transport=False,
-                observation_envelope=True,
-            ),
+            capabilities=capabilities_for(self.config, mold, self.inventory),
             impediment=impediment,
         )
         if bound is None or impediment_of(context, self.config) is not None:
@@ -336,7 +352,7 @@ class _Planner:
             mold_id=mold.id,
             repetition=slot.repetition,
             mode="agent",
-            executor=EXECUTOR,
+            executor=executor_for(self.config),
             payload=payload,
             requires_receiver=mold.success.signal == "receiver_hit",
             receiver_transport=False,
@@ -356,7 +372,7 @@ def legitimate_requests(
             mold_id=legitimate_mold_id(index),
             repetition=1,
             mode="agent",
-            executor=EXECUTOR,
+            executor=executor_for(config),
             payload={
                 "kind": "legitimate",
                 "task_index": index,

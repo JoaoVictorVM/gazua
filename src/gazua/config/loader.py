@@ -45,7 +45,8 @@ __all__ = [
 KEY_LIKE_VALUE_MESSAGE = "Canaries and fixtures must be test values; this looks like a real key."
 HTTP_SCHEMES = ("http://", "https://")
 HTTP_TARGET_MESSAGE = (
-    "HTTP targets are not supported yet; entrypoint must be a Python reference (module:attribute)."
+    "entrypoint must be a Python reference (module:attribute); declare an HTTP target under "
+    "http.endpoint instead (docs/http.md)."
 )
 
 _INTEGER_LIMITS = {"max_runs", "max_tool_calls", "concurrency"}
@@ -71,6 +72,8 @@ _OWN_ERROR_TYPES = {
     "tool_name",
     "host_syntax",
     "duplicate_item",
+    "http_endpoint",
+    "http_header",
 }
 
 
@@ -145,6 +148,31 @@ def _relation_errors(config: GazuaConfig, file: str, source_map: SourceMap) -> l
         declared = config.agent_entries.get(entry)
         if declared is not None and declared.tool not in config.tools:
             report(("agent_entries", entry, "tool"), unknown_tool)
+    errors.extend(_adapter_errors(config, file, source_map))
+    return errors
+
+
+def _adapter_errors(config: GazuaConfig, file: str, source_map: SourceMap) -> list[Diagnostic]:
+    """One target adapter per configuration, and no Python hook that implies isolation."""
+    errors: list[Diagnostic] = []
+
+    def report(path: FieldPath, message: str) -> None:
+        errors.append(_field_error("invalid_field", file, path, source_map.locate(path), message))
+
+    if config.http is not None:
+        for name in ("entrypoint", "mcp"):
+            if name in config.model_fields_set and getattr(config, name) is not None:
+                report(
+                    (name,),
+                    f"http and {name} are different targets; declare one of them.",
+                )
+        if config.target.reset is not None:
+            report(
+                ("target", "reset"),
+                "A Python reset cannot isolate an HTTP target; remove target.reset.",
+            )
+    if config.traces is not None and config.http is None:
+        report(("traces",), "Traces are read for an HTTP target only; declare http.endpoint.")
     return errors
 
 

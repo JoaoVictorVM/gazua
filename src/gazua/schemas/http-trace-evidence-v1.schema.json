@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/http-trace-evidence-v1.schema.json",
+  "$defs": {
+    "ToolSpanEvidence": {
+      "additionalProperties": false,
+      "description": "One recognized tool call span. Timestamps are Unix nanoseconds from the target's clock.",
+      "properties": {
+        "trace_id": {
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Trace Id",
+          "type": "string"
+        },
+        "span_id": {
+          "pattern": "^[0-9a-f]{16}$",
+          "title": "Span Id",
+          "type": "string"
+        },
+        "run_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Run Id",
+          "type": "string"
+        },
+        "tool": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Tool",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "raised",
+            "blocked"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "started_at": {
+          "minimum": 0,
+          "title": "Started At",
+          "type": "integer"
+        },
+        "ended_at": {
+          "minimum": 0,
+          "title": "Ended At",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "trace_id",
+        "span_id",
+        "run_id",
+        "tool",
+        "outcome",
+        "started_at",
+        "ended_at"
+      ],
+      "title": "ToolSpanEvidence",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What one attempt's receiver saw. ``complete`` is the only flag a negative may rely on.\n\n``accepted`` counts recognized tool spans kept, ``rejected`` spans with a broken or foreign\ncontract, ``late`` spans outside the attempt's window and ``ignored`` other spans.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "execution_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Execution Id",
+      "type": "string"
+    },
+    "complete": {
+      "title": "Complete",
+      "type": "boolean"
+    },
+    "receiver_closed": {
+      "title": "Receiver Closed",
+      "type": "boolean"
+    },
+    "accepted": {
+      "minimum": 0,
+      "title": "Accepted",
+      "type": "integer"
+    },
+    "rejected": {
+      "minimum": 0,
+      "title": "Rejected",
+      "type": "integer"
+    },
+    "duplicates": {
+      "minimum": 0,
+      "title": "Duplicates",
+      "type": "integer"
+    },
+    "late": {
+      "minimum": 0,
+      "title": "Late",
+      "type": "integer"
+    },
+    "ignored": {
+      "minimum": 0,
+      "title": "Ignored",
+      "type": "integer"
+    },
+    "truncated": {
+      "title": "Truncated",
+      "type": "boolean"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "tool_spans": {
+      "items": {
+        "$ref": "#/$defs/ToolSpanEvidence"
+      },
+      "maxItems": 10000,
+      "title": "Tool Spans",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "execution_id",
+    "complete",
+    "receiver_closed",
+    "accepted",
+    "rejected",
+    "duplicates",
+    "late",
+    "ignored",
+    "truncated"
+  ],
+  "title": "Gazua HTTP trace evidence",
+  "type": "object"
+}
