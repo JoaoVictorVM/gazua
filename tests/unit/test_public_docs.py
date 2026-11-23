@@ -20,6 +20,8 @@ PUBLIC_DOCUMENTS = (
     "docs/issues.md",
     "docs/benchmark.md",
     "docs/mcp.md",
+    "docs/http.md",
+    "docs/traces.md",
 )
 PLANNING_REFERENCE = re.compile(r"\b(PRD|F\d{2})\b|\.planning|\.harness|spec\.md|plan\.md")
 
@@ -305,3 +307,24 @@ def test_readme_points_to_the_fix_guide_and_issue_export(project_root: Path) -> 
     assert "docs/fix-guide.md" in readme
     assert "docs/issues.md" in readme
     assert "`gazua issues`" in readme
+
+
+@pytest.mark.parametrize(
+    ("name", "statement"),
+    [
+        ("docs/http.md", "HTTP has no dry-run"),
+        ("docs/http.md", "Host X is not in allowed_targets"),
+        ("docs/http.md", "real_side_effects: i_understand"),
+        ("docs/http.md", "It is not a legal authorization"),
+        ("docs/http.md", "redirect"),
+        ("docs/http.md", "ignores `HTTP_PROXY`"),
+        ("docs/traces.md", "A missing span is never read as"),
+        ("docs/traces.md", "`gazua.run_id`"),
+        ("docs/traces.md", "loopback only"),
+        ("docs/traces.md", "never published"),
+    ],
+)
+def test_http_and_trace_guides_state_gates_and_limits(
+    project_root: Path, name: str, statement: str
+) -> None:
+    assert statement in read(project_root, name)

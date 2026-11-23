@@ -145,7 +145,7 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
         assert metadata["Requires-Python"] == ">=3.11"
         assert metadata["License-Expression"] == "Apache-2.0"
         assert metadata["License-File"] == "LICENSE"
-        assert metadata.get_all("Provides-Extra") == ["mcp"]
+        assert metadata.get_all("Provides-Extra") == ["mcp", "otel"]
         requirements = metadata.get_all("Requires-Dist") or []
         required = {
             re.split(r"[<>=!~ ;\[]", requirement, maxsplit=1)[0].lower()
@@ -158,7 +158,7 @@ def test_wheel_and_sdist_metadata(distributions: Path, manifest: dict[str, objec
             for requirement in requirements
             if "extra ==" in requirement
         }
-        assert optional == {"jsonschema", "mcp"}
+        assert optional == {"jsonschema", "mcp", "opentelemetry-proto"}
 
     entry_points = wheel_files[f"{dist_info}/entry_points.txt"].decode("utf-8")
     assert "gazua = gazua._bootstrap:main" in entry_points
@@ -588,12 +588,14 @@ REPORT_FILES = (
     "schemas/run-v2.schema.json",
     "schemas/run-v3.schema.json",
     "schemas/run-v4.schema.json",
+    "schemas/run-v5.schema.json",
 )
 RUN_SCHEMAS = (
     "run-v1.schema.json",
     "run-v2.schema.json",
     "run-v3.schema.json",
     "run-v4.schema.json",
+    "run-v5.schema.json",
 )
 
 
