@@ -72,6 +72,7 @@ Only `schema_version` is required. A file without `entrypoint` or without tools 
 | `entrypoint` | reference or `null` | `null` | `module:attribute` |
 | `mcp` | object or absent | absent | A local MCP stdio server: `transport: stdio`, `command` (one executable, no shell), `args` (up to 128, each at most 8,192 characters) and `cwd` (relative to this file, default `.`). With it, tools mode needs no `entrypoint` and `target.as_user` is not used; see [the MCP guide](mcp.md) |
 | `http` | object or absent | absent | An authorized HTTP endpoint for agent mode: `endpoint`, static `headers` and `real_side_effects: i_understand`. It excludes `entrypoint`, `mcp` and `target.reset`, and needs a receipt from `gazua init --http`; see [the HTTP guide](http.md) |
+| `typescript` | object or absent | absent | A compiled TypeScript test entrypoint for agent mode: `module` (a `.js` or `.mjs` file inside the project), `entrypoint_export` and the optional `reset_export`, `as_user_export` and `output_sink_export`. It excludes `entrypoint`, `mcp`, `http`, `target.reset`, `target.as_user` and `output_sink`; see [the TypeScript guide](typescript.md) |
 | `traces` | object or absent | absent | `transport: otlp_http` and `wait_seconds` (at most 10, default 5). Only with `http`, and needs the `gazua[otel]` extra; see [the traces guide](traces.md) |
 | `target.reset` | reference or `null` | `null` | Hook without arguments |
 | `target.as_user` | reference or `null` | `null` | `as_user(identity_id: str)` returning a context manager, entered around real tool calls |

@@ -1,6 +1,6 @@
 # Releasing Gazua
 
-Releases are published to PyPI by the `release.yml` workflow, using trusted publishing. No PyPI password or token exists in the repository or in its secrets. Publication waits for manual approval in the protected `pypi` environment.
+Releases are published to PyPI and npm by the `release.yml` workflow, using trusted publishing on both registries. No password or token exists in the repository or in its secrets. Each publication waits for manual approval in its protected environment: `pypi` for the Python package and `npm` for the npm package `gazua`, which always has the same version as the Python package.
 
 ## One-time setup
 
@@ -10,11 +10,12 @@ Finish all of the following before the first release. If the repository's GitHub
 2. **Trusted publisher:** on PyPI, register owner `JoaoVictorVM`, repository `gazua`, workflow `release.yml` and environment `pypi`. For a project that does not exist yet, register it as a pending publisher.
 3. **Protected environment:** create the `pypi` environment in GitHub with a required reviewer, prevent self-review where available, and restrict deployments to tags matching `v*`.
 4. **Artifact attestations:** confirm that they are available for the repository's visibility and plan. A failed attestation blocks publication.
-5. **Private vulnerability reporting:** enable it in the repository's security settings, so that the channel in `SECURITY.md` works.
+5. **npm package:** a person confirms control of the `gazua` name on npmjs.com, then registers the trusted publisher for owner `JoaoVictorVM`, repository `gazua`, workflow `release.yml` and environment `npm`. Create the `npm` environment in GitHub with the same reviewer and tag rules as `pypi`.
+6. **Private vulnerability reporting:** enable it in the repository's security settings, so that the channel in `SECURITY.md` works.
 
 ## Publishing a version
 
-1. Set `version` in `pyproject.toml`, refresh the lockfile with `uv lock`, and merge the change into the default branch.
+1. Set `version` in `pyproject.toml` and the same version, in its SemVer form, in `packages/typescript/package.json` (`0.1.0.dev0` is `0.1.0-dev.0`, `1.2.0rc1` is `1.2.0-rc.1`). Refresh the lockfiles with `uv lock` and `npm install --package-lock-only`, and merge the change into the default branch.
 2. Tag that commit with `v` plus the exact version, then push the tag:
 
    ```console
@@ -23,14 +24,14 @@ Finish all of the following before the first release. If the repository's GitHub
    ```
 
 3. The workflow then:
-   - rejects a tag that differs from the manifest version or that points outside the default branch;
+   - rejects a tag that differs from the manifest version or that points outside the default branch, and an npm package whose version differs or that has a production dependency;
    - re-runs the quality gates for the tagged commit;
-   - builds the wheel and the sdist once, and records their SHA-256 digests;
-   - installs exactly those files on Windows and Ubuntu and runs their tests;
-   - creates a build provenance attestation for both files;
-   - waits for approval in the `pypi` environment.
-4. Review the run's digests and attestation, then approve the deployment. The publishing job uploads the same files, without rebuilding them.
-5. The final job compares the digests on PyPI with the validated ones, then installs the published version with pip and uv on both systems.
+   - builds the wheel, the sdist and the npm tarball once, after the npm package's own tests, and records their SHA-256 digests;
+   - installs exactly those files on Windows and Ubuntu and runs their tests, including a TypeScript agent run with the installed wheel and tarball;
+   - creates a build provenance attestation for the three files;
+   - waits for approval in the `pypi` and `npm` environments.
+4. Review the run's digests and attestation, then approve the deployments. The publishing jobs upload the same files, without rebuilding them; the npm tarball is published with `--provenance`, under the `next` tag for a pre-release version.
+5. The final jobs compare the digests on PyPI and the integrity on npm with the validated files, check the npm provenance, then install the published versions.
 
 ## Checking a release
 

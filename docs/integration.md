@@ -2,6 +2,8 @@
 
 Gazua tests an agent through its tools. This page shows how to hand your tools to Gazua, what happens to them during a run and what stays the same in production.
 
+This page covers Python agents. A TypeScript agent uses the npm package `gazua`, with the same `wrap`, dry-run and call log; see [the TypeScript guide](typescript.md).
+
 ## The short version
 
 Write a small test file that builds your agent with `gazua.wrap(tools)` and point `entrypoint` in `gazua.yaml` to it. Your production code does not import Gazua.
@@ -106,7 +108,7 @@ A call that cannot be recorded is blocked, because the verdict depends on the lo
 
 During a supervised attempt the wrapper also keeps each return value, as plain JSON, in the run's private folder, so a verdict can prove which record came back. It never calls your objects to do so, never changes what the tool returns, and the copy is deleted when the attempt has been judged. See [the verdict guide](verdicts.md).
 
-The session and the call record formats are public JSON Schemas, packaged with Gazua: [`session-v1.schema.json`](../src/gazua/schemas/session-v1.schema.json), [`session-v2.schema.json`](../src/gazua/schemas/session-v2.schema.json) for a supervised attempt, and [`call-record-v1.schema.json`](../src/gazua/schemas/call-record-v1.schema.json).
+The session and the call record formats are public JSON Schemas, packaged with Gazua and with the npm package, which writes the same records: [`session-v1.schema.json`](../src/gazua/schemas/session-v1.schema.json), [`session-v2.schema.json`](../src/gazua/schemas/session-v2.schema.json) for a supervised attempt, and [`call-record-v1.schema.json`](../src/gazua/schemas/call-record-v1.schema.json).
 
 ## Usage, rate limits and exfiltration
 

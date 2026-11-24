@@ -27,6 +27,10 @@ Before the first call to your agent, the run shows the number of molds, scenario
 
 The limits are the ones described in [the execution guide](execution.md): 300 executions, 120 seconds and 50 tool calls per execution and 2 at a time, or 1 at a time with `target.reset`. The turns of one attack share one execution, so they share its timeout, its tool call ceiling and its slot. When your agent makes several model calls, report each one's cost with `gazua.report_usage` as an increment.
 
+## TypeScript agents
+
+An agent written in TypeScript is attacked the same way, with the same verdicts and reports. Wrap its tools with the npm package `gazua`, compile a test entrypoint to JavaScript ESM, declare it under `typescript` and run `gazua run --agent`. Each attempt starts one Node runner that serves every turn of that attempt; retries, repetitions and legitimate tasks get a new one. Dry-run, `actor_arg`, injections through text results, the hooks and the stop signals behave as for Python. See [the TypeScript guide](typescript.md).
+
 ## HTTP targets
 
 An agent behind an HTTP endpoint, in any language, is attacked the same way: declare `http.endpoint`, confirm with `gazua init --http URL` and run `gazua run --agent`. Each turn is a `POST` with a fixed JSON body and the headers `User-Agent: gazua/<version>` and `X-Gazua-Run`. There is no dry-run over HTTP, hosts outside `allowed_targets` receive no request and redirects are never followed. Only `user_message` molds reach an HTTP target, and tool calls are proven only by OpenTelemetry spans; without them, attacks that need tool visibility and legitimate tasks are not tested. See [the HTTP guide](http.md) and [the traces guide](traces.md).
