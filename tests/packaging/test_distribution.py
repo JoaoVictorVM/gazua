@@ -574,6 +574,7 @@ REPORT_FILES = (
     "reports/legacy_guides.py",
     "reports/legacy_v2.py",
     "reports/legacy_v3.py",
+    "reports/legacy_v5.py",
     "reports/lifecycle.py",
     "reports/models.py",
     "reports/redaction.py",
@@ -589,6 +590,7 @@ REPORT_FILES = (
     "schemas/run-v3.schema.json",
     "schemas/run-v4.schema.json",
     "schemas/run-v5.schema.json",
+    "schemas/run-v6.schema.json",
 )
 RUN_SCHEMAS = (
     "run-v1.schema.json",
@@ -596,6 +598,7 @@ RUN_SCHEMAS = (
     "run-v3.schema.json",
     "run-v4.schema.json",
     "run-v5.schema.json",
+    "run-v6.schema.json",
 )
 
 

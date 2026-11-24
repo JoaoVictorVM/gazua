@@ -38,12 +38,13 @@ EXAMPLE = ROOT / "tests" / "support" / "run-example.json"
 EXAMPLE_V2 = ROOT / "tests" / "support" / "run-example-v2.json"
 
 
-def test_v5_schema_matches_generator() -> None:
+def test_v6_schema_matches_generator() -> None:
     assert packaged_run_json_schema().replace("\r\n", "\n") == render_run_json_schema()
-    published = (ROOT / "src/gazua/schemas/run-v5.schema.json").read_text(encoding="utf-8")
+    published = (ROOT / "src/gazua/schemas/run-v6.schema.json").read_text(encoding="utf-8")
     assert published.replace("\r\n", "\n") == render_run_json_schema()
     assert "guide" in build_run_json_schema()["required"]
     assert "http" in build_run_json_schema()["required"]
+    assert "typescript" in build_run_json_schema()["required"]
 
 
 def test_v4_schema_is_frozen() -> None:
@@ -97,7 +98,7 @@ def test_v1_adapts_without_baseline() -> None:
     adapted = parse_run_document(content)
 
     assert original["schema_version"] == 1
-    assert adapted.schema_version == 5
+    assert adapted.schema_version == 6
     assert adapted.target_adapter == "python"
     assert adapted.http is None
     assert adapted.guide.origin == "legacy_fallback"
@@ -146,7 +147,7 @@ def test_v2_snapshot_invariants() -> None:
 
 def test_unknown_version_has_migration_diagnostic() -> None:
     data = json.loads(document_json(document()))
-    data["schema_version"] = 6
+    data["schema_version"] = 7
 
     with pytest.raises(RunLoadError) as caught:
         parse_run_document(json.dumps(data).encode())

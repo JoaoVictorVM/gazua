@@ -1,0 +1,292 @@
+[
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"open\", \"request_id\": \"1\", \"operation\": \"run\", \"module\": \"dist/gazua-test.js\", \"exports\": {\"entrypoint\": \"respond\", \"reset\": \"reset\", \"as_user\": \"asUser\", \"output_sink\": \"observeOutput\"}}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"open\", \"request_id\": \"1\", \"operation\": \"describe\", \"module\": \"dist/a.mjs\", \"exports\": {\"entrypoint\": \"respond\", \"reset\": null, \"as_user\": null, \"output_sink\": null}}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"invoke\", \"request_id\": \"2\", \"message\": \"Consulte o pedido de teste.\", \"armed_injection_id\": \"request-key#turn1\"}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"invoke\", \"request_id\": \"3\", \"message\": \"olá ☃ \\n tab\\t\", \"armed_injection_id\": null}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"reset\", \"request_id\": \"4\"}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"sink\", \"request_id\": \"5\", \"value\": {\"a\": [1, 2.5, null, true, \"x\"]}}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"sink\", \"request_id\": \"5\", \"value\": [\"a\", \"<b>\"]}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"close\", \"request_id\": \"9999999999999999\"}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 2, \"type\": \"close\", \"request_id\": \"1\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": \"1\", \"type\": \"close\", \"request_id\": \"1\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": true, \"type\": \"close\", \"request_id\": \"1\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"close\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"close\", \"request_id\": \"0\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"close\", \"request_id\": \"01\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"close\", \"request_id\": 1}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"close\", \"request_id\": \"12345678901234567\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"close\", \"request_id\": \"1\", \"extra\": null}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"eval\", \"request_id\": \"1\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"open\", \"request_id\": \"1\", \"operation\": \"exec\", \"module\": \"a.js\", \"exports\": {\"entrypoint\": \"respond\", \"reset\": null, \"as_user\": null, \"output_sink\": null}}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"open\", \"request_id\": \"1\", \"operation\": \"run\", \"module\": \"a.js\", \"exports\": {\"entrypoint\": \"respond\", \"reset\": null, \"output_sink\": null}}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"open\", \"request_id\": \"1\", \"operation\": \"run\", \"module\": \"a.js\", \"exports\": {\"entrypoint\": \"a-b\", \"reset\": null, \"as_user\": null, \"output_sink\": null}}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"open\", \"request_id\": \"1\", \"operation\": \"run\", \"module\": \"a.js\", \"exports\": {\"entrypoint\": null, \"reset\": null, \"as_user\": null, \"output_sink\": null}}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"open\", \"request_id\": \"1\", \"operation\": \"run\", \"module\": \"\", \"exports\": {\"entrypoint\": \"respond\", \"reset\": null, \"as_user\": null, \"output_sink\": null}}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"invoke\", \"request_id\": \"2\", \"message\": 5, \"armed_injection_id\": null}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"invoke\", \"request_id\": \"2\", \"message\": \"x\", \"armed_injection_id\": \"\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"invoke\", \"request_id\": \"2\", \"message\": \"x\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\":1,\"type\":\"sink\",\"request_id\":\"5\",\"value\":NaN}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\":1,\"type\":\"sink\",\"request_id\":\"5\",\"value\":Infinity}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "[]",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "\"text\"",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{not json",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"sink\", \"request_id\": \"5\", \"value\": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[\"x\"]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}",
+    "valid": true
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"sink\", \"request_id\": \"5\", \"value\": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[\"x\"]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"ready\", \"request_id\": \"1\", \"sdk_version\": \"0.8.0\", \"node_version\": \"22.23.4\", \"tools\": [{\"name\": \"get_order\", \"supports_sync\": false, \"supports_async\": true, \"argument_style\": \"object\", \"ambiguous\": false}]}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"ready\", \"request_id\": \"1\", \"sdk_version\": \"0.1.0-dev.0\", \"node_version\": \"24.1.0\", \"tools\": []}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"result\", \"request_id\": \"2\", \"response\": \"Pedido de teste encontrado.\"}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"reset_done\", \"request_id\": \"3\"}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"sink_result\", \"request_id\": \"4\", \"effect\": true, \"proof\": {\"marker_id\": \"markup_marker\", \"observed\": \"unescaped\"}}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"closed\", \"request_id\": \"5\"}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"rate_limited\", \"error_type\": \"GazuaRateLimited\", \"retry_after\": 2}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"entrypoint_error\", \"error_type\": \"Error\", \"retry_after\": null}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"session_invalid\", \"error_type\": null, \"retry_after\": 0.5}",
+    "valid": true
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"ready\", \"request_id\": \"1\", \"sdk_version\": \"0.8.0\", \"node_version\": \"22.23.4\", \"tools\": [{\"name\": \"get_order\", \"supports_sync\": false, \"supports_async\": true, \"argument_style\": \"object\", \"ambiguous\": false}, {\"name\": \"get_order\", \"supports_sync\": false, \"supports_async\": true, \"argument_style\": \"object\", \"ambiguous\": false}]}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"ready\", \"request_id\": \"1\", \"sdk_version\": \"0.8.0\", \"node_version\": \"22.23.4\", \"tools\": [{\"name\": \"get_order\", \"supports_sync\": false, \"supports_async\": true, \"argument_style\": \"positional\", \"ambiguous\": false}]}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"ready\", \"request_id\": \"1\", \"sdk_version\": \"0.8.0\", \"node_version\": \"22.23.4\", \"tools\": [{\"name\": \"get_order\", \"supports_sync\": false, \"supports_async\": true, \"argument_style\": \"object\"}]}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"ready\", \"request_id\": \"1\", \"sdk_version\": \"0.8 beta\", \"node_version\": \"22.23.4\", \"tools\": []}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"Bad-Code\", \"error_type\": null, \"retry_after\": null}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"entrypoint_error\", \"error_type\": \"has space\", \"retry_after\": null}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"rate_limited\", \"error_type\": null, \"retry_after\": -1}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"rate_limited\", \"error_type\": null, \"retry_after\": 4000}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"rate_limited\", \"error_type\": null, \"retry_after\": true}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"error\", \"request_id\": \"2\", \"code\": \"rate_limited\", \"error_type\": null, \"retry_after\": null, \"message\": \"boom\"}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"sink_result\", \"request_id\": \"4\", \"effect\": true, \"proof\": {}}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"sink_result\", \"request_id\": \"4\", \"effect\": \"yes\", \"proof\": {\"a\": 1}}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"sink_result\", \"request_id\": \"4\", \"effect\": true, \"proof\": [1]}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"result\", \"request_id\": \"2\", \"response\": null}",
+    "valid": false
+  },
+  {
+    "direction": "to_python",
+    "line": "{\"protocol_version\": 1, \"type\": \"open\", \"request_id\": \"1\", \"operation\": \"run\", \"module\": \"a.js\", \"exports\": {\"entrypoint\": \"respond\", \"reset\": null, \"as_user\": null, \"output_sink\": null}}",
+    "valid": false
+  },
+  {
+    "direction": "to_runner",
+    "line": "{\"protocol_version\": 1, \"type\": \"result\", \"request_id\": \"2\", \"response\": \"x\"}",
+    "valid": false
+  }
+]
