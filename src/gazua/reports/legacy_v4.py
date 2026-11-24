@@ -19,7 +19,6 @@ from gazua.config.models import SCHEMA_DIALECT
 from gazua.modes.agent_models import LegitimateUse
 from gazua.reports.guide_models import FixGuide
 from gazua.reports.models import (
-    RUN_SCHEMA_VERSION,
     ExitCode,
     Finding,
     McpProvenance,
@@ -89,10 +88,12 @@ class RunDocument(_Strict):
 
 def adapt_data(data: dict[str, Any]) -> CurrentRunDocument:
     """A schema 4 document's JSON data in the current contract, with no HTTP provenance."""
+    from gazua.reports import legacy_v5
+
     current = dict(data)
-    current["schema_version"] = RUN_SCHEMA_VERSION
+    current["schema_version"] = 5
     current["http"] = None
-    return CurrentRunDocument.model_validate_json(json.dumps(current))
+    return legacy_v5.adapt_data(current)
 
 
 def adapt(document: RunDocument) -> CurrentRunDocument:

@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/call-record-v1.schema.json",
+  "$defs": {
+    "JsonValue": {},
+    "RecordActor": {
+      "additionalProperties": false,
+      "description": "The identity imposed on a call and how. ``source`` is ``none`` when there was none.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Id"
+        },
+        "source": {
+          "enum": [
+            "actor_arg",
+            "as_user",
+            "none"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source"
+      ],
+      "title": "RecordActor",
+      "type": "object"
+    },
+    "RecordError": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RecordError",
+      "type": "object"
+    },
+    "RecordInjection": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "delivered": {
+          "title": "Delivered",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "id",
+        "delivered",
+        "reason"
+      ],
+      "title": "RecordInjection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One tool call. Return values are never recorded, only their type.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "seq": {
+      "minimum": 1,
+      "title": "Seq",
+      "type": "integer"
+    },
+    "tool": {
+      "minLength": 1,
+      "title": "Tool",
+      "type": "string"
+    },
+    "arguments": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Arguments",
+      "type": "object"
+    },
+    "truncated": {
+      "title": "Truncated",
+      "type": "boolean"
+    },
+    "actor": {
+      "$ref": "#/$defs/RecordActor"
+    },
+    "dry_run": {
+      "title": "Dry Run",
+      "type": "boolean"
+    },
+    "undeclared": {
+      "title": "Undeclared",
+      "type": "boolean"
+    },
+    "outcome": {
+      "enum": [
+        "returned",
+        "raised",
+        "blocked"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "low_fidelity": {
+      "title": "Low Fidelity",
+      "type": "boolean"
+    },
+    "result_type": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Result Type"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RecordError"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "block_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Block Reason"
+    },
+    "injection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RecordInjection"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "seq",
+    "tool",
+    "arguments",
+    "truncated",
+    "actor",
+    "dry_run",
+    "undeclared",
+    "outcome",
+    "low_fidelity",
+    "result_type",
+    "error",
+    "block_reason",
+    "injection"
+  ],
+  "title": "Gazua call record",
+  "type": "object"
+}

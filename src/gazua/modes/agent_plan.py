@@ -131,8 +131,13 @@ def entry_tool(config: GazuaConfig, mold: Mold) -> str | None:
 
 def executor_for(config: GazuaConfig) -> str:
     from gazua.http import EXECUTOR as HTTP_EXECUTOR
+    from gazua.typescript import EXECUTOR as TYPESCRIPT_EXECUTOR
 
-    return HTTP_EXECUTOR if config.http is not None else EXECUTOR
+    if config.http is not None:
+        return HTTP_EXECUTOR
+    if config.typescript is not None:
+        return TYPESCRIPT_EXECUTOR
+    return EXECUTOR
 
 
 def capabilities_for(config: GazuaConfig, mold: Mold, inventory: ToolsInventory) -> Capabilities:

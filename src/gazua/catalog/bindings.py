@@ -76,7 +76,7 @@ class BindingContext:
             tool_name=tool_name if tool is not None else None,
             owner_arg=tool.owner_arg if tool else None,
             actor_arg=tool.actor_arg if tool else None,
-            as_user_available=config.target.as_user is not None,
+            as_user_available=config.has_as_user,
             attacker_id=attacker.id if attacker else None,
             victim_id=victim.id if victim else None,
             record=records[record_index] if record_index < len(records) else None,

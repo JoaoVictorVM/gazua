@@ -50,8 +50,13 @@ def proven_without_tools(config: GazuaConfig, inventory: ToolsInventory) -> bool
 
 
 def mcp_payload(inventory: ToolsInventory, dependent: Iterable[str | None]) -> dict[str, Any]:
-    """What an attempt on an MCP target carries from planning: the approved tool digests and
-    the tools whose change makes the attempt meaningless. Empty for Python targets."""
+    """What an attempt carries from planning about the target it was planned against.
+
+    An MCP target gets the approved tool digests and the tools whose change makes the attempt
+    meaningless; a TypeScript target gets the hash of the compiled module that was described.
+    Empty for Python targets."""
+    if inventory.typescript is not None:
+        return {"typescript_module_sha256": inventory.typescript.module_sha256}
     if inventory.mcp is None:
         return {}
     return {

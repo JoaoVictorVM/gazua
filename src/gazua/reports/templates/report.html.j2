@@ -71,6 +71,7 @@
 <dt>Target</dt><dd>{{ meta.target_ref | clean }}</dd>
 {% if mcp_lines %}<dt>MCP</dt><dd>{% for line in mcp_lines %}{{ line | clean }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
 {% if http_lines %}<dt>HTTP</dt><dd>{% for line in http_lines %}{{ line | clean }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
+{% if typescript_lines %}<dt>TypeScript</dt><dd>{% for line in typescript_lines %}{{ line | clean }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
 <dt>Gazua version</dt><dd>{{ (meta.gazua_version or not_reported) | clean }}</dd>
 <dt>Target version</dt><dd>{{ (meta.target_version or not_reported) | clean }}</dd>
 <dt>Model</dt><dd>{{ (meta.model or not_reported) | clean }}</dd>

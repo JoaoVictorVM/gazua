@@ -74,6 +74,7 @@ _OWN_ERROR_TYPES = {
     "duplicate_item",
     "http_endpoint",
     "http_header",
+    "typescript_module",
 }
 
 
@@ -173,6 +174,24 @@ def _adapter_errors(config: GazuaConfig, file: str, source_map: SourceMap) -> li
             )
     if config.traces is not None and config.http is None:
         report(("traces",), "Traces are read for an HTTP target only; declare http.endpoint.")
+    if config.typescript is not None:
+        for name in ("entrypoint", "mcp", "http"):
+            if name in config.model_fields_set and getattr(config, name) is not None:
+                report(
+                    (name,),
+                    f"typescript and {name} are different targets; declare one of them.",
+                )
+        hooks = (
+            (("target", "reset"), config.target.reset, "typescript.reset_export"),
+            (("target", "as_user"), config.target.as_user, "typescript.as_user_export"),
+            (("output_sink",), config.output_sink, "typescript.output_sink_export"),
+        )
+        for path, value, replacement in hooks:
+            if value is not None:
+                report(
+                    path,
+                    f"A Python hook cannot reach a TypeScript target; declare {replacement}.",
+                )
     return errors
 
 

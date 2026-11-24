@@ -140,6 +140,41 @@ def init(
             "that you are authorized to send it real requests. No request is sent.",
         ),
     ] = None,
+    typescript: Annotated[
+        str | None,
+        typer.Option(
+            "--typescript",
+            metavar="MODULE",
+            help="Compiled ESM module of a TypeScript test entrypoint, relative to the project. "
+            "Node imports it to list the tools wrapped with the npm package; nothing is called.",
+        ),
+    ] = None,
+    typescript_export: Annotated[
+        str | None,
+        typer.Option(
+            "--typescript-export",
+            metavar="NAME",
+            help="Export of the module that receives each message. Required with --typescript.",
+        ),
+    ] = None,
+    typescript_reset: Annotated[
+        str | None,
+        typer.Option("--typescript-reset", metavar="NAME", help="Export that resets test state."),
+    ] = None,
+    typescript_as_user: Annotated[
+        str | None,
+        typer.Option(
+            "--typescript-as-user", metavar="NAME", help="Export that runs a tool as a user."
+        ),
+    ] = None,
+    typescript_output_sink: Annotated[
+        str | None,
+        typer.Option(
+            "--typescript-output-sink",
+            metavar="NAME",
+            help="Export that shows an output the way your product would.",
+        ),
+    ] = None,
 ) -> None:
     """Create gazua.yaml from the tools found in a project, for human review."""
     from gazua.config.diagnostics import sanitize
@@ -147,6 +182,24 @@ def init(
 
     if mcp is None and (mcp_arg or mcp_cwd is not None):
         raise _usage_error("--mcp-arg and --mcp-cwd describe the server given with --mcp.")
+    hooks = {
+        "reset_export": typescript_reset,
+        "as_user_export": typescript_as_user,
+        "output_sink_export": typescript_output_sink,
+    }
+    if typescript is None and (typescript_export is not None or any(hooks.values())):
+        raise _usage_error(
+            "The --typescript-* options describe the module given with --typescript."
+        )
+    if typescript is not None:
+        if mcp is not None or entrypoint is not None or http is not None:
+            raise _usage_error(
+                "--typescript declares the target alone; drop --entrypoint, --mcp and --http."
+            )
+        if typescript_export is None:
+            raise _usage_error("--typescript needs --typescript-export with the entrypoint export.")
+        _init_typescript(directory, typescript, typescript_export, hooks)
+        return
     if http is not None:
         if mcp is not None or entrypoint is not None:
             raise _usage_error("--http declares the target alone; drop --mcp and --entrypoint.")
@@ -196,6 +249,55 @@ def init(
     if missing:
         _say(f"This configuration is not ready to run yet. Declare: {', '.join(missing)}.")
     _say("Review every REVIEW REQUIRED comment before relying on this file.")
+
+
+def _init_typescript(
+    directory: Path, module: str, export: str, hooks: dict[str, str | None]
+) -> None:
+    from pydantic import ValidationError
+
+    from gazua.config.diagnostics import sanitize
+    from gazua.config.models import TypeScriptTarget
+    from gazua.project_init import check_target, initialize_typescript_project, suggests_sensitive
+
+    try:
+        target = TypeScriptTarget(
+            module=module,
+            entrypoint_export=export,
+            **{name: value for name, value in hooks.items() if value is not None},
+        )
+    except ValidationError:
+        raise _usage_error(
+            "--typescript needs a relative .js or .mjs path inside the project, and every "
+            "export must be a JavaScript identifier."
+        ) from None
+    with exit_on_config_error():
+        check_target(directory)
+        _say(
+            f"Warning: listing tools imports {sanitize(module)} in Node on this machine with your "
+            "permissions. Gazua does not install packages or build TypeScript.",
+            err=True,
+        )
+        result = initialize_typescript_project(directory, target)
+    if result.tools:
+        _say("Discovered TypeScript tools (suggestions, review required):")
+        for name in result.tools:
+            suggestion = "sensitive" if suggests_sensitive(name) else "not classified"
+            _say(f"  {sanitize(name)}: {suggestion}, dry-run until reviewed")
+    else:
+        _say("The module registered no tool through wrap or tool.")
+    for name in result.ambiguous:
+        _say(f"Warning: distinct functions share the tool name {sanitize(name)}.", err=True)
+    for warning in result.warnings:
+        _say(f"Warning: {warning.render()}", err=True)
+    _say(f"Created {sanitize(str(result.config_path))}")
+    if result.gitignore_changed:
+        _say(f"Added .gazua/ to {sanitize(str(result.gitignore_path))}")
+    else:
+        _say(f"{sanitize(str(result.gitignore_path))} already ignores .gazua/")
+    _say(
+        "The entrypoint and the tools were not called. Review the file, then run gazua run --agent."
+    )
 
 
 def _init_mcp(
@@ -302,6 +404,11 @@ HTTP_PROVENANCE_WARNING = (
     "This finding was not recorded over HTTP against this origin, or that run is no longer "
     "kept. This verification cannot close it; run gazua run --agent again and review the "
     "baseline."
+)
+TYPESCRIPT_PROVENANCE_WARNING = (
+    "The TypeScript module or the npm package differs from the run that recorded this finding, "
+    "or that run is no longer kept. This verification cannot close it; run gazua run --agent "
+    "again and review the baseline."
 )
 MCP_PROVENANCE_WARNING = (
     "The MCP server's tools differ from the run that recorded this finding, or that run is no "
@@ -495,6 +602,10 @@ def _run_tools(
         from gazua.modes.tools import HTTP_REFUSAL
 
         raise _usage_error(HTTP_REFUSAL)
+    if config.typescript is not None:
+        from gazua.modes.tools import TYPESCRIPT_REFUSAL
+
+        raise _usage_error(TYPESCRIPT_REFUSAL)
     if config.entrypoint is None and config.mcp is None:
         raise _usage_error(
             "Tools mode imports the entrypoint's module to find the tools; declare entrypoint."
@@ -598,7 +709,7 @@ def _run_agent(
         raise typer.Exit(EXIT_USAGE)
     with exit_on_config_error():
         select_agent_molds(catalog.entries, AgentOptions(mold=mold, quick=quick))
-    if config.entrypoint is None and config.http is None:
+    if config.entrypoint is None and config.http is None and config.typescript is None:
         raise _usage_error("Agent mode sends messages to the entrypoint; declare entrypoint.")
     try:
         overrides = LimitOverrides.model_validate(limits)
@@ -1153,7 +1264,12 @@ def verify_command(
     except ValidationError:
         raise _usage_error("Limit options must be positive numbers.") from None
     config = _load_tools_config(config_path, AGENT_HTTP_REFUSAL)
-    if config.entrypoint is None and config.mcp is None and config.http is None:
+    if (
+        config.entrypoint is None
+        and config.mcp is None
+        and config.http is None
+        and config.typescript is None
+    ):
         raise _usage_error("Verification runs the target; declare entrypoint.")
     root = config_path.parent.resolve()
     try:
@@ -1220,6 +1336,13 @@ def verify_command(
                 if problem is not None:
                     extra.append(problem)
                     _say(MCP_PROVENANCE_WARNING, err=True)
+            if config.typescript is not None:
+                from gazua.baseline.verification import typescript_provenance_problem
+
+                problem = typescript_provenance_problem(root, selection.entry.id, inventory)
+                if problem is not None:
+                    extra.append(problem)
+                    _say(TYPESCRIPT_PROVENANCE_WARNING, err=True)
         except VerifyError as error:
             raise _verify_error(error) from None
         except ConfigError:

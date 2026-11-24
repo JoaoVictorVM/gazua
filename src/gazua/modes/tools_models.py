@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from gazua.mcp.models import McpInventory
 from gazua.runtime.run_models import LimitOverrides, NonEmptyText, RunSummary
+from gazua.typescript.models import TypeScriptProvenance
 from gazua.verdicts.models import AttackContext, VerdictSummary
 
 ParameterKind: TypeAlias = Literal[
@@ -82,12 +83,14 @@ class ToolsInventory(_Strict):
 
     ``complete`` is true only after the test module was imported and reconciled in full; only a
     complete inventory can show that no tool fits a mold. ``mcp`` holds the snapshot of an MCP
-    target, whose digests every attempt checks before it calls a tool.
+    target, whose digests every attempt checks before it calls a tool. ``typescript`` holds the
+    runtime of a TypeScript target and the hash of the module every attempt must load.
     """
 
     complete: bool
     tools: list[DiscoveredTool] = Field(default_factory=list[DiscoveredTool])
     mcp: McpInventory | None = None
+    typescript: TypeScriptProvenance | None = None
 
     def get(self, name: str) -> DiscoveredTool | None:
         return next((tool for tool in self.tools if tool.name == name), None)

@@ -80,6 +80,9 @@ def target_ref(config: GazuaConfig) -> str:
             return f"http:{parse_endpoint(config.http.endpoint).origin}"
         except EndpointError:
             return "http:invalid"
+    if config.typescript is not None:
+        # The module path is relative to the project, like a Python entrypoint's module name.
+        return f"typescript:{config.typescript.module}:{config.typescript.entrypoint_export}"
     return config.entrypoint or ""
 
 

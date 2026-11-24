@@ -337,6 +337,7 @@ def _context(document: RunDocument) -> dict[str, Any]:
         "stop_text": stop_text(document),
         "mcp_lines": mcp_lines(document),
         "http_lines": http_lines(document),
+        "typescript_lines": typescript_lines(document),
         "demo_notice": demo_notice(document),
         "comparison": comparison_view(document.baseline),
         "verification": verification_view(document.verification, metadata.mode),
@@ -431,6 +432,17 @@ def http_lines(document: RunDocument) -> list[str]:
     return lines
 
 
+def typescript_lines(document: RunDocument) -> list[str]:
+    """The TypeScript runtime in plain sentences: versions and a hash prefix, never paths."""
+    runtime = document.typescript
+    if runtime is None:
+        return []
+    return [
+        f"TypeScript target: Node {runtime.node_version}, npm gazua {runtime.sdk_version}, "
+        f"protocol {runtime.protocol_version}, module {runtime.module_sha256[:12]}."
+    ]
+
+
 def mcp_lines(document: RunDocument) -> list[str]:
     """The MCP provenance in plain sentences: never commands, arguments or server texts."""
     mcp = document.mcp
@@ -478,6 +490,7 @@ def terminal_lines(document: RunDocument, *, shell: str | None = None) -> list[s
     )
     lines.extend(mcp_lines(document))
     lines.extend(http_lines(document))
+    lines.extend(typescript_lines(document))
     legitimate = legitimate_view(document)
     if legitimate is not None:
         from gazua.modes.agent_presentation import legitimate_task_lines

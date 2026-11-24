@@ -27,3 +27,7 @@ htmlcov/
 
 # MCP test fixture build output
 tests/support/mcp_server/node_modules/
+
+# TypeScript package and fixture dependencies
+packages/typescript/node_modules/
+tests/support/typescript_agent/node_modules/

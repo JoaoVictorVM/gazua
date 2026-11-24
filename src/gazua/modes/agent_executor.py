@@ -12,7 +12,7 @@ The entrypoint uses the project's own model and credential; nothing here reads e
 from __future__ import annotations
 
 from collections.abc import Callable, Generator, Mapping
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import Any, cast
 
@@ -35,6 +35,10 @@ _broker: list[Any] = []
 
 Send = Callable[[str], str]
 """Delivers one message to the agent and returns its text response."""
+Sink = Callable[[JsonValue], dict[str, Any]]
+"""Hands one output value to the target's sink and returns its checked result."""
+Arm = Callable[[str], AbstractContextManager[None]]
+"""Makes one injection the only one deliverable while the next message runs."""
 
 
 def entrypoint_sender(context: ExecutionContext) -> Send:
@@ -85,7 +89,12 @@ def _turn_ids(context: ExecutionContext, request_key: str, tool: str, turns: int
 
 
 def _attack(
-    request: Mapping[str, Any], payload: Mapping[str, Any], context: ExecutionContext, send: Send
+    request: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    context: ExecutionContext,
+    send: Send,
+    sink: Sink | None,
+    arm: Arm,
 ) -> dict[str, Any]:
     config: GazuaConfig = context.config
     mold = Mold.model_validate(payload["mold"])
@@ -130,7 +139,7 @@ def _attack(
             raise InvocationRefused("entry_unavailable")
         for injection_id in _turn_ids(context, request["key"], declared.tool, len(bound.turns)):
             # Only this turn can be delivered while the trigger message runs.
-            with armed_turn(injection_id):
+            with arm(injection_id):
                 responses.append(send(declared.request))
     else:
         raise InvocationRefused("entry_unavailable")
@@ -138,7 +147,7 @@ def _attack(
     observations: list[dict[str, Any]] = []
     # Over HTTP the sink lives in the remote target, so no local observation could prove it.
     if mold.success.signal == "output_sink_effect" and config.http is None:
-        observed = observe_sink(context, response, marker_id=SINK_MARKER)
+        observed = observe_sink(context, response, marker_id=SINK_MARKER, sink=sink)
         if observed is not None:
             observations.append(observed)
     return {"output": output_envelope(response, observations)}
@@ -192,12 +201,23 @@ def execute(request: Mapping[str, Any], context: ExecutionContext) -> dict[str, 
     return dispatch(request, context, entrypoint_sender(context))
 
 
-def dispatch(request: Mapping[str, Any], context: ExecutionContext, send: Send) -> dict[str, Any]:
-    """Runs the attack or legitimate task in ``request``, delivering each message with ``send``."""
+def dispatch(
+    request: Mapping[str, Any],
+    context: ExecutionContext,
+    send: Send,
+    *,
+    sink: Sink | None = None,
+    arm: Arm = armed_turn,
+) -> dict[str, Any]:
+    """Runs the attack or legitimate task in ``request``, delivering each message with ``send``.
+
+    ``sink`` replaces the declared Python ``output_sink`` and ``arm`` the in-process injection
+    arming, for an adapter whose tools and hooks live in another runtime.
+    """
     payload: Mapping[str, Any] = request["payload"]
     kind = payload.get("kind")
     if kind == "legitimate":
         return _legitimate(request, payload, context, send)
     if kind == "attack":
-        return _attack(request, payload, context, send)
+        return _attack(request, payload, context, send, sink, arm)
     raise InvocationRefused("request_invalid")

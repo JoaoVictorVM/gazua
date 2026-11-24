@@ -124,6 +124,12 @@ def preview_lines(preview: AgentPreview) -> list[str]:
     if preview.http_origin is not None:
         lines.extend(http_lines(preview.http_origin, traces=bool(preview.traces)))
     else:
+        runtime = preview.inventory.typescript
+        if runtime is not None:
+            lines.append(
+                f"Target: TypeScript module in Node {sanitize(runtime.node_version)} "
+                f"(npm gazua {sanitize(runtime.sdk_version)}); it runs with your permissions."
+            )
         registered = [tool for tool in preview.inventory.tools if tool.registered]
         real = [sanitize(tool.name) for tool in registered if tool.runnable]
         dry = [sanitize(tool.name) for tool in registered if not tool.runnable]

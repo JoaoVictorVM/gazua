@@ -346,6 +346,42 @@ class TraceConfig(_Declaration):
     wait_seconds: Annotated[float, Field(gt=0, le=10, allow_inf_nan=False)] = 5
 
 
+_EXPORT_PATTERN: Final = r"^[A-Za-z_$][A-Za-z0-9_$]{0,127}$"
+_MODULE_PATTERN: Final = r"^(?!/)(?!.*(?:^|/)\.\.(?:/|$))[^\\:?#\x00]+\.m?js$"
+
+
+def _check_module(value: str) -> str:
+    from gazua.typescript.policy import module_path_problem
+
+    problem = module_path_problem(value)
+    if problem is not None:
+        raise PydanticCustomError("typescript_module", "{reason}", {"reason": problem})
+    return value
+
+
+ExportName = Annotated[str, Field(pattern=_EXPORT_PATTERN)]
+ModulePath = Annotated[
+    str,
+    AfterValidator(_check_module),
+    WithJsonSchema({"type": "string", "pattern": _MODULE_PATTERN}),
+]
+
+
+class TypeScriptTarget(_Declaration):
+    """A compiled ESM module of the project that the npm package's runner imports in Node.
+
+    ``module`` is relative to the ``gazua.yaml`` folder, a ``.js`` or ``.mjs`` file inside the
+    project. Gazua never installs packages or builds TypeScript; the project does both first.
+    Importing the module runs its code with the user's permissions, inside a supervised worker.
+    """
+
+    module: ModulePath
+    entrypoint_export: ExportName
+    reset_export: ExportName | None = None
+    as_user_export: ExportName | None = None
+    output_sink_export: ExportName | None = None
+
+
 class MoldSources(_Declaration):
     """Local folders with extra attack molds. Paths are relative to the ``gazua.yaml`` folder.
 
@@ -370,6 +406,7 @@ class GazuaConfig(_Declaration):
     entrypoint: Reference | None = None
     mcp: McpServer | None = None
     http: HttpTarget | None = None
+    typescript: TypeScriptTarget | None = None
     traces: TraceConfig | None = None
     target: Target = Field(default_factory=Target)
     tools: dict[ToolName, Tool] = Field(
@@ -394,6 +431,27 @@ class GazuaConfig(_Declaration):
     def to_document(self) -> dict[str, Any]:
         """JSON data with only what was declared, so absences survive a round trip."""
         return self.model_dump(mode="json", exclude_unset=True)
+
+    # A TypeScript target declares its hooks as exports of its module, not as Python references;
+    # these say whether a hook exists whichever adapter declares it.
+
+    @property
+    def has_reset(self) -> bool:
+        if self.typescript is not None:
+            return self.typescript.reset_export is not None
+        return self.target.reset is not None
+
+    @property
+    def has_as_user(self) -> bool:
+        if self.typescript is not None:
+            return self.typescript.as_user_export is not None
+        return self.target.as_user is not None
+
+    @property
+    def has_output_sink(self) -> bool:
+        if self.typescript is not None:
+            return self.typescript.output_sink_export is not None
+        return self.output_sink is not None
 
 
 def build_json_schema() -> dict[str, Any]:

@@ -333,6 +333,7 @@ def execute_runner(
         references=references,
         mcp=mcp_provenance(result, deliveries) if config.mcp is not None else None,
         http=http_provenance(config, traces),
+        typescript=getattr(getattr(result, "inventory", None), "typescript", None),
     )
     output.lines(terminal_lines(document))
     if mode == "tools":

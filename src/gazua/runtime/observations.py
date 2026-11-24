@@ -9,7 +9,7 @@ these documents can carry a verdict: they say what was observed, and the verdict
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
@@ -214,18 +214,23 @@ def memory_observation(
 
 
 def observe_sink(
-    context: ExecutionContext, value: JsonValue, *, marker_id: str
+    context: ExecutionContext,
+    value: JsonValue,
+    *,
+    marker_id: str,
+    sink: Callable[[JsonValue], dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     """Hands ``value`` to the declared ``output_sink`` and returns the observation to report.
 
     Call it from the executor, before it returns, only for the unhandled output scenario. With
     no sink declared it returns None and calls nothing in its place. A sink that fails or
-    answers for another marker yields an observation with only an error code.
+    answers for another marker yields an observation with only an error code. ``sink`` stands
+    for a sink that lives in another runtime and already returns a checked result.
     """
     from gazua.runtime.hooks import SinkError, call_output_sink
 
     reference = getattr(context.config, "output_sink", None)
-    if not isinstance(reference, str):
+    if sink is None and not isinstance(reference, str):
         return None
     head: dict[str, Any] = {
         "schema_version": OBSERVATION_VERSION,
@@ -233,7 +238,7 @@ def observe_sink(
         "execution_id": context.execution_id,
     }
     try:
-        result = call_output_sink(reference, value)
+        result = sink(value) if sink is not None else call_output_sink(str(reference), value)
     except SinkError as failure:
         return SinkObservation.model_validate({**head, "error": failure.code}).model_dump()
     proof = cast("dict[str, JsonValue]", result["proof"])

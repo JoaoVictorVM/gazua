@@ -111,6 +111,44 @@ def http_provenance_problem(project_root: Path, finding_id: str, origin: str) ->
     return HTTP_PROVENANCE_MISSING
 
 
+TYPESCRIPT_PROVENANCE_CHANGED = "typescript_provenance_changed"
+TYPESCRIPT_PROVENANCE_MISSING = "typescript_provenance_missing"
+
+
+def typescript_provenance_problem(
+    project_root: Path, finding_id: str, inventory: Any
+) -> str | None:
+    """Why a TypeScript finding cannot be closed by this replay; None when the target matches.
+
+    The newest kept run that holds the finding must have reached a TypeScript target through
+    the same protocol, with the same compiled module and the same npm package line. Another
+    adapter, another module or a run no longer kept never closes the finding here.
+    """
+    from gazua.reports.storage import RunLoadError, load_run_document
+    from gazua.typescript.executor import base_version
+
+    current = getattr(inventory, "typescript", None)
+    folder = project_root / ".gazua" / "runs"
+    paths = sorted(folder.glob("*/run.json"), reverse=True) if folder.is_dir() else []
+    for path in paths:
+        try:
+            document = load_run_document(path)
+        except (RunLoadError, OSError, ValueError):
+            continue
+        if not any(item.id == finding_id for item in document.findings):
+            continue
+        recorded = document.typescript
+        if document.target_adapter != "typescript" or recorded is None or current is None:
+            return TYPESCRIPT_PROVENANCE_CHANGED
+        same = (
+            recorded.protocol_version == current.protocol_version
+            and recorded.module_sha256 == current.module_sha256
+            and base_version(recorded.sdk_version) == base_version(current.sdk_version)
+        )
+        return None if same else TYPESCRIPT_PROVENANCE_CHANGED
+    return TYPESCRIPT_PROVENANCE_MISSING
+
+
 def reproduction_arguments(
     finding_id: str, config_path: str, mode: str, overrides: LimitOverrides | None
 ) -> list[str]:
