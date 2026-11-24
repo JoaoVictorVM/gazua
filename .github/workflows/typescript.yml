@@ -1,0 +1,68 @@
+name: typescript
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Build and test the npm package
+        working-directory: packages/typescript
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          npm test
+          npm pack --dry-run --ignore-scripts
+      # Zero production dependencies: the audit has nothing to resolve beyond the package itself.
+      - name: Audit the production dependencies
+        working-directory: packages/typescript
+        run: npm audit --omit=dev
+
+  adapter:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+        python: ["3.11", "3.14"]
+        node: ["22", "24"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+      # TypeScript tests fail instead of skipping when Node or a built fixture is missing.
+      GAZUA_REQUIRE_TYPESCRIPT: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          enable-cache: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Build the npm package and the fixture agent
+        shell: bash
+        run: |
+          (cd packages/typescript && npm ci --ignore-scripts --no-audit --no-fund && npm run build)
+          (cd tests/support/typescript_agent && npm ci --ignore-scripts --no-audit --no-fund && npm run build)
+      - run: uv sync --frozen
+      - name: Check that the shared schemas are in sync
+        run: uv run --frozen python .github/scripts/generate_typescript_schemas.py --check
+      - name: Run the TypeScript adapter, protocol and distribution tests
+        run: uv run --frozen pytest tests -k "typescript"

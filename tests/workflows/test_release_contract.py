@@ -13,7 +13,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = {path.name: path for path in (ROOT / ".github" / "workflows").glob("*.yml")}
 FULL_SHA_REFERENCE = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
-JOBS_ALLOWED_OIDC = {"attest", "publish"}
+JOBS_ALLOWED_OIDC = {"attest", "publish", "publish-npm"}
 UNCONDITIONAL_RUN = re.compile(r"\b(always|failure|cancelled)\(\)")
 
 
@@ -330,3 +330,77 @@ def test_shell_digest_check_blocks_changed_artifacts(
 
 def _name_of(jobs: dict[str, Any], job: dict[str, Any]) -> str:
     return next(name for name, candidate in jobs.items() if candidate is job)
+
+
+@pytest.mark.parametrize(
+    ("python_version", "npm_version"),
+    [
+        ("1.2.3", "1.2.3"),
+        ("0.1.0.dev0", "0.1.0-dev.0"),
+        ("1.2.3rc1", "1.2.3-rc.1"),
+        ("2.0.0b2.dev1", "2.0.0-beta.2.dev.1"),
+    ],
+)
+def test_npm_version_follows_the_python_version(
+    checks: ModuleType, python_version: str, npm_version: str
+) -> None:
+    assert checks.npm_version(python_version) == npm_version
+
+
+def test_release_publishes_the_tested_npm_tarball_with_provenance(
+    checks: ModuleType, inventory_folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = load("release.yml")["jobs"]
+    build = " ".join(step.get("run", "") for step in steps_of(jobs["build"]))
+    assert "npm pack --ignore-scripts --pack-destination ../../release-artifacts/npm" in build
+    assert build.index("npm test") < build.index("npm pack")
+    validate = " ".join(step.get("run", "") for step in steps_of(jobs["validate-source"]))
+    assert "check-npm-version" in validate
+    assert checks.main(["check-npm-version", f"--manifest={ROOT / 'pyproject.toml'}"]) == 0
+    assert jobs["verify"]["env"]["GAZUA_NPM_DIR"] == "release-artifacts/npm"
+    assert "release-artifacts/npm/*" in jobs["attest"]["steps"][-1]["with"]["subject-path"]
+
+    publish = jobs["publish-npm"]
+    assert required_jobs(jobs, "publish-npm") == {
+        "validate-source",
+        "gates",
+        "build",
+        "verify",
+        "attest",
+    }
+    assert publish["environment"]["name"] == "npm"
+    assert publish["permissions"] == {"contents": "read", "id-token": "write"}
+    steps = steps_of(publish)
+    names = [step.get("name", step.get("uses", "")) for step in steps]
+    command = next(step["run"] for step in steps if "npm publish" in step.get("run", ""))
+    assert "--provenance --access public" in command
+    assert "release-artifacts/npm" in command
+    assert names.index("Check the digests") < names.index(
+        "Publish exactly the validated tarball with provenance"
+    )
+    assert jobs["verify-npm-publication"]["needs"] == ["build", "publish-npm"]
+
+    tarball = inventory_folder / "npm" / "gazua-1.2.3.tgz"
+    tarball.parent.mkdir()
+    tarball.write_bytes(b"tarball")
+    checks.write_inventory(inventory_folder)
+    assert checks.main(["verify-inventory", f"--directory={inventory_folder}"]) == 0
+    assert set(checks.read_inventory(inventory_folder)) == {
+        "gazua-1.2.3-py3-none-any.whl",
+        "gazua-1.2.3.tar.gz",
+    }
+    integrity = checks.npm_integrity(tarball)
+    answers: list[dict[str, Any]] = []
+    monkeypatch.setattr(checks, "fetch_npm_release", lambda version: answers.pop(0))
+
+    def published(dist: dict[str, Any]) -> int:
+        answers.append({"dist": dist})
+        return checks.main(
+            ["verify-published-npm", f"--directory={inventory_folder}", "--version=1.2.3"]
+        )
+
+    assert published({"integrity": integrity, "attestations": {"url": "x"}}) == 0
+    assert published({"integrity": "sha512-other", "attestations": {"url": "x"}}) == 1
+    assert published({"integrity": integrity}) == 1
+    tarball.write_bytes(b"replaced")
+    assert checks.main(["verify-inventory", f"--directory={inventory_folder}"]) == 1
