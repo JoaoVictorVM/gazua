@@ -58,9 +58,11 @@ from gazua.reports.models import (
     SyntheticData,
     SyntheticIdentity,
     SyntheticRecord,
+    TargetAdapter,
     highest_severity,
 )
 from gazua.runtime.run_models import RunSummary
+from gazua.typescript.models import TypeScriptProvenance
 from gazua.verdicts.models import (
     AttackContext,
     AttackResult,
@@ -338,6 +340,7 @@ def build_run_document(
     references: Mapping[str, ScenarioReference] | None = None,
     mcp: McpProvenance | None = None,
     http: HttpProvenance | None = None,
+    typescript: TypeScriptProvenance | None = None,
 ) -> RunDocument:
     """The validated document of one run. Each result appears once, in planned order.
 
@@ -454,10 +457,21 @@ def build_run_document(
         baseline=comparison,
         verification=decided,
         guide=guide_for(language),
-        target_adapter="http" if http is not None else "mcp_stdio" if mcp is not None else "python",
+        target_adapter=_adapter(mcp, http, typescript),
         mcp=mcp,
         http=http,
+        typescript=typescript,
     )
+
+
+def _adapter(
+    mcp: McpProvenance | None, http: HttpProvenance | None, typescript: TypeScriptProvenance | None
+) -> TargetAdapter:
+    if http is not None:
+        return "http"
+    if typescript is not None:
+        return "typescript"
+    return "mcp_stdio" if mcp is not None else "python"
 
 
 def _treated_legitimate(

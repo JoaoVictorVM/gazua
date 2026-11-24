@@ -55,7 +55,7 @@ def test_v2_adaptation_preserves_baseline_and_verification() -> None:
     data = adapted.model_dump(mode="json")
 
     assert original["schema_version"] == 2
-    assert adapted.schema_version == 5
+    assert adapted.schema_version == 6
     assert adapted.guide.origin == "legacy_fallback"
     assert original["baseline"] is not None
     for name in ("baseline", "verification", "findings", "scenarios", "proofs", "fixes"):
@@ -70,6 +70,7 @@ def test_v2_adaptation_preserves_baseline_and_verification() -> None:
     compared.pop("target_adapter")
     compared.pop("mcp")
     compared.pop("http")
+    compared.pop("typescript")
     compared["schema_version"] = 2
     again = parse_run_document(json.dumps(compared).encode())
     assert again.model_dump(mode="json")["baseline"] == compared["baseline"]

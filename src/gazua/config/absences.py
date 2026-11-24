@@ -35,7 +35,7 @@ class Absence:
 
 def find_absences(config: GazuaConfig) -> tuple[Absence, ...]:
     found: list[Absence] = []
-    identity_hook = config.target.as_user is not None
+    identity_hook = config.has_as_user
 
     for name, tool in config.tools.items():
         if tool.classification is ToolClass.UNCLASSIFIED:
@@ -55,9 +55,9 @@ def find_absences(config: GazuaConfig) -> tuple[Absence, ...]:
         found.append(Absence("canaries", AbsenceResult.MISSING_FIXTURES))
     if not config.legit_tasks:
         found.append(Absence("legit_tasks", AbsenceResult.NO_LEGIT_TASKS))
-    if config.output_sink is None:
+    if not config.has_output_sink:
         found.append(Absence("output_sink", AbsenceResult.NO_OUTPUT_SINK))
-    if config.target.reset is None:
+    if not config.has_reset:
         found.append(Absence("target.reset", AbsenceResult.NO_RESET))
     if "allowed_targets" not in config.model_fields_set:
         found.append(Absence("allowed_targets", AbsenceResult.LOCALHOST_ONLY))

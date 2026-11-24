@@ -125,14 +125,14 @@ def inspect_requirements(
     attacker, victim = config.fixtures.attacker, config.fixtures.victim
     declared: dict[Requirement, bool] = {
         # A local identity hook does not reach a tool another process serves.
-        "identity": (config.target.as_user is not None and config.mcp is None)
+        "identity": (config.has_as_user and config.mcp is None)
         or any(tool.actor_arg is not None for tool in candidates),
         "fixtures.attacker": attacker is not None,
         "fixtures.victim": victim is not None,
         "fixtures.victim.records": victim is not None and bool(victim.records),
         "canaries": bool(config.canaries),
-        "output_sink": config.output_sink is not None,
-        "target.reset": config.target.reset is not None,
+        "output_sink": config.has_output_sink,
+        "target.reset": config.has_reset,
     }
     conditional: set[Requirement] = set()
     for requirement in required:

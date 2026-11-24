@@ -544,7 +544,7 @@ def _executor_observations(obs: Observed, outcome: SignalOutcome) -> list[object
 
 def output_sink_effect(obs: Observed) -> SignalOutcome:
     outcome = SignalOutcome()
-    if obs.config.output_sink is None:
+    if not obs.config.has_output_sink:
         if obs.response_observed:
             outcome.conditional = "missing_output_sink"
         else:

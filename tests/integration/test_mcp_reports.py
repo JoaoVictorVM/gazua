@@ -34,7 +34,7 @@ def test_run_v4_regenerates_and_legacy_v1_v3_still_load(tmp_path: Path) -> None:
     content = (project.root / ".gazua" / "run.json").read_bytes()
     data = json.loads(content.decode("utf-8"))
     jsonschema.validate(data, build_run_json_schema())
-    assert data["schema_version"] == 5
+    assert data["schema_version"] == 6
     assert data["target_adapter"] == "mcp_stdio"
     mcp = data["mcp"]
     assert sorted(mcp["tools"]) == ["get_order", "search_docs", "send_email"]
@@ -62,16 +62,17 @@ def test_v3_document_adapts_as_a_python_target() -> None:
     data.pop("target_adapter")
     data.pop("mcp")
     data.pop("http")
+    data.pop("typescript")
     jsonschema.validate(data, build_run_v3_json_schema())
 
     adapted = parse_run_document(json.dumps(data).encode("utf-8"))
 
-    assert adapted.schema_version == 5
+    assert adapted.schema_version == 6
     assert adapted.target_adapter == "python"
     assert adapted.mcp is None
     assert adapted.http is None
     with pytest.raises(RunLoadError) as caught:
-        parse_run_document(json.dumps({**data, "schema_version": 6}).encode("utf-8"))
+        parse_run_document(json.dumps({**data, "schema_version": 7}).encode("utf-8"))
     assert caught.value.code == "run_schema_version_unsupported"
 
 

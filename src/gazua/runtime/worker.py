@@ -98,7 +98,7 @@ def _attack(job: Mapping[str, Any]) -> dict[str, Any]:
     from gazua.diagnostics import ConfigError
     from gazua.integration.errors import GazuaBlockedError
     from gazua.integration.telemetry import GazuaRateLimited
-    from gazua.runtime.hooks import HookError, RateLimited, safe_error_type
+    from gazua.runtime.hooks import HookError, RateLimited, ResetFailed, safe_error_type
 
     reset = job.get("reset")
     if reset is not None:
@@ -128,13 +128,16 @@ def _attack(job: Mapping[str, Any]) -> dict[str, Any]:
         return {"status": "rate_limited", "retry_after": limited.retry_after}
     except GazuaRateLimited as limited:
         return {"status": "rate_limited", "retry_after": limited.retry_after}
+    except ResetFailed:
+        # An adapter that resets inside its own runtime reports it as the worker's reset would.
+        return {"status": "reset_failed"}
     except HookError as failure:
         return {"status": "error", "code": failure.code, "error_type": failure.error_type}
     except GazuaBlockedError as blocked:
         if blocked.reason.startswith("mcp_"):
             changed = list(getattr(blocked, "changed", ()))
             return {"status": "error", "code": blocked.reason, "mcp_changed": changed}
-        if blocked.reason.startswith(("http_", "otel_")):
+        if blocked.reason.startswith(("http_", "otel_", "typescript_")):
             return {"status": "error", "code": blocked.reason}
         return {"status": "error", "code": "blocked", "reason": blocked.reason}
     # The executor runs the target's code; any failure is recorded by class, never by message.
@@ -185,6 +188,8 @@ def _describe(job: Mapping[str, Any]) -> dict[str, Any]:
     config = GazuaConfig.model_validate(job["config"])
     if config.mcp is not None:
         return _describe_mcp(job, config)
+    if config.typescript is not None:
+        return _describe_typescript(job, config)
     entrypoint = job.get("entrypoint")
     if entrypoint is None:
         return {"status": "error", "code": "entrypoint_missing"}
@@ -207,6 +212,30 @@ def _describe_mcp(job: Mapping[str, Any], config: Any) -> dict[str, Any]:
     return {"status": "ok", "inventory": inventory}
 
 
+def _describe_typescript(job: Mapping[str, Any], config: Any) -> dict[str, Any]:
+    """Lists a TypeScript module's tools from a Node runner that never calls the entrypoint."""
+    from gazua.typescript.executor import TypeScriptRunBlocked, describe
+
+    timeout = float(job.get("timeout") or config.limits.timeout)
+    try:
+        inventory = describe(config, Path(job["project_root"]), Path(job["session"]), timeout)
+    except TypeScriptRunBlocked as blocked:
+        return {"status": "error", "code": blocked.reason}
+    return {"status": "ok", "inventory": inventory}
+
+
+def _final_reset(job: Mapping[str, Any]) -> dict[str, Any]:
+    from gazua.config.models import GazuaConfig
+
+    config = GazuaConfig.model_validate(job["config"])
+    if config.typescript is None:
+        return _reset(job.get("reset"))
+    from gazua.typescript.executor import final_reset
+
+    timeout = float(job.get("timeout") or config.limits.timeout)
+    return final_reset(config, Path(job["project_root"]), Path(job["session"]), timeout)
+
+
 def run_job(job: Mapping[str, Any]) -> dict[str, Any]:
     root = str(job["project_root"])
     os.chdir(root)
@@ -225,7 +254,7 @@ def run_job(job: Mapping[str, Any]) -> dict[str, Any]:
     if kind == "describe":
         return _describe(job)
     if kind == "reset":
-        return _reset(job.get("reset"))
+        return _final_reset(job)
     return {"status": "error", "code": "job_kind"}
 
 

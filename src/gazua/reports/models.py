@@ -26,14 +26,15 @@ from gazua.config.models import SCHEMA_DIALECT, Severity
 from gazua.modes.agent_models import LegitimateUse
 from gazua.reports.guide_models import FixGuide
 from gazua.runtime.run_models import GazuaId, NonEmptyText, RunSummary, UtcTimestamp
+from gazua.typescript.models import TypeScriptProvenance
 from gazua.verdicts.models import AttackKey, ProofCondition, VerdictSummary
 
 if TYPE_CHECKING:
-    from gazua.reports import legacy, legacy_v2, legacy_v3, legacy_v4
+    from gazua.reports import legacy, legacy_v2, legacy_v3, legacy_v4, legacy_v5
 
-RUN_SCHEMA_FILE = "run-v5.schema.json"
-RUN_SCHEMA_VERSION = 5
-SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2, 3, 4, 5)
+RUN_SCHEMA_FILE = "run-v6.schema.json"
+RUN_SCHEMA_VERSION = 6
+SUPPORTED_RUN_SCHEMA_VERSIONS = (1, 2, 3, 4, 5, 6)
 PRESENTATION_VERSION = 2
 _SCHEMA_BASE = "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/"
 SEVERITY_ORDER: dict[Severity, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -173,7 +174,7 @@ class ProofSnapshot(_Strict):
     omission_reason: Code | None
 
 
-TargetAdapter: TypeAlias = Literal["python", "mcp_stdio", "http"]
+TargetAdapter: TypeAlias = Literal["python", "mcp_stdio", "http", "typescript"]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 TraceCoverage: TypeAlias = Literal["complete", "partial", "none", "not_applicable"]
 
@@ -227,7 +228,7 @@ class RunDocument(_Strict):
 
     model_config = ConfigDict(title="Gazua run document")
 
-    schema_version: Literal[5]
+    schema_version: Literal[6]
     run_id: GazuaId
     metadata: RunMetadata
     redaction: RedactionMode
@@ -249,6 +250,7 @@ class RunDocument(_Strict):
     target_adapter: TargetAdapter
     mcp: McpProvenance | None
     http: HttpProvenance | None
+    typescript: TypeScriptProvenance | None
 
     @model_validator(mode="after")
     def _consistent(self) -> RunDocument:
@@ -258,6 +260,7 @@ class RunDocument(_Strict):
             *guide_problems(self),
             *mcp_problems(self),
             *http_problems(self),
+            *typescript_problems(self),
         ]
         if problems:
             raise ValueError("; ".join(problems))
@@ -280,7 +283,8 @@ def check_document(
     | legacy.RunDocument
     | legacy_v2.RunDocument
     | legacy_v3.RunDocument
-    | legacy_v4.RunDocument,
+    | legacy_v4.RunDocument
+    | legacy_v5.RunDocument,
 ) -> list[str]:
     """Every cross-reference rule the document must keep; empty when it is consistent."""
     problems: list[str] = []
@@ -349,7 +353,8 @@ def _legitimate_problems(
     | legacy.RunDocument
     | legacy_v2.RunDocument
     | legacy_v3.RunDocument
-    | legacy_v4.RunDocument,
+    | legacy_v4.RunDocument
+    | legacy_v5.RunDocument,
 ) -> list[str]:
     """A legacy document without the field is valid; tools mode never measures tasks."""
     measured = document.legitimate_use
@@ -367,7 +372,16 @@ def _legitimate_problems(
     return []
 
 
-def http_problems(document: RunDocument) -> list[str]:
+def typescript_problems(document: RunDocument) -> list[str]:
+    """TypeScript provenance belongs to TypeScript runs only, which run in agent mode."""
+    if (document.target_adapter == "typescript") != (document.typescript is not None):
+        return ["Only a TypeScript run has TypeScript provenance, and every one has it."]
+    if document.typescript is not None and document.metadata.mode != "agent":
+        return ["Only agent mode reaches a TypeScript target."]
+    return []
+
+
+def http_problems(document: RunDocument | legacy_v5.RunDocument) -> list[str]:
     """HTTP provenance belongs to HTTP runs only, and only agent mode reaches an HTTP target."""
     if (document.target_adapter == "http") != (document.http is not None):
         return ["Only an HTTP run has HTTP provenance, and every HTTP run has it."]
@@ -379,7 +393,9 @@ def http_problems(document: RunDocument) -> list[str]:
     return []
 
 
-def mcp_problems(document: RunDocument | legacy_v4.RunDocument) -> list[str]:
+def mcp_problems(
+    document: RunDocument | legacy_v5.RunDocument | legacy_v4.RunDocument,
+) -> list[str]:
     """MCP provenance belongs to MCP runs only, and covers scenarios of this run."""
     mcp = document.mcp
     if (document.target_adapter == "mcp_stdio") != (mcp is not None):
@@ -394,7 +410,7 @@ def mcp_problems(document: RunDocument | legacy_v4.RunDocument) -> list[str]:
 
 
 def guide_problems(
-    document: RunDocument | legacy_v3.RunDocument | legacy_v4.RunDocument,
+    document: RunDocument | legacy_v3.RunDocument | legacy_v4.RunDocument | legacy_v5.RunDocument,
 ) -> list[str]:
     """The guide speaks the run's language and resolves every finding's fix reference."""
     problems: list[str] = []
@@ -406,7 +422,11 @@ def guide_problems(
 
 
 def snapshot_problems(
-    document: RunDocument | legacy_v2.RunDocument | legacy_v3.RunDocument | legacy_v4.RunDocument,
+    document: RunDocument
+    | legacy_v2.RunDocument
+    | legacy_v3.RunDocument
+    | legacy_v4.RunDocument
+    | legacy_v5.RunDocument,
 ) -> list[str]:
     """Rules of the scenario references and of the baseline and verification snapshots."""
     problems: list[str] = []

@@ -172,6 +172,7 @@ def prepare_run(
     if (
         config.entrypoint is None
         and config.http is None
+        and config.typescript is None
         and any(request.mode == "agent" for request in requests)
     ):
         raise _failure("entrypoint_missing", "Agent executions need an entrypoint.", "entrypoint")
@@ -198,7 +199,7 @@ def prepare_run(
         engine_root=root / ".gazua" / "runs" / identifier / "engine",
         requests=items,
         limits=limits,
-        effective_concurrency=1 if config.target.reset is not None else limits.concurrency,
+        effective_concurrency=1 if config.has_reset else limits.concurrency,
         cost_source=cost_source(limits, items),
         stop_policy=stop_policy,
     )
@@ -247,6 +248,59 @@ def mcp_failure(reason: str, config: GazuaConfig) -> ConfigError:
     return _failure(code, f"{text}: {display} ({reason}).", "mcp")
 
 
+_TYPESCRIPT_MESSAGES = {
+    "typescript_node_missing": "Node.js 22 or newer is required; install it and put node on PATH",
+    "typescript_package_missing": "The npm package gazua is not installed in the project; "
+    "run npm install --save-dev gazua",
+    "typescript_package_incompatible": "The npm package gazua does not match this Gazua version",
+    "typescript_module_path_invalid": "The module must be a regular .js or .mjs file inside the "
+    "project, reached without links",
+    "typescript_module_not_found": "The compiled module does not exist; build the project first",
+    "typescript_module_missing": "The compiled module does not exist; build the project first",
+    "typescript_module_import_failed": "The compiled module could not be imported",
+    "typescript_entrypoint_export_missing": "The module does not export entrypoint_export",
+    "typescript_hook_export_missing": "The module does not export a declared hook",
+    "typescript_export_not_callable": "A declared export is not a function",
+    "typescript_session_invalid": "The runner could not read its session",
+    "typescript_runner_exited": "The Node runner stopped before answering",
+    "typescript_runner_timeout": "The Node runner did not answer in time",
+    "typescript_protocol_error": "The Node runner broke the protocol",
+    "timeout": "The Node runner did not answer in time",
+}
+# Codes the TypeScript executor reports for an attempt. A changed module closes admission.
+TYPESCRIPT_FAILURES = frozenset(
+    {code for code in _TYPESCRIPT_MESSAGES if code.startswith("typescript_")}
+    | {
+        "typescript_module_changed",
+        "typescript_module_invalid",
+        "typescript_target_missing",
+        "typescript_node_unsupported",
+        "typescript_injection_unknown",
+        "typescript_hook_missing",
+        "typescript_execution_channel_unavailable",
+    }
+)
+TYPESCRIPT_MODULE_CHANGED = "typescript_module_changed"
+
+
+def typescript_preflight(config: GazuaConfig, project_root: Path) -> None:
+    """Node and the module checked before any runner starts; ``ConfigError`` when unusable."""
+    from gazua.typescript.policy import check_module, node_executable, node_version
+
+    target = config.typescript
+    if target is None:
+        return
+    node_version(node_executable())
+    check_module(project_root, target.module)
+
+
+def typescript_failure(reason: str) -> ConfigError:
+    """The diagnostic of a TypeScript module whose tools could not be described."""
+    code = reason if reason.startswith("typescript_") else "typescript_describe_failed"
+    text = _TYPESCRIPT_MESSAGES.get(reason, "The TypeScript module could not be described")
+    return _failure(code, f"{text} ({reason}).", "typescript")
+
+
 def describe_tools(
     config: GazuaConfig, *, project_root: Path, timeout: float | None = None
 ) -> dict[str, Any]:
@@ -264,6 +318,8 @@ def describe_tools(
 
         if not extra_available():
             raise _failure(EXTRA_MISSING_CODE, EXTRA_MISSING_MESSAGE, "mcp")
+    elif config.typescript is not None:
+        typescript_preflight(config, root)
     elif config.entrypoint is None:
         raise _failure(
             "entrypoint_missing",
@@ -318,6 +374,8 @@ def describe_tools(
             reason = str(result.get("code", reason))
         if config.mcp is not None:
             raise mcp_failure(reason, config)
+        if config.typescript is not None:
+            raise typescript_failure(reason)
         raise _failure(
             "discovery_failed",
             f"The test module could not be imported to find its tools ({reason}).",
@@ -964,6 +1022,10 @@ class _Run:
             self.error("reset_failed")
             self.cancel_active(_Outcome("cancelled", "reset_failed"))
             self.close_admission(_Outcome("reset_failed", "reset_failed"))
+        if outcome.reason == TYPESCRIPT_MODULE_CHANGED and self.admission_open:
+            # Later attempts would measure another program than the one that was described.
+            self.error(TYPESCRIPT_MODULE_CHANGED)
+            self.close_admission(_Outcome("not_tested", TYPESCRIPT_MODULE_CHANGED))
         self.stop_after_write_failure()
         self.snapshot()
 
@@ -1007,7 +1069,7 @@ class _Run:
                 attempt=active.pending.attempt,
                 max_retries=self.plan.max_retries,
                 real_tool_called=dirty,
-                has_reset=self.config.target.reset is not None,
+                has_reset=self.config.has_reset,
             )
             if refusal is not None or not self.admission_open:
                 return _Outcome("rate_limited", refusal or "rate_limited"), None
@@ -1023,6 +1085,8 @@ class _Run:
         if isinstance(code, str) and code in MCP_FAILURES:
             return _Outcome("crashed", code), None
         if isinstance(code, str) and code in HTTP_FAILURES:
+            return _Outcome("crashed", code), None
+        if isinstance(code, str) and code in TYPESCRIPT_FAILURES:
             return _Outcome("crashed", code), None
         if code in _CRASH_CODES:
             return _Outcome("crashed", "agent_crashed"), None
@@ -1081,7 +1145,7 @@ class _Run:
             self.close_admission(_Outcome("not_tested", reason))
 
     def reset_before(self, active: _Active, forced: _Outcome | None) -> ResetOutcome:
-        if self.config.target.reset is None:
+        if not self.config.has_reset:
             return "absent"
         if active.reset_outcome in ("succeeded", "failed"):
             return cast("ResetOutcome", active.reset_outcome)
@@ -1106,8 +1170,7 @@ class _Run:
 
     def final_reset(self) -> None:
         """Runs ``target.reset`` once more in its own worker, within the attack timeout."""
-        reference = self.config.target.reset
-        if reference is None:
+        if not self.config.has_reset:
             self.cleanup = "absent"
             return
         folder = self.store.working_directory("GAZUA-cleanup")

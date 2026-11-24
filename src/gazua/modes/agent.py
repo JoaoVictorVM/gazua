@@ -70,8 +70,8 @@ def check_entries(config: GazuaConfig, inventory: ToolsInventory) -> None:
                 Diagnostic(
                     code="agent_entry_tool_not_registered",
                     field=f"agent_entries.{entry}.tool",
-                    message="The test module does not register this tool through gazua.wrap "
-                    "or @gazua.tool, so the entry cannot be reached.",
+                    message="The test module does not register this tool through wrap or tool, "
+                    "so the entry cannot be reached.",
                 )
             )
     if problems:
@@ -227,7 +227,7 @@ def run_agent(
         origin = check_run(config, project_root).origin
         found = inventory if inventory is not None else http_inventory(config)
     else:
-        if config.entrypoint is None:
+        if config.entrypoint is None and config.typescript is None:
             raise ConfigError(
                 [
                     Diagnostic(

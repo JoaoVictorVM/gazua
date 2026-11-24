@@ -1,0 +1,586 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/typescript-runner-v1.schema.json",
+  "title": "Gazua TypeScript runner protocol",
+  "type": "object",
+  "properties": {
+    "to_runner": {
+      "$defs": {
+        "JsonValue": {},
+        "RunnerClose": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "close",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type"
+          ],
+          "title": "RunnerClose",
+          "type": "object"
+        },
+        "RunnerExports": {
+          "additionalProperties": false,
+          "description": "The names the configuration gives to the target module's exports.",
+          "properties": {
+            "entrypoint": {
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+              "title": "Entrypoint",
+              "type": "string"
+            },
+            "reset": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reset"
+            },
+            "as_user": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As User"
+            },
+            "output_sink": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Output Sink"
+            }
+          },
+          "required": [
+            "entrypoint",
+            "reset",
+            "as_user",
+            "output_sink"
+          ],
+          "title": "RunnerExports",
+          "type": "object"
+        },
+        "RunnerInvoke": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "invoke",
+              "title": "Type",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "armed_injection_id": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Armed Injection Id"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type",
+            "message",
+            "armed_injection_id"
+          ],
+          "title": "RunnerInvoke",
+          "type": "object"
+        },
+        "RunnerOpen": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "open",
+              "title": "Type",
+              "type": "string"
+            },
+            "operation": {
+              "enum": [
+                "run",
+                "describe"
+              ],
+              "title": "Operation",
+              "type": "string"
+            },
+            "module": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "title": "Module",
+              "type": "string"
+            },
+            "exports": {
+              "$ref": "#/$defs/RunnerExports"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type",
+            "operation",
+            "module",
+            "exports"
+          ],
+          "title": "RunnerOpen",
+          "type": "object"
+        },
+        "RunnerReset": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "reset",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type"
+          ],
+          "title": "RunnerReset",
+          "type": "object"
+        },
+        "RunnerSink": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "sink",
+              "title": "Type",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/JsonValue"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type",
+            "value"
+          ],
+          "title": "RunnerSink",
+          "type": "object"
+        }
+      },
+      "discriminator": {
+        "mapping": {
+          "close": "#/$defs/RunnerClose",
+          "invoke": "#/$defs/RunnerInvoke",
+          "open": "#/$defs/RunnerOpen",
+          "reset": "#/$defs/RunnerReset",
+          "sink": "#/$defs/RunnerSink"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RunnerOpen"
+        },
+        {
+          "$ref": "#/$defs/RunnerInvoke"
+        },
+        {
+          "$ref": "#/$defs/RunnerReset"
+        },
+        {
+          "$ref": "#/$defs/RunnerSink"
+        },
+        {
+          "$ref": "#/$defs/RunnerClose"
+        }
+      ]
+    },
+    "to_python": {
+      "$defs": {
+        "JsonValue": {},
+        "RunnerClosed": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "closed",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type"
+          ],
+          "title": "RunnerClosed",
+          "type": "object"
+        },
+        "RunnerError": {
+          "additionalProperties": false,
+          "description": "A failure the runner normalized. Codes and class names only, never text of the target.",
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "error",
+              "title": "Type",
+              "type": "string"
+            },
+            "code": {
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "title": "Code",
+              "type": "string"
+            },
+            "error_type": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Type"
+            },
+            "retry_after": {
+              "anyOf": [
+                {
+                  "maximum": 3600,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Retry After"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type",
+            "code",
+            "error_type",
+            "retry_after"
+          ],
+          "title": "RunnerError",
+          "type": "object"
+        },
+        "RunnerReady": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "ready",
+              "title": "Type",
+              "type": "string"
+            },
+            "sdk_version": {
+              "pattern": "^[0-9A-Za-z.+-]{1,64}$",
+              "title": "Sdk Version",
+              "type": "string"
+            },
+            "node_version": {
+              "pattern": "^[0-9A-Za-z.+-]{1,64}$",
+              "title": "Node Version",
+              "type": "string"
+            },
+            "tools": {
+              "items": {
+                "$ref": "#/$defs/RunnerTool"
+              },
+              "maxItems": 1024,
+              "title": "Tools",
+              "type": "array"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type",
+            "sdk_version",
+            "node_version",
+            "tools"
+          ],
+          "title": "RunnerReady",
+          "type": "object"
+        },
+        "RunnerResetDone": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "reset_done",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type"
+          ],
+          "title": "RunnerResetDone",
+          "type": "object"
+        },
+        "RunnerResult": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "result",
+              "title": "Type",
+              "type": "string"
+            },
+            "response": {
+              "title": "Response",
+              "type": "string"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type",
+            "response"
+          ],
+          "title": "RunnerResult",
+          "type": "object"
+        },
+        "RunnerSinkResult": {
+          "additionalProperties": false,
+          "properties": {
+            "protocol_version": {
+              "const": 1,
+              "title": "Protocol Version",
+              "type": "integer"
+            },
+            "request_id": {
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "type": {
+              "const": "sink_result",
+              "title": "Type",
+              "type": "string"
+            },
+            "effect": {
+              "title": "Effect",
+              "type": "boolean"
+            },
+            "proof": {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "minProperties": 1,
+              "title": "Proof",
+              "type": "object"
+            }
+          },
+          "required": [
+            "protocol_version",
+            "request_id",
+            "type",
+            "effect",
+            "proof"
+          ],
+          "title": "RunnerSinkResult",
+          "type": "object"
+        },
+        "RunnerTool": {
+          "additionalProperties": false,
+          "description": "One tool the runner found registered through ``wrap`` or ``tool``.",
+          "properties": {
+            "name": {
+              "maxLength": 256,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "supports_sync": {
+              "title": "Supports Sync",
+              "type": "boolean"
+            },
+            "supports_async": {
+              "title": "Supports Async",
+              "type": "boolean"
+            },
+            "argument_style": {
+              "enum": [
+                "none",
+                "object"
+              ],
+              "title": "Argument Style",
+              "type": "string"
+            },
+            "ambiguous": {
+              "title": "Ambiguous",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "name",
+            "supports_sync",
+            "supports_async",
+            "argument_style",
+            "ambiguous"
+          ],
+          "title": "RunnerTool",
+          "type": "object"
+        }
+      },
+      "discriminator": {
+        "mapping": {
+          "closed": "#/$defs/RunnerClosed",
+          "error": "#/$defs/RunnerError",
+          "ready": "#/$defs/RunnerReady",
+          "reset_done": "#/$defs/RunnerResetDone",
+          "result": "#/$defs/RunnerResult",
+          "sink_result": "#/$defs/RunnerSinkResult"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RunnerReady"
+        },
+        {
+          "$ref": "#/$defs/RunnerResult"
+        },
+        {
+          "$ref": "#/$defs/RunnerResetDone"
+        },
+        {
+          "$ref": "#/$defs/RunnerSinkResult"
+        },
+        {
+          "$ref": "#/$defs/RunnerClosed"
+        },
+        {
+          "$ref": "#/$defs/RunnerError"
+        }
+      ]
+    }
+  }
+}

@@ -46,6 +46,9 @@ EXIT_GATED: Final = 1
 EXIT_ERROR: Final = 2
 NO_TOOL_CAN_RUN: Final = "No tool can run: mark tools safe for test data."
 HTTP_REFUSAL: Final = "--tools needs direct tool access; use --agent for HTTP targets."
+TYPESCRIPT_REFUSAL: Final = (
+    "--tools does not run TypeScript tools yet; use --agent for a TypeScript target."
+)
 
 
 def discover_tools(
@@ -113,7 +116,7 @@ def empty_summary(run_id: str, config: GazuaConfig, limits: Limits) -> RunSummar
         interrupted=False,
         limits=limits,
         requested_concurrency=limits.concurrency,
-        effective_concurrency=1 if config.target.reset is not None else limits.concurrency,
+        effective_concurrency=1 if config.has_reset else limits.concurrency,
         planned=0,
         started=0,
         retries=0,
@@ -229,6 +232,16 @@ def run_tools(
     from gazua.runtime.engine import STORAGE_UNAVAILABLE, execute_plan, new_run_id, prepare_run
     from gazua.runtime.evidence import EvidencePathError
 
+    if config.typescript is not None:
+        raise ConfigError(
+            [
+                Diagnostic(
+                    code="typescript_tools_unsupported",
+                    field="typescript",
+                    message=TYPESCRIPT_REFUSAL,
+                )
+            ]
+        )
     molds = tools_molds(catalog, options.mold)
     limits = _effective_limits(config, options)
     found = (

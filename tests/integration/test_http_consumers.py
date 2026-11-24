@@ -125,7 +125,7 @@ def test_report_regenerates_without_raw_spans_or_tokens(tmp_path: Path) -> None:
     content = (tmp_path / ".gazua" / "run.json").read_bytes()
     data = json.loads(content)
     jsonschema.validate(data, build_run_json_schema())
-    assert data["schema_version"] == 5
+    assert data["schema_version"] == 6
     assert data["target_adapter"] == "http"
     assert data["mcp"] is None
     assert data["metadata"]["target_ref"] == f"http:http://127.0.0.1:{target.port}"

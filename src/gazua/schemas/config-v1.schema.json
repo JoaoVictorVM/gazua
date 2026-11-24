@@ -494,6 +494,67 @@
       ],
       "title": "TraceConfig",
       "type": "object"
+    },
+    "TypeScriptTarget": {
+      "additionalProperties": false,
+      "description": "A compiled ESM module of the project that the npm package's runner imports in Node.\n\n``module`` is relative to the ``gazua.yaml`` folder, a ``.js`` or ``.mjs`` file inside the\nproject. Gazua never installs packages or builds TypeScript; the project does both first.\nImporting the module runs its code with the user's permissions, inside a supervised worker.",
+      "properties": {
+        "module": {
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\:?#\\x00]+\\.m?js$",
+          "title": "Module",
+          "type": "string"
+        },
+        "entrypoint_export": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+          "title": "Entrypoint Export",
+          "type": "string"
+        },
+        "reset_export": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reset Export"
+        },
+        "as_user_export": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As User Export"
+        },
+        "output_sink_export": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Sink Export"
+        }
+      },
+      "required": [
+        "module",
+        "entrypoint_export"
+      ],
+      "title": "TypeScriptTarget",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -532,6 +593,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/HttpTarget"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "typescript": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TypeScriptTarget"
         },
         {
           "type": "null"

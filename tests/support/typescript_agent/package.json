@@ -1,0 +1,20 @@
+{
+  "name": "gazua-typescript-agent-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scripted TypeScript agent equivalent to the Python fixture of Gazua's agent mode tests. Test data only.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "gazua": "file:../../../packages/typescript"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  }
+}

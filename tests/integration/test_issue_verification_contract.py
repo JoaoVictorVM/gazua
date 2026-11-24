@@ -46,6 +46,7 @@ def test_issue_command_resolves_full_finding_id(tools_project: Any) -> None:
     data.pop("target_adapter")
     data.pop("mcp")
     data.pop("http")
+    data.pop("typescript")
     data["schema_version"] = 2
     adapted = parse_run_document(json.dumps(data).encode())
     assert adapted.guide.origin == "legacy_fallback"

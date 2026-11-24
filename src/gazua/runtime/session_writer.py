@@ -28,6 +28,19 @@ CALL_LOG_FILE = "calls.jsonl"
 EVENTS_FILE = "events.jsonl"
 
 Role = Literal["attacker", "victim"]
+# The session schema holds a reference here. A TypeScript runner installs the export it was
+# given at open time, so it reads this fixed value only as "an identity hook is declared".
+TYPESCRIPT_AS_USER = "gazua_typescript:as_user"
+
+
+def _as_user(config: GazuaConfig) -> str | None:
+    # A local identity hook cannot authenticate a call that another process serves, so an MCP
+    # target relies on actor_arg only.
+    if config.mcp is not None:
+        return None
+    if config.typescript is not None:
+        return TYPESCRIPT_AS_USER if config.typescript.as_user_export is not None else None
+    return config.target.as_user
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,9 +101,7 @@ def build_session(
         actor=SessionActor(id=identity.id, role=actor)
         if identity is not None and actor is not None
         else None,
-        # A local identity hook cannot authenticate a call that another process serves, so an
-        # MCP target relies on actor_arg only.
-        as_user=config.target.as_user if config.mcp is None else None,
+        as_user=_as_user(config),
         tools={
             name: SessionTool(
                 dry_run=tool.requires_dry_run,
