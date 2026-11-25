@@ -1,0 +1,548 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/gazua-sarif-v1.schema.json",
+  "$defs": {
+    "ArtifactLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]*(/[A-Za-z0-9_][A-Za-z0-9._-]*)*$",
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri"
+      ],
+      "title": "ArtifactLocation",
+      "type": "object"
+    },
+    "Descriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Descriptor",
+      "type": "object"
+    },
+    "Driver": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "Gazua",
+          "title": "Name",
+          "type": "string"
+        },
+        "informationUri": {
+          "const": "https://github.com/JoaoVictorVM/gazua",
+          "title": "Informationuri",
+          "type": "string"
+        },
+        "semanticVersion": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Semanticversion"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/Rule"
+          },
+          "title": "Rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "informationUri",
+        "rules"
+      ],
+      "title": "Driver",
+      "type": "object"
+    },
+    "Invocation": {
+      "additionalProperties": false,
+      "properties": {
+        "executionSuccessful": {
+          "title": "Executionsuccessful",
+          "type": "boolean"
+        },
+        "toolExecutionNotifications": {
+          "items": {
+            "$ref": "#/$defs/Notification"
+          },
+          "title": "Toolexecutionnotifications",
+          "type": "array"
+        },
+        "properties": {
+          "$ref": "#/$defs/InvocationProperties"
+        }
+      },
+      "required": [
+        "executionSuccessful",
+        "toolExecutionNotifications",
+        "properties"
+      ],
+      "title": "Invocation",
+      "type": "object"
+    },
+    "InvocationProperties": {
+      "additionalProperties": false,
+      "properties": {
+        "gazuaProfile": {
+          "const": "gazua-sarif-v1",
+          "title": "Gazuaprofile",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 128,
+          "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "exitCode": {
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "title": "Exitcode",
+          "type": "integer"
+        },
+        "newFindings": {
+          "minimum": 0,
+          "title": "Newfindings",
+          "type": "integer"
+        },
+        "knownFindings": {
+          "minimum": 0,
+          "title": "Knownfindings",
+          "type": "integer"
+        },
+        "notTested": {
+          "minimum": 0,
+          "title": "Nottested",
+          "type": "integer"
+        },
+        "notApplicable": {
+          "minimum": 0,
+          "title": "Notapplicable",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "gazuaProfile",
+        "runId",
+        "exitCode",
+        "newFindings",
+        "knownFindings",
+        "notTested",
+        "notApplicable"
+      ],
+      "title": "InvocationProperties",
+      "type": "object"
+    },
+    "Location": {
+      "additionalProperties": false,
+      "properties": {
+        "physicalLocation": {
+          "$ref": "#/$defs/PhysicalLocation"
+        }
+      },
+      "required": [
+        "physicalLocation"
+      ],
+      "title": "Location",
+      "type": "object"
+    },
+    "Notification": {
+      "additionalProperties": false,
+      "properties": {
+        "descriptor": {
+          "$ref": "#/$defs/Descriptor"
+        },
+        "message": {
+          "$ref": "#/$defs/Text"
+        },
+        "level": {
+          "enum": [
+            "note",
+            "warning",
+            "error"
+          ],
+          "title": "Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "descriptor",
+        "message",
+        "level"
+      ],
+      "title": "Notification",
+      "type": "object"
+    },
+    "PhysicalLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactLocation": {
+          "$ref": "#/$defs/ArtifactLocation"
+        }
+      },
+      "required": [
+        "artifactLocation"
+      ],
+      "title": "PhysicalLocation",
+      "type": "object"
+    },
+    "Result": {
+      "additionalProperties": false,
+      "properties": {
+        "ruleId": {
+          "pattern": "^gazua/[a-z_]+$",
+          "title": "Ruleid",
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "error",
+            "warning",
+            "note"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "$ref": "#/$defs/Text"
+        },
+        "baselineState": {
+          "anyOf": [
+            {
+              "enum": [
+                "new",
+                "unchanged"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baselinestate"
+        },
+        "partialFingerprints": {
+          "additionalProperties": {
+            "pattern": "^finding-[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "propertyNames": {
+            "const": "gazuaFindingId/v1"
+          },
+          "title": "Partialfingerprints",
+          "type": "object"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/Location"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Locations",
+          "type": "array"
+        },
+        "properties": {
+          "$ref": "#/$defs/ResultProperties"
+        }
+      },
+      "required": [
+        "ruleId",
+        "level",
+        "message",
+        "partialFingerprints",
+        "locations",
+        "properties"
+      ],
+      "title": "Result",
+      "type": "object"
+    },
+    "ResultProperties": {
+      "additionalProperties": false,
+      "properties": {
+        "findingId": {
+          "pattern": "^finding-[0-9a-f]{64}$",
+          "title": "Findingid",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "damage": {
+          "enum": [
+            "prompt_only_permission",
+            "secret_in_context",
+            "idor_via_agent",
+            "unhandled_output",
+            "unlocked_memory",
+            "unchecked_spending"
+          ],
+          "title": "Damage",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "tools",
+            "agent"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,199}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool"
+        },
+        "regression": {
+          "title": "Regression",
+          "type": "boolean"
+        },
+        "reproduction": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[A-Za-z0-9_.,:=/@+-]{1,512}$",
+                "type": "string"
+              },
+              "maxItems": 32,
+              "minItems": 3,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reproduction"
+        }
+      },
+      "required": [
+        "findingId",
+        "severity",
+        "damage",
+        "mode",
+        "regression"
+      ],
+      "title": "ResultProperties",
+      "type": "object"
+    },
+    "Rule": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^gazua/[a-z_]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "shortDescription": {
+          "$ref": "#/$defs/Text"
+        },
+        "helpUri": {
+          "const": "https://github.com/JoaoVictorVM/gazua/blob/main/docs/fix-guide.md",
+          "title": "Helpuri",
+          "type": "string"
+        },
+        "properties": {
+          "$ref": "#/$defs/RuleProperties"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "shortDescription",
+        "helpUri",
+        "properties"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "RuleProperties": {
+      "additionalProperties": false,
+      "properties": {
+        "tags": {
+          "items": {
+            "enum": [
+              "security",
+              "gazua"
+            ],
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "damage": {
+          "enum": [
+            "prompt_only_permission",
+            "secret_in_context",
+            "idor_via_agent",
+            "unhandled_output",
+            "unlocked_memory",
+            "unchecked_spending"
+          ],
+          "title": "Damage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tags",
+        "damage"
+      ],
+      "title": "RuleProperties",
+      "type": "object"
+    },
+    "RunProperties": {
+      "additionalProperties": false,
+      "properties": {
+        "gazuaProfile": {
+          "const": "gazua-sarif-v1",
+          "title": "Gazuaprofile",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gazuaProfile"
+      ],
+      "title": "RunProperties",
+      "type": "object"
+    },
+    "SarifRun": {
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/Tool"
+        },
+        "invocations": {
+          "items": {
+            "$ref": "#/$defs/Invocation"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Invocations",
+          "type": "array"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/Result"
+          },
+          "maxItems": 10000,
+          "title": "Results",
+          "type": "array"
+        },
+        "properties": {
+          "$ref": "#/$defs/RunProperties"
+        }
+      },
+      "required": [
+        "tool",
+        "invocations",
+        "results",
+        "properties"
+      ],
+      "title": "SarifRun",
+      "type": "object"
+    },
+    "Text": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Text",
+      "type": "object"
+    },
+    "Tool": {
+      "additionalProperties": false,
+      "properties": {
+        "driver": {
+          "$ref": "#/$defs/Driver"
+        }
+      },
+      "required": [
+        "driver"
+      ],
+      "title": "Tool",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The whole SARIF document of the Gazua profile.",
+  "properties": {
+    "$schema": {
+      "const": "https://json.schemastore.org/sarif-2.1.0.json",
+      "title": "$Schema",
+      "type": "string"
+    },
+    "version": {
+      "const": "2.1.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "runs": {
+      "items": {
+        "$ref": "#/$defs/SarifRun"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "title": "Runs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "$schema",
+    "version",
+    "runs"
+  ],
+  "title": "Gazua SARIF profile v1",
+  "type": "object"
+}

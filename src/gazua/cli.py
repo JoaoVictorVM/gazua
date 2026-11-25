@@ -1482,12 +1482,109 @@ def issues_command(
     _say("Copy them into your backlog by hand; Gazua never opens issues on any service.")
 
 
+SARIF_MESSAGES: dict[str, str] = {
+    "ci_projection_invalid": "This run cannot produce the CI summary that SARIF is built from.",
+    "ci_too_many_findings": "This run has more findings than SARIF holds; nothing was written.",
+    "sarif_profile_invalid": "The SARIF document was inconsistent; nothing was written.",
+    "sarif_too_many_results": "The SARIF file would exceed 10000 results; nothing was written.",
+    "sarif_too_large": "The SARIF file would exceed 32 MiB; nothing was written.",
+    "ci_path_refused": "--output must be a regular file inside this folder, through no link.",
+    "ci_write_failed": "The SARIF file could not be written; the previous one was kept.",
+}
+DEFAULT_SARIF = Path(".gazua") / "ci" / "gazua.sarif"
+
+
+def _sarif_output(root: Path, text: str) -> Path:
+    """A destination inside ``root``, reached through no link; parents are created safely."""
+    from gazua.ci.storage import CiStorageError, ci_folder
+    from gazua.reports.storage import is_link
+    from gazua.runtime.evidence import EvidencePathError, safe_directory
+
+    if not text or "://" in text or "\x00" in text:
+        raise CiStorageError("ci_path_refused")
+    candidate = Path(text)
+    if candidate.is_absolute() or candidate.drive or ".." in candidate.parts:
+        raise CiStorageError("ci_path_refused")
+    parts = [part for part in candidate.parts if part != "."]
+    if not parts:
+        raise CiStorageError("ci_path_refused")
+    if Path(*parts[:-1]) == DEFAULT_SARIF.parent:
+        folder = ci_folder(root)
+    else:
+        try:
+            folder = safe_directory(root, *parts[:-1]) if parts[:-1] else root
+        except (EvidencePathError, OSError):
+            raise CiStorageError("ci_path_refused") from None
+    target = folder / parts[-1]
+    if is_link(target) or (target.exists() and not target.is_file()):
+        raise CiStorageError("ci_path_refused")
+    return target
+
+
+@app.command(name="sarif")
+def sarif_command(
+    source: Annotated[
+        str,
+        typer.Option(
+            "--from",
+            metavar="PATH",
+            help="The local run.json to convert. Nothing is executed.",
+        ),
+    ] = DEFAULT_RUN_JSON.as_posix(),
+    output: Annotated[
+        str,
+        typer.Option("--output", metavar="PATH", help="Where to write the SARIF file."),
+    ] = DEFAULT_SARIF.as_posix(),
+    config_location: Annotated[
+        str,
+        typer.Option(
+            "--config-path",
+            metavar="PATH",
+            help="The configuration's path relative to the repository, shown as the alert "
+            "location. The file is not read.",
+        ),
+    ] = "gazua.yaml",
+) -> None:
+    """Write SARIF 2.1.0 for code scanning from a run.json, offline.
+
+    Only finding ids, severities, damages, tools and the local reproduction command are
+    written; no attack text, conversation or proof. A run with findings still exits 0.
+    """
+    from gazua.ci.projection import ProjectionError, project
+    from gazua.ci.sarif import SarifProfileError, build_sarif, sarif_json, validate_sarif
+    from gazua.ci.storage import CiStorageError, write_checked
+    from gazua.reports.storage import RunLoadError, load_run_document
+
+    if "://" in source:
+        raise _usage_error("--from takes a local run.json path, not a URL.")
+    root = Path.cwd()
+    try:
+        document = load_run_document(Path(source))
+        summary = project(document)
+        text = sarif_json(build_sarif(summary, config_location))
+        target = _sarif_output(root, output)
+        write_checked(target, text, validate_sarif)
+    except RunLoadError as error:
+        raise _usage_error(LOAD_MESSAGES.get(error.code, "This run.json cannot be read.")) from None
+    except (ProjectionError, SarifProfileError, CiStorageError) as error:
+        raise _usage_error(
+            SARIF_MESSAGES.get(error.code, "The SARIF file could not be written.")
+        ) from None
+    except KeyboardInterrupt:
+        _say("Interrupted; no partial SARIF file was published.", err=True)
+        raise typer.Exit(130) from None
+    count = len(summary.findings)
+    noun = "result" if count == 1 else "results"
+    _say_lines([f"Wrote {count} SARIF {noun} from run {document.run_id} to {output}."])
+
+
 @app.command(name="clean")
 def clean_command() -> None:
-    """Remove Gazua's runs, reports, evidence and issue exports from ./.gazua.
+    """Remove Gazua's runs, reports, evidence, issue exports and CI files from ./.gazua.
 
     Unknown files stay.
     """
+    from gazua.ci.storage import clean_ci
     from gazua.reports.lifecycle import LifecycleLock, LockBusy, clean_runs
 
     root = Path.cwd()
@@ -1497,13 +1594,17 @@ def clean_command() -> None:
     try:
         with LifecycleLock(root):
             result = clean_runs(root)
+            ci = clean_ci(root)
     except LockBusy:
         raise _usage_error(LOCK_BUSY) from None
     except OSError:
         raise _usage_error("Cannot use .gazua/ in this folder.") from None
+    result.pending.extend(ci.pending)
     _say(f"Removed {result.runs} runs and {result.files} report files.")
     if result.issue_exports:
         _say(f"Removed {result.issue_exports} issue exports.")
+    if ci.removed:
+        _say("Removed the CI files in .gazua/ci/.")
     if result.pending:
         _say("Could not remove these, check their permissions:", err=True)
         _say_lines([f"  {item}" for item in result.pending], err=True)

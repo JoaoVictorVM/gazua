@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/ci-summary-v1.schema.json",
+  "$defs": {
+    "CiFinding": {
+      "additionalProperties": false,
+      "description": "One observed finding as CI shows it.",
+      "properties": {
+        "id": {
+          "pattern": "^finding-[0-9a-f]{64}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "damage": {
+          "enum": [
+            "prompt_only_permission",
+            "secret_in_context",
+            "idor_via_agent",
+            "unhandled_output",
+            "unlocked_memory",
+            "unchecked_spending"
+          ],
+          "title": "Damage",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "tools",
+            "agent"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,199}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tool"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "new",
+                "open"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Status"
+        },
+        "regression": {
+          "title": "Regression",
+          "type": "boolean"
+        },
+        "effective_gated": {
+          "title": "Effective Gated",
+          "type": "boolean"
+        },
+        "reproduction": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[A-Za-z0-9_.,:=/@+-]{1,512}$",
+                "type": "string"
+              },
+              "maxItems": 32,
+              "minItems": 3,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reproduction"
+        }
+      },
+      "required": [
+        "id",
+        "severity",
+        "damage",
+        "mode",
+        "tool",
+        "status",
+        "regression",
+        "effective_gated",
+        "reproduction"
+      ],
+      "title": "CiFinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The minimal projection of one run, shared by the comment, the job summary and SARIF.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "run_id": {
+      "maxLength": 128,
+      "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "gazua_version": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Gazua Version"
+    },
+    "mode": {
+      "enum": [
+        "tools",
+        "agent"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "effective_exit_code": {
+      "enum": [
+        0,
+        1,
+        2
+      ],
+      "title": "Effective Exit Code",
+      "type": "integer"
+    },
+    "baseline": {
+      "title": "Baseline",
+      "type": "boolean"
+    },
+    "new_findings": {
+      "minimum": 0,
+      "title": "New Findings",
+      "type": "integer"
+    },
+    "known_findings": {
+      "minimum": 0,
+      "title": "Known Findings",
+      "type": "integer"
+    },
+    "not_tested": {
+      "minimum": 0,
+      "title": "Not Tested",
+      "type": "integer"
+    },
+    "not_applicable": {
+      "minimum": 0,
+      "title": "Not Applicable",
+      "type": "integer"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/CiFinding"
+      },
+      "maxItems": 10000,
+      "title": "Findings",
+      "type": "array"
+    },
+    "diagnostics": {
+      "items": {
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "type": "string"
+      },
+      "title": "Diagnostics",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "gazua_version",
+    "mode",
+    "effective_exit_code",
+    "baseline",
+    "new_findings",
+    "known_findings",
+    "not_tested",
+    "not_applicable",
+    "findings",
+    "diagnostics"
+  ],
+  "title": "Gazua CI summary",
+  "type": "object"
+}

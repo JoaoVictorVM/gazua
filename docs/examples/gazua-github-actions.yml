@@ -1,0 +1,27 @@
+# Copy this file to .github/workflows/gazua.yml. It runs on pull_request only: never use
+# pull_request_target, which would run the pull request's code with a privileged token.
+# Every action is pinned to a full commit SHA; the comment beside it is the human version.
+name: gazua
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  gazua:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Pin the Gazua commit you reviewed. Pull requests from forks run tools mode only.
+      - uses: JoaoVictorVM/gazua@9ef62d203f3f5dbc40110d76983ce218fc710e7a # main, CI integration
+        with:
+          mode: tools
+          config: gazua.yaml
+          github-token: ${{ github.token }}
