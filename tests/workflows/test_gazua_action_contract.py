@@ -44,9 +44,15 @@ def test_example_uses_pull_request_only(path: Path) -> None:
 @pytest.mark.parametrize("path", [EXAMPLE, INTERNAL])
 def test_permissions_are_minimal(path: Path) -> None:
     document = _load(path)
+    jobs = document["jobs"].values()
 
-    assert document["permissions"] == MINIMAL
-    assert all("permissions" not in job for job in document["jobs"].values())
+    if path == EXAMPLE:
+        assert document["permissions"] == MINIMAL
+        assert all("permissions" not in job for job in jobs)
+    else:
+        # This repository grants writes per job; the top level stays read-only.
+        assert document["permissions"] == {"contents": "read"}
+        assert all(job["permissions"] == MINIMAL for job in jobs)
     assert "permissions" not in _load(ACTION)
     assert "${{ secrets." not in path.read_text(encoding="utf-8")
 

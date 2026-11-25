@@ -84,11 +84,11 @@ def test_installed_sarif_is_offline(
         (project_root / "tests/support/run-example.json").read_bytes()
     )
     probe = (
-        "import socket, sys\n"
-        "def refuse(*a, **k):\n"
-        "    raise SystemExit('network')\n"
-        "socket.socket = refuse\n"
-        "socket.create_connection = refuse\n"
+        "import sys\n"
+        "def refuse(event, args):\n"
+        "    if event in ('socket.connect', 'socket.getaddrinfo', 'socket.bind'):\n"
+        "        raise SystemExit('network')\n"
+        "sys.addaudithook(refuse)\n"
         "from gazua.cli import main\n"
         "sys.argv = ['gazua', 'sarif', '--from', 'run.json']\n"
         "main()\n"

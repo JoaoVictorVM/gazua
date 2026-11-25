@@ -5,12 +5,14 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  security-events: write
 
 jobs:
   action:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -20,7 +22,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The Action of this revision, on a hardened example target, with no secrets. Only
+      # The Action of this revision, on a hardened example target, with no credential. Only
       # Ubuntu publishes, so the comment and the code scanning category have one writer.
       - uses: ./
         id: gazua

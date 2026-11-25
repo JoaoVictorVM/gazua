@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 
 from gazua import cli
 
-DEFERRED_COMMANDS = ("export", "sarif")
+DEFERRED_COMMANDS = ("export",)
 
 unknown_options = st.from_regex(r"--[a-z][a-z0-9-]{0,20}", fullmatch=True).filter(
     lambda option: option not in {"--help", "--version"}
@@ -42,6 +42,7 @@ def test_help_lists_only_delivered_commands(
     assert re.search(r"\bdemo\b", result.stdout)
     assert re.search(r"\bbaseline\b", result.stdout)
     assert re.search(r"\bverify\b", result.stdout)
+    assert re.search(r"\bsarif\b", result.stdout)
     for command in DEFERRED_COMMANDS:
         assert not re.search(rf"\b{command}\b", result.stdout), command
 
