@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/JoaoVictorVM/gazua/main/src/gazua/schemas/pr-comment-v1.schema.json",
+  "$defs": {
+    "CommentCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "new": {
+          "minimum": 0,
+          "title": "New",
+          "type": "integer"
+        },
+        "known": {
+          "minimum": 0,
+          "title": "Known",
+          "type": "integer"
+        },
+        "not_tested": {
+          "minimum": 0,
+          "title": "Not Tested",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "new",
+        "known",
+        "not_tested"
+      ],
+      "title": "CommentCounts",
+      "type": "object"
+    },
+    "CommentFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^finding-[0-9a-f]{64}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "damage": {
+          "enum": [
+            "prompt_only_permission",
+            "secret_in_context",
+            "idor_via_agent",
+            "unhandled_output",
+            "unlocked_memory",
+            "unchecked_spending"
+          ],
+          "title": "Damage",
+          "type": "string"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,199}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tool"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "new",
+                "open"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Status"
+        },
+        "regression": {
+          "title": "Regression",
+          "type": "boolean"
+        },
+        "reproduction": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[A-Za-z0-9_.,:=/@+-]{1,512}$",
+                "type": "string"
+              },
+              "maxItems": 32,
+              "minItems": 3,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reproduction"
+        }
+      },
+      "required": [
+        "id",
+        "severity",
+        "damage",
+        "tool",
+        "status",
+        "regression",
+        "reproduction"
+      ],
+      "title": "CommentFinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What the pull request comment shows, validated before any Markdown is written.\n\nThere is no message or metadata field on purpose: free text cannot reach the renderer.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "run_id": {
+      "maxLength": 128,
+      "pattern": "^GAZUA-[A-Za-z0-9-]+$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2
+      ],
+      "title": "Exit Code",
+      "type": "integer"
+    },
+    "counts": {
+      "$ref": "#/$defs/CommentCounts"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/CommentFinding"
+      },
+      "maxItems": 10000,
+      "title": "Findings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "exit_code",
+    "counts",
+    "findings"
+  ],
+  "title": "Gazua pull request comment",
+  "type": "object"
+}

@@ -1,0 +1,156 @@
+name: Gazua security tests
+description: >-
+  Runs Gazua on pull requests, keeps one updated comment and uploads SARIF to code scanning.
+  Pull requests from forks run tools mode only, with no secrets.
+author: Gazua
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  mode:
+    description: "tools (default) or agent. A pull request from a fork always runs tools."
+    required: false
+    default: tools
+  config:
+    description: Configuration file, relative to the workspace.
+    required: false
+    default: gazua.yaml
+  mold:
+    description: Run only this mold, by exact id.
+    required: false
+    default: ""
+  baseline:
+    description: Baseline file, relative to the workspace. Empty keeps the default detection.
+    required: false
+    default: ""
+  comment:
+    description: "true or false: keep one updated comment on the pull request."
+    required: false
+    default: "true"
+  upload-sarif:
+    description: "true or false: upload the SARIF file to code scanning."
+    required: false
+    default: "true"
+  upload-evidence:
+    description: "true or false: upload this run's reports and redacted evidence as an artifact."
+    required: false
+    default: "false"
+  github-token:
+    description: Token used only by the comment step. Pass the workflow's github.token.
+    required: false
+    default: ""
+  python-version:
+    description: Python version of the Action's isolated environment.
+    required: false
+    default: "3.11"
+
+outputs:
+  exit-code:
+    description: Gazua's effective result, 0, 1 or 2.
+    value: ${{ steps.finish.outputs.exit-code || steps.run.outputs.exit-code }}
+  effective-mode:
+    description: The mode that actually ran.
+    value: ${{ steps.run.outputs.effective-mode }}
+  run-json:
+    description: Path of run.json, when produced.
+    value: ${{ steps.run.outputs.run-json }}
+  sarif:
+    description: Path of the SARIF file, when valid.
+    value: ${{ steps.run.outputs.sarif }}
+  comment:
+    description: Path of the comment Markdown, when valid.
+    value: ${{ steps.run.outputs.comment }}
+  summary:
+    description: Path of the CI summary JSON.
+    value: ${{ steps.run.outputs.summary }}
+  new-findings:
+    description: Observed findings that are new.
+    value: ${{ steps.run.outputs.new-findings }}
+  known-findings:
+    description: Observed findings already open in the baseline.
+    value: ${{ steps.run.outputs.known-findings }}
+  not-tested:
+    description: Attack units that were not tested.
+    value: ${{ steps.run.outputs.not-tested }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up uv
+      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      with:
+        version: "0.13.6"
+        enable-cache: false
+
+    - name: Install Gazua from this Action's lock
+      shell: bash
+      env:
+        GAZUA_CI_PYTHON: ${{ inputs.python-version }}
+      run: |
+        case "$GAZUA_CI_PYTHON" in
+          3.[0-9]|3.[0-9][0-9]) ;;
+          *) echo "::error::Gazua ci_input_invalid: python-version must look like 3.11."; exit 2 ;;
+        esac
+        uv sync --frozen --no-dev --project "$GITHUB_ACTION_PATH" --python "$GAZUA_CI_PYTHON"
+
+    - name: Run Gazua
+      id: run
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        GAZUA_CI_CONTRACT: "1"
+        GAZUA_CI_MODE: ${{ inputs.mode }}
+        GAZUA_CI_CONFIG: ${{ inputs.config }}
+        GAZUA_CI_MOLD: ${{ inputs.mold }}
+        GAZUA_CI_BASELINE: ${{ inputs.baseline }}
+        GAZUA_CI_COMMENT: ${{ inputs.comment }}
+        GAZUA_CI_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        GAZUA_CI_UPLOAD_EVIDENCE: ${{ inputs.upload-evidence }}
+      run: uv run --frozen --no-dev --no-sync --project "$GITHUB_ACTION_PATH" python -m gazua.ci.action run
+
+    - name: Update the pull request comment
+      id: comment
+      if: ${{ steps.run.outputs.comment != '' && github.event_name == 'pull_request' }}
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        GAZUA_CI_TOKEN: ${{ inputs.github-token }}
+        GAZUA_CI_COMMENT_PATH: ${{ steps.run.outputs.comment }}
+      run: uv run --frozen --no-dev --no-sync --project "$GITHUB_ACTION_PATH" python -m gazua.ci.action comment
+
+    - name: Upload SARIF to code scanning
+      id: sarif
+      if: ${{ steps.run.outputs.sarif != '' && inputs.upload-sarif == 'true' }}
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      with:
+        sarif_file: ${{ steps.run.outputs.sarif }}
+        category: ${{ steps.run.outputs.sarif-category }}
+
+    - name: Upload evidence (opt-in)
+      id: evidence
+      if: ${{ inputs.upload-evidence == 'true' && steps.run.outputs.evidence != '' }}
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ steps.run.outputs.evidence-name }}
+        path: ${{ steps.run.outputs.evidence }}
+        retention-days: 7
+        if-no-files-found: error
+        include-hidden-files: false
+
+    - name: Apply the Gazua gate
+      id: finish
+      if: ${{ !cancelled() && steps.run.outputs.exit-code != '' }}
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        GAZUA_CI_EXIT_CODE: ${{ steps.run.outputs.exit-code }}
+        GAZUA_CI_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        GAZUA_CI_SARIF_PATH: ${{ steps.run.outputs.sarif }}
+        GAZUA_CI_SARIF_OUTCOME: ${{ steps.sarif.outcome }}
+        GAZUA_CI_UPLOAD_EVIDENCE: ${{ inputs.upload-evidence }}
+        GAZUA_CI_EVIDENCE_OUTCOME: ${{ steps.evidence.outcome }}
+      run: uv run --frozen --no-dev --no-sync --project "$GITHUB_ACTION_PATH" python -m gazua.ci.action finish
