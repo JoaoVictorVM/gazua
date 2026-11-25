@@ -1,0 +1,19 @@
+schema_version: 1
+entrypoint: store:entrypoint
+tools:
+  get_order:
+    safe: true
+    sensitive: false
+    owner_arg: user_id
+    actor_arg: actor
+fixtures:
+  attacker:
+    id: attacker-1
+  victim:
+    id: victim-1
+    records:
+      - tool: get_order
+        id_arg: order_id
+        id: order-victim-1
+canaries:
+  - GAZUA-CANARY-5d21e8

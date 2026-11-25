@@ -1,0 +1,43 @@
+name: gazua
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  action:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The Action of this revision, on a hardened example target, with no secrets. Only
+      # Ubuntu publishes, so the comment and the code scanning category have one writer.
+      - uses: ./
+        id: gazua
+        with:
+          config: docs/examples/ci-project/gazua.yaml
+          github-token: ${{ github.token }}
+          comment: ${{ matrix.os == 'ubuntu-24.04' && 'true' || 'false' }}
+          upload-sarif: ${{ matrix.os == 'ubuntu-24.04' && 'true' || 'false' }}
+      - name: Check the Action's outputs
+        shell: bash
+        env:
+          EXIT_CODE: ${{ steps.gazua.outputs.exit-code }}
+          EFFECTIVE_MODE: ${{ steps.gazua.outputs.effective-mode }}
+          SARIF: ${{ steps.gazua.outputs.sarif }}
+          SUMMARY: ${{ steps.gazua.outputs.summary }}
+        run: |
+          test "$EXIT_CODE" = 0
+          test "$EFFECTIVE_MODE" = tools
+          test -f "$SARIF"
+          test -f "$SUMMARY"
